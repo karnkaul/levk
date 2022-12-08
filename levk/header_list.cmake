@@ -1,0 +1,49 @@
+set(util_headers
+  include/levk/util/async_queue.hpp
+  include/levk/util/bool.hpp
+  include/levk/util/cli_opts.hpp
+  include/levk/util/colour_space.hpp
+  include/levk/util/data_provider.hpp
+  include/levk/util/dyn_array.hpp
+  include/levk/util/enum_array.hpp
+  include/levk/util/enumerate.hpp
+  include/levk/util/env.hpp
+  include/levk/util/error.hpp
+  include/levk/util/fixed_string.hpp
+  include/levk/util/flex_array.hpp
+  include/levk/util/hash_combine.hpp
+  include/levk/util/image.hpp
+  include/levk/util/logger.hpp
+  include/levk/util/nvec3.hpp
+  include/levk/util/pinned.hpp
+  include/levk/util/ptr.hpp
+  include/levk/util/rgb.hpp
+  include/levk/util/thread_pool.hpp
+  include/levk/util/time.hpp
+  include/levk/util/transform.hpp
+  include/levk/util/type_id.hpp
+  include/levk/util/unique_task.hpp
+  include/levk/util/unique.hpp
+  include/levk/util/version.hpp
+  include/levk/util/visitor.hpp
+  include/levk/util/zip_ranges.hpp
+)
+
+set(impl_headers
+  include/levk/impl/defer_queue.hpp
+  include/levk/impl/desktop_window.hpp
+  include/levk/impl/vulkan_device.hpp
+  include/levk/impl/vulkan_surface.hpp
+)
+
+set(levk_headers
+  ${util_headers}
+
+  include/levk/defines.hpp
+  include/levk/engine.hpp
+  include/levk/event.hpp
+  include/levk/graphics_common.hpp
+  include/levk/graphics_device.hpp
+  include/levk/surface.hpp
+  include/levk/window.hpp
+)

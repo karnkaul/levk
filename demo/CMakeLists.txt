@@ -1,0 +1,19 @@
+project(levk-demo)
+
+add_executable(levk-demo)
+target_link_libraries(levk-demo PRIVATE levk::lib)
+target_include_directories(levk-demo PRIVATE src)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL Clang OR CMAKE_CXX_COMPILER_ID STREQUAL GNU)
+  target_compile_options(levk PRIVATE
+    -Wall -Wextra -Wpedantic -Wconversion -Werror=return-type
+  )
+endif()
+
+target_sources(levk-demo PRIVATE
+  src/main.cpp
+)
+
+if(LEVK_PCH)
+  target_precompile_headers(levk-demo REUSE_FROM levk)
+endif()
