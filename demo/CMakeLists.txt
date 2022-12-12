@@ -15,5 +15,20 @@ target_sources(levk-demo PRIVATE
 )
 
 if(LEVK_PCH)
-  target_precompile_headers(levk-demo REUSE_FROM levk)
+  target_precompile_headers(levk-demo PRIVATE
+    <fmt/format.h>
+    <algorithm>
+    <atomic>
+    <chrono>
+    <filesystem>
+    <functional>
+    <memory>
+    <mutex>
+    <span>
+    <string>
+    <unordered_map>
+    <unordered_set>
+    <variant>
+    <vector>
+  )
 endif()

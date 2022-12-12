@@ -11,7 +11,15 @@ target_compile_definitions(levk
 )
 
 target_link_libraries(levk
-  PUBLIC levk::ext
+  PUBLIC
+  glm::glm
+  dear_imgui::dear_imgui
+  djson::djson
+  fmt::fmt
+  gltf2cpp::gltf2cpp
+
+  PRIVATE
+  levk::ext
 )
 
 target_include_directories(levk

@@ -79,7 +79,12 @@ class Transform {
 	///
 	///
 	Transform& rotate(float radians, glm::vec3 const& axis);
-	Transform& set_matrix(glm::mat4 mat);
+	///
+	/// \brief Decompose the given matrix into the corresponding position, orientation, and scale.
+	/// \param mat Matrix to decompose
+	/// \returns Self
+	///
+	Transform& decompose(glm::mat4 const& mat);
 
 	///
 	/// \brief Obtain the combined 4x4 transformation matrix.

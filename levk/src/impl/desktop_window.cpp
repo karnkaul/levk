@@ -32,6 +32,7 @@ void levk::window_create(DesktopWindow& out, glm::uvec2 extent, char const* titl
 	glfwSetFramebufferSizeCallback(out.window, [](GLFWwindow*, int x, int y) {
 		g_storage.events.push_back(levk::event::Resize{.extent = {x, y}, .type = event::Resize::Type::eFramebuffer});
 	});
+	glfwSetWindowFocusCallback(out.window, [](GLFWwindow*, int gained) { g_storage.events.push_back(levk::event::Focus{.gained = gained == GLFW_TRUE}); });
 }
 
 void levk::window_destroy(DesktopWindow& out) {

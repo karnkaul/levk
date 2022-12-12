@@ -6,6 +6,10 @@ namespace levk {
 namespace event {
 struct Close {};
 
+struct Focus {
+	bool gained{};
+};
+
 struct Resize {
 	enum class Type { eFramebuffer, eWindow };
 
@@ -14,5 +18,5 @@ struct Resize {
 };
 } // namespace event
 
-using Event = std::variant<event::Close, event::Resize>;
+using Event = std::variant<event::Close, event::Resize, event::Focus>;
 } // namespace levk

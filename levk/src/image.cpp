@@ -1,5 +1,5 @@
 #include <stb/stb_image.h>
-#include <levk/util/image.hpp>
+#include <levk/image.hpp>
 #include <cstring>
 
 namespace levk {

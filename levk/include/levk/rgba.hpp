@@ -4,13 +4,13 @@
 
 namespace levk {
 ///
-/// \brief 3-channel colour with HDR support.
+/// \brief 4-channel colour with HDR support.
 ///
-struct Rgb {
+struct Rgba {
 	///
 	/// \brief 8-bit channels.
 	///
-	glm::tvec3<std::uint8_t> channels{0xff, 0xff, 0xff};
+	glm::tvec4<std::uint8_t> channels{0xff, 0xff, 0xff, 0xff};
 	///
 	/// \brief Intensity (> 1.0 == HDR).
 	///
@@ -47,9 +47,9 @@ struct Rgb {
 	/// \param intensity Intensity of returned Rgb
 	/// \returns Rgb instance
 	///
-	static constexpr Rgb make(glm::vec3 const& normalized, float intensity = 1.0f) {
+	static constexpr Rgba from(glm::vec4 const& normalized, float intensity = 1.0f) {
 		return {
-			.channels = {to_u8(normalized.x), to_u8(normalized.y), to_u8(normalized.z)},
+			.channels = {to_u8(normalized.x), to_u8(normalized.y), to_u8(normalized.z), to_u8(normalized.w)},
 			.intensity = intensity,
 		};
 	}
@@ -57,16 +57,21 @@ struct Rgb {
 	///
 	/// \brief Obtain only the normalzed tint (no HDR).
 	///
-	constexpr glm::vec4 to_tint(float alpha) const { return glm::vec4{to_f32(channels.x), to_f32(channels.y), to_f32(channels.z), alpha}; }
-	///
-	/// \brief Convert instance to 3 channel normalized output.
-	/// \returns 3 normalized floats
-	///
-	constexpr glm::vec3 to_vec3() const { return to_vec4(1.0f); }
+	constexpr glm::vec4 to_tint() const { return glm::vec4{to_f32(channels.x), to_f32(channels.y), to_f32(channels.z), to_f32(channels.w)}; }
+
 	///
 	/// \brief Convert instance to 4 channel normalized output.
 	/// \returns 4 normalized floats
 	///
-	constexpr glm::vec4 to_vec4(float alpha = 1.0f) const { return intensity * to_tint(alpha); }
+	constexpr glm::vec4 to_vec4() const { return glm::vec4{intensity * glm::vec3{to_tint()}, to_f32(channels.w)}; }
 };
+
+constexpr auto white_v = Rgba{{0xff, 0xff, 0xff, 0xff}};
+constexpr auto black_v = Rgba{{0x0, 0x0, 0x0, 0xff}};
+constexpr auto red_v = Rgba{{0xff, 0x0, 0x0, 0xff}};
+constexpr auto green_v = Rgba{{0x0, 0xff, 0x0, 0xff}};
+constexpr auto blue_v = Rgba{{0x0, 0x0, 0xff, 0xff}};
+constexpr auto yellow_v = Rgba{{0xff, 0xff, 0x0, 0xff}};
+constexpr auto magenta_v = Rgba{{0xff, 0x0, 0xff, 0xff}};
+constexpr auto cyan_v = Rgba{{0x0, 0xff, 0xff, 0xff}};
 } // namespace levk

@@ -1,12 +1,19 @@
 #pragma once
+#include <glm/vec2.hpp>
+#include <levk/camera.hpp>
 #include <cstdint>
 
 namespace levk {
 class Window;
 
+using Extent2D = glm::uvec2;
+
 enum class ColourSpace : std::uint8_t { eSrgb, eLinear };
 enum class PolygonMode : std::uint8_t { eFill, eLine, ePoint };
 enum class Topology : std::uint8_t { ePointList, eLineList, eLineStrip, eTriangleList, eTriangleStrip, eTriangleFan };
+
+inline constexpr std::size_t max_sets_v{16};
+inline constexpr std::size_t max_bindings_v{16};
 
 struct AntiAliasing {
 	enum Type : std::uint8_t {
@@ -58,11 +65,9 @@ struct PipelineState {
 	bool operator==(PipelineState const&) const = default;
 };
 
-struct RenderContext {};
-
 struct GraphicsRenderer {
 	virtual ~GraphicsRenderer() = default;
 
-	virtual void render(RenderContext& out) = 0;
+	virtual void render() = 0;
 };
 } // namespace levk

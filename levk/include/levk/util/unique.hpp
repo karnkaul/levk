@@ -55,6 +55,12 @@ class Unique {
 		return m_t != Type{};
 	}
 
+	constexpr bool operator==(Unique<Type, Deleter> const& rhs) const
+		requires(std::equality_comparable<Type>)
+	{
+		return !(*this) && !rhs;
+	}
+
 	constexpr operator Type&() { return get(); }
 	constexpr operator Type const&() const { return get(); }
 
@@ -68,20 +74,4 @@ class Unique {
 	Type m_t{};
 	[[no_unique_address]] Deleter m_deleter{};
 };
-
-template <typename Type>
-concept Pointer = std::is_pointer_v<Type>;
-
-template <Pointer Type>
-struct HeapDeleter {
-	void operator()(Type type) const { delete type; }
-};
-
-template <typename Type>
-using UniquePtr = Unique<Type*, HeapDeleter<Type*>>;
-
-template <typename Type, typename... Args>
-auto make_unique_ptr(Args&&... args) {
-	return UniquePtr<Type>(new Type(std::forward<Args>(args)...));
-}
 } // namespace levk

@@ -6,6 +6,7 @@
 namespace levk {
 struct EngineCreateInfo {
 	glm::uvec2 window_extent{1280u, 720u};
+	glm::vec3 camera_position{0.0f, 0.0f, 5.0f};
 	char const* window_title{"levk"};
 	bool autoshow{};
 };
@@ -24,12 +25,17 @@ class Engine {
 	Window const& window() const { return m_window; }
 	GraphicsDevice const& device() const { return m_device; }
 
+	// TODO: remove
+	GraphicsDevice& device() { return m_device; }
+
 	void show() { m_window.show(); }
 	void hide() { m_window.hide(); }
 	void shutdown() { m_window.close(); }
 	bool is_running() const { return m_window.is_open(); }
 	Frame next_frame();
-	void render(GraphicsRenderer& renderer) { m_device.render(renderer, m_window.framebuffer_extent()); }
+	void render(GraphicsRenderer& renderer, Rgba clear = black_v) { m_device.render(renderer, camera, m_window.framebuffer_extent(), clear); }
+
+	Camera camera{};
 
   private:
 	Window m_window;
