@@ -58,8 +58,6 @@ constexpr bool is_linear(vk::Format format) {
 
 constexpr bool is_srgb(vk::Format format) { return std::find(std::begin(srgb_formats_v), std::end(srgb_formats_v), format) != std::end(srgb_formats_v); }
 
-constexpr ColourSpace colour_space(vk::Format format) { return is_srgb(format) ? ColourSpace::eSrgb : ColourSpace::eLinear; }
-
 constexpr vk::SamplerAddressMode from(Sampler::Wrap const wrap) {
 	switch (wrap) {
 	case Sampler::Wrap::eClampBorder: return vk::SamplerAddressMode::eClampToBorder;
@@ -396,8 +394,8 @@ struct SpirV {
 	std::span<std::byte const> bytes{};
 	std::size_t hash{};
 
-	static SpirV from(Reader& out, std::string const& uri) {
-		auto data = out.load(uri, Reader::eComputeHash);
+	static SpirV from(Reader& out, std::string const& uri, std::uint8_t flags = {}) {
+		auto data = out.load(uri, flags | Reader::eComputeHash);
 		return {data.bytes, data.hash};
 	}
 
@@ -686,7 +684,7 @@ struct ShaderStorage {
 
 	std::unordered_map<std::string, Entry> map{};
 
-	SpirV from_glsl(FileReader& reader, std::string uri) {
+	SpirV from_glsl(FileReader& reader, std::string const& uri) {
 		auto entry = Entry{};
 		entry.spir_v_uri = to_spir_v(uri);
 		entry.glsl_meta.uri = uri;
@@ -695,19 +693,19 @@ struct ShaderStorage {
 		compile(glsl_path.c_str(), spir_v_path.c_str(), false);
 		logger::info("[ShaderCompiler] Compiled GLSL [{}] to SPIR-V [{}]", uri, entry.spir_v_uri);
 		entry.glsl_meta.hash = reader.load(entry.glsl_meta.uri, Reader::eComputeHash).hash;
-		entry.spir_v = SpirV::from(reader, entry.spir_v_uri);
+		entry.spir_v = SpirV::from(reader, entry.spir_v_uri, Reader::eReload);
 		if (!entry.spir_v) { throw Error{"TODO: error"}; }
 		auto [it, _] = map.insert_or_assign(uri, std::move(entry));
 		return it->second.spir_v;
 	}
 
-	SpirV get(Reader& reader, std::string uri) {
+	SpirV get(Reader& reader, std::string const& uri) {
 		auto* file_reader = dynamic_cast<FileReader*>(&reader);
 		if (auto it = map.find(uri); it != map.end()) {
 			auto& entry = it->second;
 			if (file_reader) {
 				if (entry.glsl_meta.hash && reader.load(entry.glsl_meta.uri, Reader::eComputeHash).hash != entry.glsl_meta.hash) {
-					return from_glsl(*file_reader, std::move(uri));
+					return from_glsl(*file_reader, uri);
 				}
 			}
 			if (!entry.spir_v) { entry.spir_v = SpirV::from(reader, uri); }
@@ -716,13 +714,13 @@ struct ShaderStorage {
 		auto entry = Entry{};
 		if (is_glsl(uri.c_str())) {
 			if (!file_reader) { throw Error{"Cannot compile GLSL to SPIR-V without FileReader"}; }
-			return from_glsl(*file_reader, std::move(uri));
+			return from_glsl(*file_reader, uri);
 		}
 
 		entry.spir_v = SpirV::from(reader, uri);
 		if (!entry.spir_v) { throw Error{"TODO: error"}; }
 
-		entry.spir_v_uri = std::move(uri);
+		entry.spir_v_uri = uri;
 		return entry.spir_v;
 	}
 };
@@ -916,15 +914,16 @@ class BufferVec {
 	BufferVec() = default;
 	BufferVec(vk::BufferUsageFlags usage) : m_usage(usage) {}
 
-	BufferView write(Vma const& vma, std::span<Type const> array) {
+	template <typename F>
+	BufferView write(Vma const& vma, std::size_t size, F for_each) {
 		auto& buffer = [&]() -> HostBuffer<>& {
 			if (m_index < m_buffers.size()) { return m_buffers[m_index]; }
 			m_buffers.emplace_back(m_usage);
 			return m_buffers.back();
 		}();
 		m_vec.clear();
-		m_vec.reserve(array.size());
-		std::copy(array.begin(), array.end(), std::back_inserter(m_vec));
+		m_vec.resize(size);
+		for (auto [t, index] : enumerate(m_vec)) { for_each(t, index); }
 		auto const span = std::span<Type const>{m_vec};
 		buffer.update(span.data(), span.size_bytes(), span.size());
 		buffer.flush(vma);
@@ -2137,7 +2136,7 @@ VulkanDevice& VulkanDevice::operator=(VulkanDevice&&) noexcept = default;
 VulkanDevice::~VulkanDevice() noexcept = default;
 
 namespace {
-void write_view(Vma const& vma, HostBuffer<>& vp, Camera const& camera, glm::uvec2 extent) {
+void write_view(VulkanDevice const& device, Camera const& camera, Lights const& lights, glm::uvec2 const extent) {
 	struct ViewSSBO {
 		glm::mat4x4 mat_v;
 		glm::mat4x4 mat_p;
@@ -2147,16 +2146,37 @@ void write_view(Vma const& vma, HostBuffer<>& vp, Camera const& camera, glm::uve
 		.mat_p = camera.projection(extent),
 		.vpos_exposure = {camera.transform.position(), camera.exposure},
 	};
-	vp.update(&view, sizeof(view), 1);
-	vp.flush(vma);
-	// auto dir_lights = FlexArray<DirLightSSBO, 4>{};
-	// for (auto const& light : m_scene->lights.dir_lights.span()) { dir_lights.insert(DirLightSSBO::make(light)); }
-	// m_dir_lights.write(dir_lights.span());
+	device.impl->view_ubo.update(&view, sizeof(view), 1);
+	device.impl->view_ubo.flush(device.impl->vma);
+
+	struct DirLightSSBO {
+		alignas(16) glm::vec3 direction{front_v};
+		alignas(16) glm::vec3 ambient{0.04f};
+		alignas(16) glm::vec3 diffuse{1.0f};
+
+		static DirLightSSBO make(DirLight const& light) {
+			return {
+				.direction = glm::normalize(light.direction * front_v),
+				.diffuse = light.rgb.to_vec4(),
+			};
+		}
+	};
+	if (!lights.dir_lights.empty()) {
+		auto dir_lights = FlexArray<DirLightSSBO, max_lights_v>{};
+		for (auto const& light : lights.dir_lights) {
+			dir_lights.insert(DirLightSSBO::make(light));
+			if (dir_lights.size() == dir_lights.capacity_v) { break; }
+		}
+		device.impl->dir_lights_ssbo.update(dir_lights.span().data(), dir_lights.span().size_bytes(), dir_lights.size());
+		device.impl->dir_lights_ssbo.flush(device.impl->vma);
+	}
 }
 
-void update_view(VulkanShader& frame, BufferView const& vp, BufferView const& dl) {
-	frame.update(0, 0, vp);
-	if (dl.buffer) { frame.update(0, 1, dl); }
+void update_view(VulkanDevice const& device, VulkanShader& shader) {
+	shader.update(0, 0, device.impl->view_ubo.view());
+	auto lights = device.impl->dir_lights_ssbo.view();
+	auto buffer = lights.buffer ? lights : device.impl->blank_buffer.get().view();
+	shader.update(0, 1, buffer);
 }
 } // namespace
 } // namespace levk
@@ -2231,7 +2251,7 @@ levk::GraphicsDeviceInfo const& levk::gfx_info(VulkanDevice const& device) { ret
 
 bool levk::gfx_set_vsync(VulkanDevice& out, Vsync::Type vsync) { return make_swapchain(out, {}, from(vsync)) == vk::Result::eSuccess; }
 
-void levk::gfx_render(VulkanDevice& out_device, GraphicsRenderer& out_renderer, Camera const& camera, Extent2D const extent, Rgba clear) {
+void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	struct OnReturn {
 		VulkanDevice& out;
 		~OnReturn() {
@@ -2245,20 +2265,20 @@ void levk::gfx_render(VulkanDevice& out_device, GraphicsRenderer& out_renderer, 
 		}
 	};
 
-	auto const on_return = OnReturn{out_device};
-	if (extent.x == 0 || extent.y == 0) { return; }
+	auto const on_return = OnReturn{out};
+	if (info.extent.x == 0 || info.extent.y == 0) { return; }
 
-	auto& frame = out_device.impl->render_frames.get();
+	auto& frame = out.impl->render_frames.get();
 
-	auto recreate = [&out_device, extent] {
-		if (make_swapchain(out_device, extent, {}) == vk::Result::eSuccess) {
-			out_device.impl->swapchain.storage.extent = extent;
+	auto recreate = [&out, extent = info.extent] {
+		if (make_swapchain(out, extent, {}) == vk::Result::eSuccess) {
+			out.impl->swapchain.storage.extent = extent;
 			return true;
 		}
 		return false;
 	};
 
-	if (extent != out_device.impl->swapchain.storage.extent && !recreate()) { return; }
+	if (info.extent != out.impl->swapchain.storage.extent && !recreate()) { return; }
 
 	struct {
 		ImageView image;
@@ -2266,10 +2286,10 @@ void levk::gfx_render(VulkanDevice& out_device, GraphicsRenderer& out_renderer, 
 	} acquired{};
 	auto result = vk::Result::eErrorOutOfDateKHR;
 	{
-		auto lock = std::scoped_lock{out_device.impl->mutex};
+		auto lock = std::scoped_lock{out.impl->mutex};
 		// acquire swapchain image
-		result = out_device.impl->device->acquireNextImageKHR(*out_device.impl->swapchain.storage.swapchain, std::numeric_limits<std::uint64_t>::max(),
-															  *frame.sync.draw, {}, &acquired.index);
+		result = out.impl->device->acquireNextImageKHR(*out.impl->swapchain.storage.swapchain, std::numeric_limits<std::uint64_t>::max(), *frame.sync.draw, {},
+													   &acquired.index);
 	}
 	switch (result) {
 	case vk::Result::eErrorOutOfDateKHR:
@@ -2280,60 +2300,60 @@ void levk::gfx_render(VulkanDevice& out_device, GraphicsRenderer& out_renderer, 
 	case vk::Result::eSuccess: break;
 	default: return;
 	}
-	auto const images = out_device.impl->swapchain.storage.images.span();
+	auto const images = out.impl->swapchain.storage.images.span();
 	assert(acquired.index < images.size());
 	acquired.image = images[acquired.index];
-	out_device.impl->swapchain.storage.extent = extent;
+	out.impl->swapchain.storage.extent = info.extent;
 
 	if (!acquired.image.image) { return; }
 
-	reset(*out_device.impl->device, *frame.sync.drawn);
+	reset(*out.impl->device, *frame.sync.drawn);
 
 	// refresh render target
-	auto render_target = make_render_target(out_device, acquired.image);
+	auto render_target = make_render_target(out, acquired.image);
 	auto const attachments = render_target.attachments();
 
 	// refresh framebuffer
 	{
 		auto fbci = vk::FramebufferCreateInfo{};
-		fbci.renderPass = *out_device.impl->render_pass.render_pass;
+		fbci.renderPass = *out.impl->render_pass.render_pass;
 		auto const span = attachments.span();
 		fbci.attachmentCount = static_cast<std::uint32_t>(span.size());
 		fbci.pAttachments = span.data();
 		fbci.width = render_target.colour.extent.width;
 		fbci.height = render_target.colour.extent.height;
 		fbci.layers = 1;
-		frame.framebuffer = out_device.impl->device->createFramebufferUnique(fbci);
+		frame.framebuffer = out.impl->device->createFramebufferUnique(fbci);
 	}
 	auto const framebuffer = Framebuffer{attachments, *frame.framebuffer, frame.primary, frame.secondary};
 
 	// write view
-	write_view(out_device.impl->vma, out_device.impl->view_ubo, camera, extent);
+	write_view(out, info.camera, info.lights, info.extent);
 
 	// begin recording commands
-	out_device.impl->render_context.cb = frame.secondary;
-	auto const cbii = vk::CommandBufferInheritanceInfo{*out_device.impl->render_pass.render_pass, 0, framebuffer.framebuffer};
+	out.impl->render_context.cb = frame.secondary;
+	auto const cbii = vk::CommandBufferInheritanceInfo{*out.impl->render_pass.render_pass, 0, framebuffer.framebuffer};
 	frame.secondary.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
 
-	out_renderer.render();
-	out_device.impl->dear_imgui.end_frame();
+	info.renderer.render(info.device);
+	out.impl->dear_imgui.end_frame();
 
 	// perform the actual Dear ImGui render
-	out_device.impl->dear_imgui.render(frame.secondary);
+	out.impl->dear_imgui.render(frame.secondary);
 	// end recording
 	frame.secondary.end();
-	out_device.impl->render_context = {};
+	out.impl->render_context = {};
 
 	// prepare render pass
 	frame.primary.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 	// transition render target to be ready to draw to
 	render_target.to_draw(frame.primary);
 
-	auto const clear_colour = clear.to_vec4();
+	auto const clear_colour = info.clear.to_vec4();
 	auto const vk_clear_colour = vk::ClearColorValue{std::array{clear_colour.x, clear_colour.y, clear_colour.z, clear_colour.w}};
 	// execute render pass
 	vk::ClearValue const clear_values[] = {vk_clear_colour, vk::ClearDepthStencilValue{1.0f, 0u}};
-	auto rpbi = vk::RenderPassBeginInfo{*out_device.impl->render_pass.render_pass, *frame.framebuffer, vk::Rect2D{{}, {extent.x, extent.y}}, clear_values};
+	auto rpbi = vk::RenderPassBeginInfo{*out.impl->render_pass.render_pass, *frame.framebuffer, vk::Rect2D{{}, {info.extent.x, info.extent.y}}, clear_values};
 	frame.primary.beginRenderPass(rpbi, vk::SubpassContents::eSecondaryCommandBuffers);
 	frame.primary.executeCommands(1u, &frame.secondary);
 	frame.primary.endRenderPass();
@@ -2348,20 +2368,18 @@ void levk::gfx_render(VulkanDevice& out_device, GraphicsRenderer& out_renderer, 
 
 	auto present_info = vk::PresentInfoKHR{};
 	present_info.swapchainCount = 1u;
-	present_info.pSwapchains = &*out_device.impl->swapchain.storage.swapchain;
+	present_info.pSwapchains = &*out.impl->swapchain.storage.swapchain;
 	present_info.waitSemaphoreCount = 1u;
 	present_info.pWaitSemaphores = &*frame.sync.present;
 	present_info.pImageIndices = &acquired.index;
 
 	{
-		auto lock = std::scoped_lock{out_device.impl->mutex};
+		auto lock = std::scoped_lock{out.impl->mutex};
 		// submit commands
-		out_device.impl->queue.submit(submit_info, *frame.sync.drawn);
+		out.impl->queue.submit(submit_info, *frame.sync.drawn);
 		// present image
-		result = out_device.impl->queue.presentKHR(&present_info);
+		result = out.impl->queue.presentKHR(&present_info);
 	}
-
-	if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR) { recreate(); }
 }
 
 levk::MeshGeometry levk::gfx_make_mesh_geometry(VulkanDevice const& device, Geometry const& geometry, MeshJoints const& joints) {
@@ -2385,8 +2403,10 @@ levk::Sampler const& levk::gfx_tex_sampler(VulkanTexture const& texture) { retur
 levk::ColourSpace levk::gfx_tex_colour_space(VulkanTexture const& texture) { return texture.impl->colour_space(); }
 std::uint32_t levk::gfx_tex_mip_levels(VulkanTexture const& texture) { return texture.impl->mip_levels(); }
 
-void levk::gfx_render_mesh(VulkanDevice& out_device, Mesh const& mesh) {
-	static Material::Instance const s_default_mat{UnlitMaterial{}};
+void levk::gfx_render_mesh(VulkanDevice& out_device, Mesh const& mesh, std::span<Transform const> instances) {
+	static Material const s_default_mat{UnlitMaterial{}};
+	auto const& limits = out_device.impl->gpu.properties.limits;
+	auto const texture_fallback = TextureFallback{*out_device.impl->white_texture, *out_device.impl->black_texture};
 	for (auto const& primitive : mesh.primitives) {
 		auto const* vmg = primitive.geometry.as<VulkanMeshGeometry>();
 		assert(vmg);
@@ -2394,16 +2414,22 @@ void levk::gfx_render_mesh(VulkanDevice& out_device, Mesh const& mesh) {
 			logger::error("[GraphicsDevice] Attempt to call draw outside active render pass");
 			return;
 		}
+		auto const& material = primitive.material(mesh.materials, s_default_mat);
+		auto const state = PipelineState{
+			.polygon_mode = primitive.polygon_mode,
+			.topology = primitive.topology,
+			.depth_test = material.pipeline_state().depth_test,
+		};
 		auto cb = out_device.impl->render_context.cb;
 		auto const& vlayout = vmg->impl->vertex_layout();
 		auto vert = out_device.impl->shaders.get(*out_device.impl->reader, vlayout.shader_uri);
-		auto frag = out_device.impl->shaders.get(*out_device.impl->reader, "shaders/unlit.frag");
-		auto pipe = out_device.impl->pipelines.get(out_device.impl->vma, {}, vlayout.input, *out_device.impl->render_pass.render_pass, {vert, frag});
-		cb.bindPipeline(vk::PipelineBindPoint::eGraphics, pipe.pipeline);
+		auto frag = out_device.impl->shaders.get(*out_device.impl->reader, material.shader_id());
+		auto pipe = out_device.impl->pipelines.get(out_device.impl->vma, state, vlayout.input, *out_device.impl->render_pass.render_pass, {vert, frag});
 		auto shader = VulkanShader{pipe, out_device.impl->samplers};
-		auto const texture_fallback = TextureFallback{*out_device.impl->white_texture, *out_device.impl->black_texture};
-		levk::update_view(shader, out_device.impl->view_ubo.view(), out_device.impl->blank_buffer.get().view());
-		primitive.material(mesh.materials, s_default_mat).write_sets(shader, texture_fallback);
+		cb.bindPipeline(vk::PipelineBindPoint::eGraphics, pipe.pipeline);
+		cb.setLineWidth(std::clamp(material.pipeline_state().line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]));
+		update_view(out_device, shader);
+		material.write_sets(shader, texture_fallback);
 		shader.bind(pipe.layout, cb);
 		auto const& uextent = out_device.impl->swapchain.storage.extent;
 		glm::vec2 const fextent = uextent;
@@ -2411,10 +2437,15 @@ void levk::gfx_render_mesh(VulkanDevice& out_device, Mesh const& mesh) {
 		auto scissor = vk::Rect2D{{}, {uextent.x, uextent.y}};
 		cb.setViewport(0u, viewport);
 		cb.setScissor(0u, scissor);
-		auto instance_mat = glm::mat4(1.0f);
-		auto instance_buffer = out_device.impl->instance_vec.write(out_device.impl->vma, {&instance_mat, 1});
-		cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
-		vmg->impl->draw(cb);
+		auto write_instances = [&](glm::mat4& out, std::size_t index) { out = instances[index].matrix(); };
+		auto instance_buffer = out_device.impl->instance_vec.write(out_device.impl->vma, instances.size(), write_instances);
+		if (primitive.geometry.has_joints()) {
+			assert(instances.size() == 1);
+			// TODO
+		} else {
+			cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
+		}
+		vmg->impl->draw(cb, static_cast<std::uint32_t>(instances.size()));
 	}
 	// TODO update stats
 }

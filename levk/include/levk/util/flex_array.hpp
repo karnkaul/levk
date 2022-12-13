@@ -16,6 +16,8 @@ concept FlexArrayItem = std::is_default_constructible_v<Type> && std::is_move_co
 template <FlexArrayItem Type, std::size_t Capacity>
 class FlexArray {
   public:
+	static constexpr auto capacity_v = Capacity;
+
 	///
 	/// \brief Insert an element into the array and increment the size.
 	/// \param t Element to move and insert

@@ -63,6 +63,7 @@ FileReader::Data FileReader::load(std::string const& uri, std::uint8_t flags) {
 			if (!entry.data) { return reload(uri, flags); }
 			entry.lwt = fs::last_write_time(loader.absolute_path(uri));
 			if (flags & eComputeHash) { entry.hash = compute_hash(entry.data.span()); }
+			if (!(flags & eSilent)) { logger::info("[FileReader] (Re)loaded URI: [{}]", uri); }
 		}
 		if (!entry.hash && (flags & eComputeHash)) { entry.hash = compute_hash(entry.data.span()); }
 		return {entry.data.span(), entry.hash};
@@ -79,13 +80,15 @@ FileReader::Data FileReader::reload(std::string const& uri, std::uint8_t flags) 
 			auto const lwt = fs::last_write_time(loader.absolute_path(uri));
 			auto const hash = (flags & eComputeHash) ? compute_hash(data.span()) : 0;
 			auto [it, _] = m_impl->loaded.insert_or_assign(uri, Impl::Entry{std::move(data), index, hash, lwt});
+			if (!(flags & eSilent)) { logger::info("[FileReader] Loaded URI: [{}]", uri); }
 			return {it->second.data.span(), it->second.hash};
 		}
 	}
+	if (!(flags & eSilent)) { logger::warn("[FileReader] Failed to loaded URI: [{}]", uri); }
 	return {};
 }
 
-std::uint32_t FileReader::reload_out_of_date() {
+std::uint32_t FileReader::reload_out_of_date(bool silent) {
 	auto ret = std::uint32_t{};
 	auto lock = std::scoped_lock{m_impl->mutex};
 	for (auto& [uri, entry] : m_impl->loaded) {
@@ -93,6 +96,7 @@ std::uint32_t FileReader::reload_out_of_date() {
 		if (entry.lwt < fs::last_write_time(loader.absolute_path(uri))) {
 			entry.data = loader.load(uri);
 			if (entry.hash) { entry.hash = compute_hash(entry.data.span()); }
+			if (!silent) { logger::info("[FileReader] Reloaded out of date URI: [{}]", uri); }
 			++ret;
 		}
 	}

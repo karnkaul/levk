@@ -1,8 +1,7 @@
 #pragma once
-#include <glm/vec2.hpp>
-#include <levk/event.hpp>
 #include <levk/surface.hpp>
 #include <levk/util/ptr.hpp>
+#include <levk/window_state.hpp>
 #include <span>
 #include <vector>
 
@@ -18,7 +17,8 @@ struct DesktopWindow {
 
 struct DesktopWindow::Storage {
 	std::vector<char const*> vulkan_extensions{};
-	std::vector<Event> events{};
+	std::vector<std::string> drops{};
+	WindowState state{};
 };
 
 void window_create(DesktopWindow& out, glm::uvec2 extent, char const* title);
@@ -30,5 +30,8 @@ void window_show(DesktopWindow& out);
 void window_hide(DesktopWindow& out);
 void window_close(DesktopWindow& out);
 bool window_is_open(DesktopWindow const& window);
-std::span<Event const> window_poll(DesktopWindow& out);
+WindowState const& window_state(DesktopWindow const& window);
+void window_poll(DesktopWindow& out);
+char const* window_clipboard(DesktopWindow const& window);
+void window_set_clipboard(DesktopWindow& out, char const* text);
 } // namespace levk

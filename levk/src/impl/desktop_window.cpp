@@ -3,6 +3,8 @@
 #include <levk/impl/desktop_window.hpp>
 #include <levk/impl/vulkan_surface.hpp>
 #include <levk/util/error.hpp>
+#include <levk/util/logger.hpp>
+#include <levk/util/zip_ranges.hpp>
 #include <levk/window.hpp>
 #include <cassert>
 #include <unordered_map>
@@ -25,14 +27,57 @@ void levk::window_create(DesktopWindow& out, glm::uvec2 extent, char const* titl
 	if (!extensions) { throw Error{"TODO: error"}; }
 	out.storage->vulkan_extensions = {extensions, extensions + extension_count};
 
-	glfwSetWindowCloseCallback(out.window, [](GLFWwindow*) { g_storage.events.push_back(levk::event::Close{}); });
+	glfwSetWindowCloseCallback(out.window, [](GLFWwindow* w) {
+		g_storage.state.flags |= WindowState::eClosed;
+		g_storage.state.triggers |= WindowState::eClosed;
+		glfwSetWindowShouldClose(w, GLFW_TRUE);
+	});
 	glfwSetWindowSizeCallback(out.window, [](GLFWwindow*, int x, int y) {
-		g_storage.events.push_back(levk::event::Resize{.extent = {x, y}, .type = event::Resize::Type::eWindow});
+		g_storage.state.extent = glm::ivec2{x, y};
+		g_storage.state.triggers |= WindowState::eResized;
 	});
 	glfwSetFramebufferSizeCallback(out.window, [](GLFWwindow*, int x, int y) {
-		g_storage.events.push_back(levk::event::Resize{.extent = {x, y}, .type = event::Resize::Type::eFramebuffer});
+		g_storage.state.framebuffer = glm::ivec2{x, y};
+		g_storage.state.triggers |= WindowState::eResized;
 	});
-	glfwSetWindowFocusCallback(out.window, [](GLFWwindow*, int gained) { g_storage.events.push_back(levk::event::Focus{.gained = gained == GLFW_TRUE}); });
+	glfwSetWindowFocusCallback(out.window, [](GLFWwindow*, int gained) {
+		g_storage.state.triggers |= WindowState::eInFocus;
+		if (gained == GLFW_TRUE) {
+			g_storage.state.flags |= WindowState::eInFocus;
+		} else {
+			g_storage.state.flags &= ~WindowState::eInFocus;
+		}
+	});
+	glfwSetWindowPosCallback(out.window, [](GLFWwindow*, int x, int y) { g_storage.state.position = {x, y}; });
+	glfwSetKeyCallback(out.window, [](GLFWwindow*, int key, int, int action, int) {
+		if (key >= 0 && static_cast<std::size_t>(key) < g_storage.state.input.keyboard.size()) {
+			auto& a = g_storage.state.input.keyboard[static_cast<std::size_t>(key)];
+			switch (action) {
+			case GLFW_PRESS: a = Action::ePress; break;
+			case GLFW_RELEASE: a = Action::eRelease; break;
+			case GLFW_REPEAT: a = Action::eRepeat; break;
+			default: break;
+			}
+		}
+	});
+	glfwSetCharCallback(out.window, [](GLFWwindow*, std::uint32_t codepoint) { g_storage.state.input.codepoints.insert(codepoint); });
+	glfwSetMouseButtonCallback(out.window, [](GLFWwindow*, int button, int action, int) {
+		if (button >= 0 && static_cast<std::size_t>(button) < g_storage.state.input.mouse.size()) {
+			auto& a = g_storage.state.input.mouse[static_cast<std::size_t>(button)];
+			switch (action) {
+			case GLFW_PRESS: a = Action::ePress; break;
+			case GLFW_RELEASE: a = Action::eRelease; break;
+			case GLFW_REPEAT: a = Action::eRepeat; break;
+			default: break;
+			}
+		}
+	});
+	glfwSetScrollCallback(out.window, [](GLFWwindow*, double x, double y) { g_storage.state.input.scroll += glm::dvec2{x, y}; });
+	glfwSetCursorPosCallback(out.window, [](GLFWwindow*, double x, double y) { g_storage.state.input.cursor = glm::dvec2{x, y}; });
+	glfwSetDropCallback(out.window, [](GLFWwindow*, int count, char const** paths) {
+		for (int i = 0; i < count; ++i) { g_storage.drops.push_back(paths[count]); }
+	});
+	if (glfwRawMouseMotionSupported()) { glfwSetInputMode(out.window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE); }
 }
 
 void levk::window_destroy(DesktopWindow& out) {
@@ -63,8 +108,29 @@ void levk::window_close(DesktopWindow& out) { glfwSetWindowShouldClose(out.windo
 
 bool levk::window_is_open(DesktopWindow const& window) { return !glfwWindowShouldClose(window.window); }
 
-std::span<levk::Event const> levk::window_poll(DesktopWindow&) {
-	g_storage.events.clear();
+levk::WindowState const& levk::window_state(DesktopWindow const&) { return g_storage.state; }
+
+void levk::window_poll(DesktopWindow&) {
+	g_storage.state.triggers = {};
+	g_storage.state.input.codepoints = {};
+	g_storage.state.input.scroll = {};
+	g_storage.drops.clear();
+	auto const update = [](auto& actions) {
+		for (auto& action : actions) {
+			switch (action) {
+			case Action::eRelease: action = Action::eNone; break;
+			case Action::ePress:
+			case Action::eHold:
+			case Action::eRepeat: action = Action::eHold; break;
+			default: break;
+			}
+		}
+	};
+	update(g_storage.state.input.keyboard);
+	update(g_storage.state.input.mouse);
 	glfwPollEvents();
-	return g_storage.events;
+	g_storage.state.drops = g_storage.drops;
 }
+
+char const* levk::window_clipboard(DesktopWindow const& window) { return glfwGetClipboardString(window.window); }
+void levk::window_set_clipboard(DesktopWindow& out, char const* text) { glfwSetClipboardString(out.window, text); }

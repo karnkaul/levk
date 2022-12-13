@@ -1,14 +1,15 @@
 #pragma once
-#include <glm/vec2.hpp>
-#include <levk/event.hpp>
 #include <levk/surface.hpp>
 #include <levk/util/ptr.hpp>
+#include <levk/window_state.hpp>
 #include <memory>
 #include <span>
 
 namespace levk {
 class Window {
   public:
+	using State = WindowState;
+
 	template <typename T>
 	Window(T t) : m_model(std::make_unique<Model<T>>(std::move(t))) {}
 	~Window() {
@@ -28,7 +29,10 @@ class Window {
 	void hide() { m_model->hide(); }
 	void close() { m_model->close(); }
 	bool is_open() const { return m_model->is_open(); }
-	std::span<Event const> poll() { return m_model->poll(); }
+	void poll() { m_model->poll(); }
+	State const& state() const { return m_model->state(); }
+	char const* clipboard() const { return m_model->clipboard(); }
+	void set_clipboard(char const* text) { m_model->set_clipboard(text); }
 
 	template <typename T>
 	Ptr<T const> as() const {
@@ -49,7 +53,10 @@ class Window {
 		virtual void hide() = 0;
 		virtual void close() = 0;
 		virtual bool is_open() const = 0;
-		virtual std::span<Event const> poll() = 0;
+		virtual void poll() = 0;
+		virtual State const& state() const = 0;
+		virtual char const* clipboard() const = 0;
+		virtual void set_clipboard(char const* text) = 0;
 	};
 
 	template <typename T>
@@ -66,7 +73,10 @@ class Window {
 		void hide() final { window_hide(impl); }
 		void close() final { window_close(impl); }
 		bool is_open() const final { return window_is_open(impl); }
-		std::span<Event const> poll() final { return window_poll(impl); }
+		void poll() final { window_poll(impl); }
+		State const& state() const final { return window_state(impl); }
+		char const* clipboard() const final { return window_clipboard(impl); }
+		void set_clipboard(char const* text) final { window_set_clipboard(impl, text); }
 	};
 
 	std::unique_ptr<Base> m_model{};

@@ -7,6 +7,7 @@ target_sources(levk PRIVATE
   camera.cpp
   engine.cpp
   geometry.cpp
+  graphics_device.cpp
   image.cpp
   material.cpp
   rgba.cpp

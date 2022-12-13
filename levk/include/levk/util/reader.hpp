@@ -10,6 +10,7 @@ struct Reader {
 		eNone = 0,
 		eReload = 1 << 0,
 		eComputeHash = 1 << 1,
+		eSilent = 1 << 2,
 	};
 
 	struct Data {
@@ -37,7 +38,7 @@ class FileReader : public Reader {
 	std::string absolute_path(std::string_view const uri) const;
 
 	Data load(std::string const& uri, std::uint8_t flags = {}) override;
-	std::uint32_t reload_out_of_date();
+	std::uint32_t reload_out_of_date(bool silent = false);
 
   private:
 	Data reload(std::string const& uri, std::uint8_t flags);

@@ -1,7 +1,10 @@
 #pragma once
 #include <glm/vec2.hpp>
 #include <levk/camera.hpp>
+#include <levk/lights.hpp>
+#include <levk/rgba.hpp>
 #include <cstdint>
+#include <span>
 
 namespace levk {
 class Window;
@@ -14,6 +17,7 @@ enum class Topology : std::uint8_t { ePointList, eLineList, eLineStrip, eTriangl
 
 inline constexpr std::size_t max_sets_v{16};
 inline constexpr std::size_t max_bindings_v{16};
+inline constexpr std::size_t max_lights_v{4};
 
 struct AntiAliasing {
 	enum Type : std::uint8_t {
@@ -60,14 +64,26 @@ struct GraphicsDeviceCreateInfo {
 struct PipelineState {
 	PolygonMode polygon_mode{PolygonMode::eFill};
 	Topology topology{Topology::eTriangleList};
+	float line_width{1.0f};
 	bool depth_test{true};
 
 	bool operator==(PipelineState const&) const = default;
 };
 
+class GraphicsDevice;
+
 struct GraphicsRenderer {
 	virtual ~GraphicsRenderer() = default;
 
-	virtual void render() = 0;
+	virtual void render(GraphicsDevice& device) = 0;
+};
+
+struct RenderInfo {
+	GraphicsDevice& device;
+	GraphicsRenderer& renderer;
+	Camera const& camera;
+	Lights const& lights;
+	Extent2D extent;
+	Rgba clear;
 };
 } // namespace levk

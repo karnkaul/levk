@@ -40,11 +40,12 @@ set(levk_headers
   include/levk/camera.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
-  include/levk/event.hpp
   include/levk/geometry.hpp
   include/levk/graphics_common.hpp
   include/levk/graphics_device.hpp
   include/levk/image.hpp
+  include/levk/input.hpp
+  include/levk/lights.hpp
   include/levk/material.hpp
   include/levk/mesh_geometry.hpp
   include/levk/mesh.hpp
@@ -53,6 +54,9 @@ set(levk_headers
   include/levk/shader.hpp
   include/levk/surface.hpp
   include/levk/texture.hpp
+  include/levk/transform_controller.hpp
   include/levk/transform.hpp
+  include/levk/window_common.hpp
+  include/levk/window_state.hpp
   include/levk/window.hpp
 )

@@ -12,8 +12,8 @@ struct EngineCreateInfo {
 };
 
 struct Frame {
-	std::span<Event const> events{};
-	Secs dt{};
+	Window::State const& state;
+	Time dt{};
 };
 
 class Engine {
@@ -24,8 +24,6 @@ class Engine {
 
 	Window const& window() const { return m_window; }
 	GraphicsDevice const& device() const { return m_device; }
-
-	// TODO: remove
 	GraphicsDevice& device() { return m_device; }
 
 	void show() { m_window.show(); }
@@ -33,9 +31,10 @@ class Engine {
 	void shutdown() { m_window.close(); }
 	bool is_running() const { return m_window.is_open(); }
 	Frame next_frame();
-	void render(GraphicsRenderer& renderer, Rgba clear = black_v) { m_device.render(renderer, camera, m_window.framebuffer_extent(), clear); }
+	void render(GraphicsRenderer& renderer, Rgba clear = black_v) { m_device.render(renderer, camera, lights, m_window.framebuffer_extent(), clear); }
 
 	Camera camera{};
+	Lights lights{};
 
   private:
 	Window m_window;

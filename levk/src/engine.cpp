@@ -11,5 +11,8 @@ Engine::Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& creat
 	if (create_info.autoshow) { m_window.show(); }
 }
 
-Frame Engine::next_frame() { return {.events = m_window.poll(), .dt = m_dt()}; }
+Frame Engine::next_frame() {
+	m_window.poll();
+	return {.state = m_window.state(), .dt = m_dt()};
+}
 } // namespace levk
