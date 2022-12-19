@@ -23,6 +23,7 @@ class Engine {
 	explicit Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& create_info = {}) noexcept(false);
 
 	Window const& window() const { return m_window; }
+	Window& window() { return m_window; }
 	GraphicsDevice const& device() const { return m_device; }
 	GraphicsDevice& device() { return m_device; }
 

@@ -51,6 +51,9 @@ class FlexArray {
 	///
 	constexpr std::span<Type const> span() const { return {m_t.data(), m_size}; }
 
+	constexpr Type* data() { return m_t.data(); }
+	constexpr Type const* data() const { return m_t.data(); }
+
 	///
 	/// \brief Obtain the number of elements stored.
 	/// \returns Number of elements stored

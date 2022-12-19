@@ -33,6 +33,8 @@ class Window {
 	State const& state() const { return m_model->state(); }
 	char const* clipboard() const { return m_model->clipboard(); }
 	void set_clipboard(char const* text) { m_model->set_clipboard(text); }
+	CursorMode cursor_mode() const { return m_model->cursor_mode(); }
+	void set_cursor_mode(CursorMode mode) { m_model->set_cursor_mode(mode); }
 
 	template <typename T>
 	Ptr<T const> as() const {
@@ -57,6 +59,8 @@ class Window {
 		virtual State const& state() const = 0;
 		virtual char const* clipboard() const = 0;
 		virtual void set_clipboard(char const* text) = 0;
+		virtual CursorMode cursor_mode() const = 0;
+		virtual void set_cursor_mode(CursorMode mode) = 0;
 	};
 
 	template <typename T>
@@ -77,6 +81,8 @@ class Window {
 		State const& state() const final { return window_state(impl); }
 		char const* clipboard() const final { return window_clipboard(impl); }
 		void set_clipboard(char const* text) final { window_set_clipboard(impl, text); }
+		CursorMode cursor_mode() const final { return window_cursor_mode(impl); }
+		void set_cursor_mode(CursorMode mode) final { window_set_cursor_mode(impl, mode); }
 	};
 
 	std::unique_ptr<Base> m_model{};

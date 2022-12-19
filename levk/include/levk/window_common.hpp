@@ -138,7 +138,7 @@ enum class Key : std::uint32_t {
 /// \brief Set of all Mouse buttons
 ///
 enum class MouseButton : std::uint32_t {
-	eBegin = 1,
+	eBegin = 0,
 	e1 = eBegin,
 	e2,
 	e3,
@@ -178,4 +178,9 @@ enum class Modifier : std::uint8_t {
 /// \brief Bit flags for Modifiers.
 ///
 using Modifiers = std::uint32_t;
+
+///
+/// \brief Mouse cursor mode.
+///
+enum class CursorMode { eNormal, eDisabled, eHidden };
 } // namespace levk

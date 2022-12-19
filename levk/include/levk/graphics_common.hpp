@@ -18,6 +18,7 @@ enum class Topology : std::uint8_t { ePointList, eLineList, eLineStrip, eTriangl
 inline constexpr std::size_t max_sets_v{16};
 inline constexpr std::size_t max_bindings_v{16};
 inline constexpr std::size_t max_lights_v{4};
+inline constexpr float render_scale_limit_v[] = {0.2f, 8.0f};
 
 struct AntiAliasing {
 	enum Type : std::uint8_t {
@@ -51,6 +52,7 @@ struct GraphicsDeviceInfo {
 	Vsync::Type current_vsync{};
 	AntiAliasing supported_aa{};
 	AntiAliasing::Type current_aa{};
+	float render_scale{1.0f};
 };
 
 struct GraphicsDeviceCreateInfo {
@@ -75,7 +77,8 @@ class GraphicsDevice;
 struct GraphicsRenderer {
 	virtual ~GraphicsRenderer() = default;
 
-	virtual void render(GraphicsDevice& device) = 0;
+	virtual void render_3d(GraphicsDevice& device) = 0;
+	virtual void render_ui(GraphicsDevice& device) = 0;
 };
 
 struct RenderInfo {

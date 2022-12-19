@@ -1,4 +1,5 @@
 add_subdirectory(util)
+add_subdirectory(editor)
 
 target_sources(levk PRIVATE
   impl/vulkan_device.cpp
@@ -6,6 +7,7 @@ target_sources(levk PRIVATE
 
   camera.cpp
   engine.cpp
+  entity.cpp
   geometry.cpp
   graphics_device.cpp
   image.cpp

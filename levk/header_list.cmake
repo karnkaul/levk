@@ -11,12 +11,14 @@ set(util_headers
   include/levk/util/fixed_string.hpp
   include/levk/util/flex_array.hpp
   include/levk/util/hash_combine.hpp
+  include/levk/util/id.hpp
   include/levk/util/loader.hpp
   include/levk/util/logger.hpp
   include/levk/util/nvec3.hpp
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
   include/levk/util/reader.hpp
+  include/levk/util/resource_map.hpp
   include/levk/util/thread_pool.hpp
   include/levk/util/time.hpp
   include/levk/util/type_id.hpp
@@ -34,12 +36,18 @@ set(impl_headers
   include/levk/impl/vulkan_surface.hpp
 )
 
+set(editor_headers
+  include/levk/editor/common.hpp
+)
+
 set(levk_headers
   ${util_headers}
+  ${editor_headers}
 
   include/levk/camera.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
+  include/levk/entity.hpp
   include/levk/geometry.hpp
   include/levk/graphics_common.hpp
   include/levk/graphics_device.hpp
@@ -48,10 +56,10 @@ set(levk_headers
   include/levk/lights.hpp
   include/levk/material.hpp
   include/levk/mesh_geometry.hpp
-  include/levk/mesh.hpp
   include/levk/pixel_map.hpp
   include/levk/rgba.hpp
   include/levk/shader.hpp
+  include/levk/static_mesh.hpp
   include/levk/surface.hpp
   include/levk/texture.hpp
   include/levk/transform_controller.hpp

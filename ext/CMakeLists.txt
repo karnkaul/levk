@@ -72,8 +72,7 @@ target_link_libraries(levk-ext INTERFACE
   Threads::Threads
 )
 
-target_compile_definitions(levk-ext
-  INTERFACE
+target_compile_definitions(glm INTERFACE
   GLM_FORCE_XYZW_ONLY
   GLM_FORCE_RADIANS
   GLM_FORCE_DEPTH_ZERO_TO_ONE

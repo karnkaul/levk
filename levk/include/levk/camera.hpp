@@ -14,9 +14,7 @@ struct ViewPlane {
 };
 
 ///
-/// \brief Models a 3D camera with either perspective or orthographic projection parameters.
-///
-/// The view matrix is modelled through a Transform that's passed in as a parameter.
+/// \brief Models a 3D camera facing its -Z, with either perspective or orthographic projection parameters.
 ///
 struct Camera {
 	struct Perspective {

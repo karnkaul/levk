@@ -11,6 +11,22 @@
 
 namespace {
 levk::DesktopWindow::Storage g_storage{};
+
+constexpr int from(levk::CursorMode const mode) {
+	switch (mode) {
+	case levk::CursorMode::eDisabled: return GLFW_CURSOR_DISABLED;
+	case levk::CursorMode::eHidden: return GLFW_CURSOR_HIDDEN;
+	default: return GLFW_CURSOR_NORMAL;
+	}
+}
+
+constexpr levk::CursorMode to_cursor_mode(int const glfw_cursor_mode) {
+	switch (glfw_cursor_mode) {
+	case GLFW_CURSOR_DISABLED: return levk::CursorMode::eDisabled;
+	case GLFW_CURSOR_HIDDEN: return levk::CursorMode::eHidden;
+	default: return levk::CursorMode::eNormal;
+	}
+}
 } // namespace
 
 void levk::window_create(DesktopWindow& out, glm::uvec2 extent, char const* title) {
@@ -134,3 +150,6 @@ void levk::window_poll(DesktopWindow&) {
 
 char const* levk::window_clipboard(DesktopWindow const& window) { return glfwGetClipboardString(window.window); }
 void levk::window_set_clipboard(DesktopWindow& out, char const* text) { glfwSetClipboardString(out.window, text); }
+
+levk::CursorMode levk::window_cursor_mode(DesktopWindow const& window) { return to_cursor_mode(glfwGetInputMode(window.window, GLFW_CURSOR)); }
+void levk::window_set_cursor_mode(DesktopWindow& out, CursorMode const mode) { glfwSetInputMode(out.window, GLFW_CURSOR, from(mode)); }

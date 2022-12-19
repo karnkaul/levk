@@ -34,4 +34,6 @@ WindowState const& window_state(DesktopWindow const& window);
 void window_poll(DesktopWindow& out);
 char const* window_clipboard(DesktopWindow const& window);
 void window_set_clipboard(DesktopWindow& out, char const* text);
+CursorMode window_cursor_mode(DesktopWindow const& window);
+void window_set_cursor_mode(DesktopWindow& out, CursorMode mode);
 } // namespace levk

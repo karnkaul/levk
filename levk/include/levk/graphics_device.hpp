@@ -2,7 +2,7 @@
 #include <glm/vec2.hpp>
 #include <levk/geometry.hpp>
 #include <levk/graphics_common.hpp>
-#include <levk/mesh.hpp>
+#include <levk/static_mesh.hpp>
 #include <levk/texture.hpp>
 #include <levk/util/ptr.hpp>
 #include <memory>
@@ -25,12 +25,17 @@ class GraphicsDevice {
 
 	void create(CreateInfo const& create_info) { m_model->create(create_info); }
 	void destroy() { m_model->destroy(); }
+	Info const& info() const { return m_model->info(); }
+	bool set_render_scale(float scale) { return m_model->set_render_scale(scale); }
+
 	void render(GraphicsRenderer& renderer, Camera const& camera, Lights const& lights, glm::uvec2 extent, Rgba clear);
 
 	MeshGeometry make_mesh_geometry(Geometry const& geometry, MeshJoints joints = {}) { return m_model->make_mesh_geometry(geometry, joints); }
 	Texture make_texture(Image::View image, Texture::CreateInfo const& create_info = {}) { return m_model->make_texture(image, create_info); }
 
-	void render(Mesh const& mesh, std::span<Transform const> instances) { m_model->render(mesh, instances); }
+	void render(StaticMesh const& mesh, std::span<Transform const> instances, glm::mat4 const& parent = glm::mat4{1.0f}) {
+		m_model->render(mesh, parent, instances);
+	}
 
 	template <typename T>
 	Ptr<T> as() const {
@@ -45,12 +50,14 @@ class GraphicsDevice {
 		virtual void create(CreateInfo const& create_info) = 0;
 		virtual void destroy() = 0;
 		virtual Info const& info() const = 0;
+		virtual bool set_render_scale(float) = 0;
+
 		virtual void render(RenderInfo const& info) = 0;
 
 		virtual MeshGeometry make_mesh_geometry(Geometry const& geometry, MeshJoints const& joints) = 0;
 		virtual Texture make_texture(Image::View image, Texture::CreateInfo const& info) = 0;
 
-		virtual void render(Mesh const& mesh, std::span<Transform const> instances) = 0;
+		virtual void render(StaticMesh const& mesh, glm::mat4 const& parent, std::span<Transform const> instances) = 0;
 	};
 
 	template <typename T>
@@ -61,13 +68,14 @@ class GraphicsDevice {
 		void create(CreateInfo const& create_info) final { gfx_create_device(impl, create_info); }
 		void destroy() final { gfx_destroy_device(impl); }
 		Info const& info() const final { return gfx_info(impl); }
+		bool set_render_scale(float scale) final { return gfx_set_render_scale(impl, scale); }
 
 		void render(RenderInfo const& info) final { gfx_render(impl, info); }
 
 		MeshGeometry make_mesh_geometry(Geometry const& geometry, MeshJoints const& joints) final { return gfx_make_mesh_geometry(impl, geometry, joints); }
 		Texture make_texture(Image::View image, Texture::CreateInfo const& create_info) final { return gfx_make_texture(impl, create_info, image); }
 
-		void render(Mesh const& mesh, std::span<Transform const> instances) final { gfx_render_mesh(impl, mesh, instances); }
+		void render(StaticMesh const& mesh, glm::mat4 const& parent, std::span<Transform const> instances) final { gfx_render(impl, mesh, parent, instances); }
 	};
 
 	std::unique_ptr<Base> m_model{};

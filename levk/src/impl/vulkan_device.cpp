@@ -73,6 +73,13 @@ constexpr vk::Filter from(Sampler::Filter const filter) {
 	}
 }
 
+constexpr vk::Extent2D scale_extent(vk::Extent2D const extent, float scale) {
+	glm::vec2 vec2 = glm::uvec2{extent.width, extent.height};
+	vec2 *= scale;
+	auto ret = glm::uvec2{vec2};
+	return {ret.x, ret.y};
+}
+
 std::uint32_t compute_mip_levels(vk::Extent2D extent) { return static_cast<std::uint32_t>(std::floor(std::log2(std::max(extent.width, extent.height)))) + 1u; }
 
 template <typename Type>
@@ -158,15 +165,25 @@ void reset(vk::Device device, vk::Fence fence) {
 	device.resetFences(fence);
 }
 
-template <typename Type, std::size_t Size = buffering_v>
-struct Rotator {
+[[maybe_unused]] void full_barrier(vk::CommandBuffer cb) {
+	static constexpr auto all_stages = vk::PipelineStageFlagBits::eAllGraphics;
+	static constexpr auto all_access = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite;
+	cb.pipelineBarrier(all_stages, all_stages, {}, vk::MemoryBarrier{all_access, all_access}, {}, {});
+}
+
+template <std::size_t Buffering = buffering_v>
+struct Index {
+	std::size_t value{};
+	explicit constexpr operator std::size_t() const { return value; }
+	constexpr void next() { value = (value + 1) % Buffering; }
+};
+
+template <typename Type, std::size_t Size>
+struct Buffered {
 	Type t[Size]{};
-	std::size_t index{};
 
-	constexpr Type& get() { return t[index]; }
-	constexpr Type const& get() const { return t[index]; }
-
-	constexpr void rotate() { index = (index + 1) % Size; }
+	constexpr Type& get(Index<Size> index) { return t[index.value]; }
+	constexpr Type const& get(Index<Size> index) const { return t[index.value]; }
 };
 
 struct BufferView {
@@ -334,15 +351,12 @@ struct RenderTarget {
 		return ret;
 	}
 
-	void to_draw(vk::CommandBuffer cb);
-	void to_present(vk::CommandBuffer cb);
+	ImageView const& output_image() const { return resolve.image ? resolve : colour; }
 };
 
 struct Framebuffer {
-	RenderAttachments attachments{};
-	vk::Framebuffer framebuffer{};
-	vk::CommandBuffer primary{};
-	vk::CommandBuffer secondary{};
+	vk::UniqueFramebuffer framebuffer{};
+	RenderTarget render_target{};
 };
 
 struct RenderFrame {
@@ -354,27 +368,59 @@ struct RenderFrame {
 
 	Sync sync{};
 	CmdAllocator cmd_alloc{};
-	vk::UniqueFramebuffer framebuffer{};
+	Framebuffer framebuffer{};
 	vk::CommandBuffer primary{};
-	vk::CommandBuffer secondary{};
+	std::array<vk::CommandBuffer, 2> secondary{};
 
 	static RenderFrame make(VulkanDevice const& device);
 };
 
-template <std::size_t Size = buffering_v>
-using RenderFrames = Rotator<RenderFrame, Size>;
-
-struct RenderPass {
-	struct Target {
-		UniqueImage image{};
-		vk::Format format{};
-	};
-
-	vk::UniqueRenderPass render_pass{};
-
-	Target colour{};
-	Target depth{};
+struct RenderCmd {
+	vk::CommandBuffer cb{};
 	vk::Extent2D extent{};
+};
+
+template <std::size_t Buffering>
+using RenderFrames = Buffered<RenderFrame, Buffering>;
+
+struct RenderPassView {
+	vk::RenderPass render_pass{};
+	vk::SampleCountFlagBits samples{};
+};
+
+template <std::size_t Buffering = buffering_v>
+struct RenderPass {
+	using View = RenderPassView;
+
+	RenderFrames<Buffering> frames{};
+	vk::UniqueRenderPass render_pass{};
+	vk::SampleCountFlagBits samples{};
+	vk::Format colour{};
+	vk::Format depth{};
+
+	View view() const { return {*render_pass, samples}; }
+};
+
+template <std::size_t Buffering = buffering_v>
+struct OffScreen {
+	RenderPass<Buffering> rp{};
+
+	Defer<UniqueImage> output_image{};
+	Defer<UniqueImage> msaa_image{};
+	Defer<UniqueImage> depth_buffer{};
+
+	static OffScreen make(VulkanDevice const& device, vk::SampleCountFlagBits samples, vk::Format depth, vk::Format colour = vk::Format::eR8G8B8A8Srgb);
+
+	Framebuffer make_framebuffer(VulkanDevice const& device, vk::Extent2D extent, float scale);
+	RenderPassView view() const { return rp.view(); }
+};
+
+template <std::size_t Buffering = buffering_v>
+struct FsQuad {
+	Buffered<Framebuffer, Buffering> framebuffer{};
+	vk::UniqueRenderPass rp{};
+
+	Framebuffer make_framebuffer(VulkanDevice const& device, ImageView const& output_image);
 };
 
 struct DearImGui {
@@ -389,8 +435,6 @@ struct DearImGui {
 };
 
 struct SpirV {
-	struct Storage;
-
 	std::span<std::byte const> bytes{};
 	std::size_t hash{};
 
@@ -400,13 +444,6 @@ struct SpirV {
 	}
 
 	explicit operator bool() const { return !bytes.empty() && hash > 0; }
-};
-
-struct SpirV::Storage {
-	ByteArray bytes{};
-
-	SpirV spir_v() const { return {bytes.span(), Reader::compute_hash(bytes.span())}; }
-	operator SpirV() const { return spir_v(); }
 };
 
 struct VertexInput {
@@ -603,6 +640,70 @@ class SetAllocator::Pool {
 	std::vector<SetAllocator> m_sets{};
 };
 
+template <std::size_t Buffering = buffering_v>
+class HostBuffer {
+  public:
+	HostBuffer() = default;
+	HostBuffer(vk::BufferUsageFlags usage) : m_usage(usage) {}
+
+	void update(void const* data, std::size_t size, std::size_t count) {
+		m_data.resize(size);
+		std::memcpy(m_data.data(), data, size);
+		m_count = static_cast<std::uint32_t>(count);
+	}
+
+	void flush(Vma const& vma, Index<Buffering> i) {
+		if (m_buffer.get(i).get().size < m_data.size()) { m_buffer.get(i) = vma.make_buffer(m_usage, m_data.size(), true); }
+		auto& buffer = m_buffer.get(i).get();
+		std::memcpy(buffer.ptr, m_data.data(), m_data.size());
+	}
+
+	BufferView view(Index<Buffering> i) const {
+		auto const& buffer = m_buffer.get(i).get();
+		return BufferView{.buffer = buffer.buffer, .size = buffer.size, .count = m_count};
+	}
+
+  private:
+	vk::BufferUsageFlags m_usage;
+	std::vector<std::byte> m_data{};
+	std::uint32_t m_count{};
+	Buffered<UniqueBuffer, Buffering> m_buffer{};
+};
+
+template <typename Type, std::size_t Buffering = buffering_v>
+class BufferVec {
+  public:
+	BufferVec() = default;
+	BufferVec(vk::BufferUsageFlags usage) : m_usage(usage) {}
+
+	template <typename F>
+	BufferView write(Vma const& vma, std::size_t size, Index<Buffering> i, F for_each) {
+		auto& buffer = [&]() -> HostBuffer<Buffering>& {
+			if (m_index < m_buffers.size()) { return m_buffers[m_index]; }
+			m_buffers.emplace_back(m_usage);
+			return m_buffers.back();
+		}();
+		m_vec.clear();
+		m_vec.resize(size);
+		for (auto [t, index] : enumerate(m_vec)) { for_each(t, index); }
+		auto const span = std::span<Type const>{m_vec};
+		buffer.update(span.data(), span.size_bytes(), span.size());
+		buffer.flush(vma, i);
+		++m_index;
+		return buffer.view(i);
+	}
+
+	void release() { m_index = {}; }
+
+  private:
+	using Vec = std::vector<Type>;
+	std::vector<HostBuffer<Buffering>> m_buffers{};
+	Vec m_vec{};
+	vk::BufferUsageFlags m_usage;
+	std::size_t m_index{};
+};
+
+template <std::size_t Buffering = buffering_v>
 struct PipelineStorage {
 	struct Program {
 		SpirV vert{};
@@ -631,7 +732,7 @@ struct PipelineStorage {
 		vk::UniquePipelineLayout pipeline_layout{};
 		std::vector<SetLayout> set_layouts{};
 		std::vector<vk::UniqueDescriptorSetLayout> descriptor_set_layouts{};
-		Rotator<SetAllocator::Pool> set_pools{};
+		Buffered<SetAllocator::Pool, Buffering> set_pools{};
 		vk::UniqueShaderModule vert{};
 		vk::UniqueShaderModule frag{};
 	};
@@ -642,28 +743,34 @@ struct PipelineStorage {
 		Ptr<SetAllocator::Pool> set_pool{};
 		std::span<SetLayout const> set_layouts{};
 		explicit operator bool() const { return pipeline && layout && set_pool; }
+
+		void bind(vk::CommandBuffer cb, vk::Extent2D extent, float line_width = 1.0f) {
+			cb.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+			glm::vec2 const fextent = glm::uvec2{extent.width, extent.height};
+			auto viewport = vk::Viewport{0.0f, fextent.y, fextent.x, -fextent.y, 0.0f, 1.0f};
+			auto scissor = vk::Rect2D{{}, extent};
+			cb.setViewport(0u, viewport);
+			cb.setScissor(0u, scissor);
+			cb.setLineWidth(line_width);
+		}
 	};
 
-	std::unordered_map<Key, Value, Key::Hasher> map{};
-	vk::SampleCountFlagBits samples{};
+	std::unordered_map<Key, Value, typename Key::Hasher> map{};
 	bool sample_rate_shading{};
 
 	void populate(Value& out, Vma const& vma, SpirV vert, SpirV frag);
-	vk::Pipeline get(Value& out, Vma const& vma, PipelineState st, VertexInput::View vi, vk::RenderPass rp, Program program);
+	vk::Pipeline get(Value& out, Vma const& vma, PipelineState st, VertexInput::View vi, RenderPassView rp, Program program);
 
-	Pipe get(Vma const& vma, PipelineState st, VertexInput::View vi, vk::RenderPass rp, Program program) {
-		if (!rp || program.vert.hash == 0 || program.frag.hash == 0) { throw Error{"TODO: error"}; }
+	Pipe get(Vma const& vma, PipelineState st, VertexInput::View vi, RenderPassView rp, Program program, Index<Buffering> i) {
+		if (!rp.render_pass || program.vert.hash == 0 || program.frag.hash == 0) { throw Error{"TODO: error"}; }
 		auto const key = Key::make(st, vi, program.vert, program.frag);
 		auto& value = map[key];
 		auto ret = get(value, vma, st, vi, rp, program);
-		return {ret, *value.pipeline_layout, &value.set_pools.get(), value.set_layouts};
+		return {ret, *value.pipeline_layout, &value.set_pools.get(i), value.set_layouts};
 	}
 
-	void rotate() {
-		for (auto& [_, m] : map) {
-			m.set_pools.get().release_all();
-			m.set_pools.rotate();
-		}
+	void release_all(Index<Buffering> i) {
+		for (auto& [_, m] : map) { m.set_pools.get(i).release_all(); }
 	}
 };
 
@@ -756,16 +863,17 @@ struct ShaderSet {
 	bool updated{};
 };
 
+template <std::size_t Buffering = buffering_v>
 struct VulkanShader : Shader {
 	vk::Device device{};
 	std::span<SetLayout const> set_layouts{};
 	Ptr<SamplerStorage> samplers{};
 	std::array<ShaderSet, max_sets_v> sets{};
 
-	VulkanShader(PipelineStorage::Pipe& pipe, SamplerStorage& samplers) : device(pipe.set_pool->device), samplers(&samplers) {
-		for (auto const [layout, index] : enumerate(pipe.set_layouts)) {
+	VulkanShader(typename PipelineStorage<Buffering>::Pipe& pipe, SamplerStorage& samplers) : device(pipe.set_pool->device), samplers(&samplers) {
+		for (auto const& layout : pipe.set_layouts) {
 			if (layout.bindings.empty()) { continue; }
-			sets[index].descriptor_set = &pipe.set_pool->next_set(layout.set);
+			sets[layout.set].descriptor_set = &pipe.set_pool->next_set(layout.set);
 		}
 	}
 
@@ -853,7 +961,6 @@ class VulkanTexture::Impl {
 
 	std::string_view name() const { return m_name; }
 	ImageView view() const { return m_image.get().get().image_view(); }
-	// DescriptorImage descriptor_image() const { return {*m_image.get().get().view, sampler}; }
 	std::uint32_t mip_levels() const { return m_info.mip_levels; }
 	ColourSpace colour_space() const { return is_linear(m_info.format) ? ColourSpace::eLinear : ColourSpace::eSrgb; }
 
@@ -875,80 +982,6 @@ VulkanTexture::VulkanTexture(VulkanTexture&&) noexcept = default;
 VulkanTexture& VulkanTexture::operator=(VulkanTexture&&) noexcept = default;
 VulkanTexture::~VulkanTexture() noexcept = default;
 
-namespace {
-template <std::size_t Size = buffering_v>
-class HostBuffer {
-  public:
-	HostBuffer() = default;
-	HostBuffer(vk::BufferUsageFlags usage) : m_usage(usage) {}
-
-	void update(void const* data, std::size_t size, std::size_t count) {
-		m_data.resize(size);
-		std::memcpy(m_data.data(), data, size);
-		m_count = static_cast<std::uint32_t>(count);
-	}
-
-	void flush(Vma const& vma) {
-		if (m_buffer.get().get().size < m_data.size()) { m_buffer.get() = vma.make_buffer(m_usage, m_data.size(), true); }
-		auto& buffer = m_buffer.get().get();
-		std::memcpy(buffer.ptr, m_data.data(), m_data.size());
-	}
-
-	BufferView view() const {
-		auto const& buffer = m_buffer.get().get();
-		return BufferView{.buffer = buffer.buffer, .size = buffer.size, .count = m_count};
-	}
-
-	void rotate() { m_buffer.rotate(); }
-
-  private:
-	vk::BufferUsageFlags m_usage;
-	std::vector<std::byte> m_data{};
-	std::uint32_t m_count{};
-	Rotator<UniqueBuffer, Size> m_buffer{};
-};
-
-template <typename Type>
-class BufferVec {
-  public:
-	BufferVec() = default;
-	BufferVec(vk::BufferUsageFlags usage) : m_usage(usage) {}
-
-	template <typename F>
-	BufferView write(Vma const& vma, std::size_t size, F for_each) {
-		auto& buffer = [&]() -> HostBuffer<>& {
-			if (m_index < m_buffers.size()) { return m_buffers[m_index]; }
-			m_buffers.emplace_back(m_usage);
-			return m_buffers.back();
-		}();
-		m_vec.clear();
-		m_vec.resize(size);
-		for (auto [t, index] : enumerate(m_vec)) { for_each(t, index); }
-		auto const span = std::span<Type const>{m_vec};
-		buffer.update(span.data(), span.size_bytes(), span.size());
-		buffer.flush(vma);
-		return buffer.view();
-	}
-
-	void rotate() {
-		for (auto& buffer : m_buffers) { buffer.rotate(); }
-		m_index = {};
-	}
-
-  private:
-	using Vec = std::vector<Type>;
-	std::vector<HostBuffer<>> m_buffers{};
-	Vec m_vec{};
-	vk::BufferUsageFlags m_usage;
-	std::size_t m_index{};
-};
-
-struct RenderContext {
-	// Ptr<Pipes> pipes{};
-	vk::CommandBuffer cb{};
-};
-} // namespace
-
 struct VulkanDevice::Impl {
 	vk::UniqueInstance instance{};
 	vk::UniqueDebugUtilsMessengerEXT debug{};
@@ -959,19 +992,22 @@ struct VulkanDevice::Impl {
 	std::uint32_t queue_family{};
 
 	UniqueVma vma{};
-	Swapchain swapchain{};
-	RenderPass render_pass{};
-	RenderFrames<> render_frames;
-	DearImGui dear_imgui{};
 	DeferQueue defer{};
+	Swapchain swapchain{};
+	OffScreen<> off_screen{};
+	FsQuad<> fs_quad{};
+	DearImGui dear_imgui{};
+	Index<> buffered_index{};
+
 	Ptr<Reader> reader{};
 
 	std::mutex mutex{};
-	PipelineStorage pipelines{};
+	PipelineStorage<> pipelines{};
 	ShaderStorage shaders{};
 	SamplerStorage samplers{};
 
-	RenderContext render_context{};
+	RenderCmd cmd_3d{};
+	RenderCmd cmd_ui{};
 	BufferVec<glm::mat4> instance_vec{};
 	UniqueBuffer blank_buffer{};
 	HostBuffer<> view_ubo{};
@@ -1342,38 +1378,206 @@ vk::Result make_swapchain(VulkanDevice& out, std::optional<glm::uvec2> extent, s
 	return ret;
 }
 
-RenderTarget make_render_target(VulkanDevice const& device, ImageView c) {
-	auto ret = RenderTarget{};
-	if (device.impl->render_pass.colour.format != vk::Format::eUndefined) {
-		if (device.impl->render_pass.colour.image.get().extent != c.extent) {
+template <std::size_t Buffering>
+OffScreen<Buffering> OffScreen<Buffering>::make(VulkanDevice const& device, vk::SampleCountFlagBits samples, vk::Format depth, vk::Format colour) {
+	auto attachments = FlexArray<vk::AttachmentDescription, 4>{};
+	auto colour_ref = vk::AttachmentReference{};
+	auto depth_ref = vk::AttachmentReference{};
+	auto resolve_ref = vk::AttachmentReference{};
+
+	auto subpass = vk::SubpassDescription{};
+	subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colour_ref;
+
+	static constexpr auto final_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+	colour_ref.attachment = static_cast<std::uint32_t>(attachments.size());
+	colour_ref.layout = vk::ImageLayout::eColorAttachmentOptimal;
+	auto attachment = vk::AttachmentDescription{};
+	attachment.format = colour;
+	attachment.samples = samples;
+	attachment.loadOp = vk::AttachmentLoadOp::eClear;
+	attachment.storeOp = samples > vk::SampleCountFlagBits::e1 ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
+	attachment.initialLayout = vk::ImageLayout::eUndefined;
+	attachment.finalLayout = samples > vk::SampleCountFlagBits::e1 ? colour_ref.layout : final_layout;
+	attachments.insert(attachment);
+
+	if (depth != vk::Format::eUndefined) {
+		subpass.pDepthStencilAttachment = &depth_ref;
+		depth_ref.attachment = static_cast<std::uint32_t>(attachments.size());
+		depth_ref.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+		attachment = vk::AttachmentDescription{};
+		attachment.format = depth;
+		attachment.samples = samples;
+		attachment.loadOp = vk::AttachmentLoadOp::eClear;
+		attachment.storeOp = vk::AttachmentStoreOp::eDontCare;
+		attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+		attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+		attachment.initialLayout = vk::ImageLayout::eUndefined;
+		attachment.finalLayout = depth_ref.layout;
+		attachments.insert(attachment);
+	}
+
+	if (samples > vk::SampleCountFlagBits::e1) {
+		subpass.pResolveAttachments = &resolve_ref;
+		resolve_ref.attachment = static_cast<std::uint32_t>(attachments.size());
+		resolve_ref.layout = vk::ImageLayout::eColorAttachmentOptimal;
+
+		attachment = attachments.span().front();
+		attachment.samples = vk::SampleCountFlagBits::e1;
+		attachment.loadOp = vk::AttachmentLoadOp::eDontCare;
+		attachment.storeOp = vk::AttachmentStoreOp::eStore;
+		attachment.initialLayout = vk::ImageLayout::eUndefined;
+		attachment.finalLayout = final_layout;
+		attachments.insert(attachment);
+	}
+
+	auto rpci = vk::RenderPassCreateInfo{};
+	rpci.attachmentCount = static_cast<std::uint32_t>(attachments.size());
+	rpci.pAttachments = attachments.data();
+	rpci.subpassCount = 1u;
+	rpci.pSubpasses = &subpass;
+	auto sds = FlexArray<vk::SubpassDependency, 2>{};
+	auto sd = vk::SubpassDependency{};
+	sd.srcSubpass = VK_SUBPASS_EXTERNAL;
+	sd.srcStageMask = vk::PipelineStageFlagBits::eFragmentShader;
+	sd.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+	if (depth != vk::Format{}) { sd.dstStageMask |= vk::PipelineStageFlagBits::eEarlyFragmentTests; }
+	sd.srcAccessMask = vk::AccessFlagBits::eShaderRead;
+	sd.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+	if (depth != vk::Format{}) { sd.dstAccessMask |= vk::AccessFlagBits::eDepthStencilAttachmentWrite; }
+	sds.insert(sd);
+
+	std::swap(sd.srcSubpass, sd.dstSubpass);
+	std::swap(sd.srcAccessMask, sd.dstAccessMask);
+	std::swap(sd.srcStageMask, sd.dstStageMask);
+	sds.insert(sd);
+
+	rpci.dependencyCount = static_cast<std::uint32_t>(sds.size());
+	rpci.pDependencies = sds.data();
+
+	auto ret = OffScreen<Buffering>{};
+	ret.rp.render_pass = device.impl->device->createRenderPassUnique(rpci);
+	ret.rp.samples = samples;
+	ret.rp.colour = colour;
+	ret.rp.depth = depth;
+
+	for (auto& frame : ret.rp.frames.t) { frame = RenderFrame::make(device); }
+	return ret;
+}
+
+vk::UniqueRenderPass make_fs_quad_pass(VulkanDevice const& device, vk::Format colour) {
+	auto colour_ref = vk::AttachmentReference{};
+	auto subpass = vk::SubpassDescription{};
+	subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colour_ref;
+	colour_ref.attachment = 0u;
+	colour_ref.layout = vk::ImageLayout::eColorAttachmentOptimal;
+	auto attachment = vk::AttachmentDescription{};
+	attachment.format = colour;
+	attachment.samples = vk::SampleCountFlagBits::e1;
+	attachment.loadOp = vk::AttachmentLoadOp::eDontCare;
+	attachment.storeOp = vk::AttachmentStoreOp::eStore;
+	attachment.initialLayout = vk::ImageLayout::eUndefined;
+	attachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
+
+	auto rpci = vk::RenderPassCreateInfo{};
+	rpci.attachmentCount = 1u;
+	rpci.pAttachments = &attachment;
+	rpci.subpassCount = 1u;
+	rpci.pSubpasses = &subpass;
+	auto sds = FlexArray<vk::SubpassDependency, 2>{};
+	auto sd = vk::SubpassDependency{};
+	sd.srcSubpass = VK_SUBPASS_EXTERNAL;
+	sd.srcStageMask = vk::PipelineStageFlagBits::eFragmentShader;
+	sd.dstStageMask =
+		vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests;
+	sd.srcAccessMask = vk::AccessFlagBits::eShaderRead;
+	sd.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+	sds.insert(sd);
+
+	std::swap(sd.srcSubpass, sd.dstSubpass);
+	std::swap(sd.srcAccessMask, sd.dstAccessMask);
+	std::swap(sd.srcStageMask, sd.dstStageMask);
+	sds.insert(sd);
+
+	rpci.dependencyCount = static_cast<std::uint32_t>(sds.size());
+	rpci.pDependencies = sds.data();
+
+	return device.impl->device->createRenderPassUnique(rpci);
+}
+
+template <std::size_t Buffering>
+Framebuffer OffScreen<Buffering>::make_framebuffer(VulkanDevice const& device, vk::Extent2D extent, float scale) {
+	extent = scale_extent(extent, scale);
+	if (output_image.get().get().extent != extent) {
+		auto const ici = ImageCreateInfo{
+			.format = rp.colour,
+			.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
+			.aspect = vk::ImageAspectFlagBits::eColor,
+			.samples = vk::SampleCountFlagBits::e1,
+		};
+		output_image = {device.impl->defer, device.impl->vma.get().make_image(ici, extent)};
+	}
+	auto const& colour_output = output_image.get().get().image_view();
+	auto ret = Framebuffer{};
+	ret.render_target.colour = colour_output;
+	if (rp.samples > vk::SampleCountFlagBits::e1) {
+		if (msaa_image.get().get().extent != colour_output.extent) {
 			auto const ici = ImageCreateInfo{
-				.format = device.impl->render_pass.colour.format,
+				.format = rp.colour,
 				.usage = vk::ImageUsageFlagBits::eColorAttachment,
 				.aspect = vk::ImageAspectFlagBits::eColor,
-				.samples = from(device.impl->info.current_aa),
+				.samples = rp.samples,
 			};
-			if (device.impl->render_pass.colour.image) { device.impl->defer.push(std::move(device.impl->render_pass.colour.image)); }
-			device.impl->render_pass.colour.image = device.impl->vma.get().make_image(ici, c.extent);
+			msaa_image = {device.impl->defer, device.impl->vma.get().make_image(ici, colour_output.extent)};
 		}
-		ret.colour = device.impl->render_pass.colour.image.get().image_view();
-		ret.resolve = c;
-	} else {
-		ret.colour = c;
+		ret.render_target.colour = msaa_image.get().get().image_view();
+		ret.render_target.resolve = colour_output;
 	}
-	if (device.impl->render_pass.depth.format != vk::Format::eUndefined) {
-		if (device.impl->render_pass.depth.image.get().extent != c.extent) {
+	if (rp.depth != vk::Format::eUndefined) {
+		if (depth_buffer.get().get().extent != colour_output.extent) {
 			auto const ici = ImageCreateInfo{
-				.format = device.impl->render_pass.depth.format,
+				.format = rp.depth,
 				.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
 				.aspect = vk::ImageAspectFlagBits::eDepth,
-				.samples = from(device.impl->info.current_aa),
+				.samples = rp.samples,
 			};
-			if (device.impl->render_pass.depth.image) { device.impl->defer.push(std::move(device.impl->render_pass.depth.image)); }
-			device.impl->render_pass.depth.image = device.impl->vma.get().make_image(ici, c.extent);
+			depth_buffer = {device.impl->defer, device.impl->vma.get().make_image(ici, colour_output.extent)};
 		}
-		ret.depth = device.impl->render_pass.depth.image.get().image_view();
+		ret.render_target.depth = depth_buffer.get().get().image_view();
 	}
-	ret.extent = c.extent;
+	ret.render_target.extent = colour_output.extent;
+
+	auto fbci = vk::FramebufferCreateInfo{};
+	fbci.renderPass = *rp.render_pass;
+	auto const attachments = ret.render_target.attachments();
+	fbci.attachmentCount = static_cast<std::uint32_t>(attachments.size());
+	fbci.pAttachments = attachments.span().data();
+	fbci.width = ret.render_target.colour.extent.width;
+	fbci.height = ret.render_target.colour.extent.height;
+	fbci.layers = 1;
+	ret.framebuffer = device.impl->device->createFramebufferUnique(fbci);
+	return ret;
+}
+
+template <std::size_t Buffering>
+Framebuffer FsQuad<Buffering>::make_framebuffer(VulkanDevice const& device, ImageView const& output_image) {
+	auto ret = Framebuffer{};
+	ret.render_target.colour = output_image;
+	ret.render_target.extent = output_image.extent;
+
+	auto fbci = vk::FramebufferCreateInfo{};
+	fbci.renderPass = *rp;
+	auto const attachments = ret.render_target.attachments();
+	fbci.attachmentCount = static_cast<std::uint32_t>(attachments.size());
+	fbci.pAttachments = attachments.span().data();
+	fbci.width = ret.render_target.colour.extent.width;
+	fbci.height = ret.render_target.colour.extent.height;
+	fbci.layers = 1;
+	ret.framebuffer = device.impl->device->createFramebufferUnique(fbci);
 	return ret;
 }
 
@@ -1391,68 +1595,6 @@ vk::Format depth_format(vk::PhysicalDevice const gpu) {
 	auto const props = gpu.getFormatProperties(target);
 	if (props.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment) { return target; }
 	return vk::Format::eD16Unorm;
-}
-
-vk::UniqueRenderPass make_render_pass(vk::Device device, vk::SampleCountFlagBits samples, vk::Format colour, vk::Format depth) {
-	auto attachments = std::vector<vk::AttachmentDescription>{};
-	auto colour_ref = vk::AttachmentReference{};
-	auto depth_ref = vk::AttachmentReference{};
-	auto resolve_ref = vk::AttachmentReference{};
-
-	auto subpass = vk::SubpassDescription{};
-	subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments = &colour_ref;
-
-	colour_ref.attachment = static_cast<std::uint32_t>(attachments.size());
-	colour_ref.layout = vk::ImageLayout::eColorAttachmentOptimal;
-	auto attachment = vk::AttachmentDescription{};
-	attachment.format = colour;
-	attachment.samples = samples;
-	attachment.loadOp = vk::AttachmentLoadOp::eClear;
-	attachment.storeOp = samples > vk::SampleCountFlagBits::e1 ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
-	attachment.initialLayout = attachment.finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
-	attachments.push_back(attachment);
-
-	if (depth != vk::Format::eUndefined) {
-		subpass.pDepthStencilAttachment = &depth_ref;
-		depth_ref.attachment = static_cast<std::uint32_t>(attachments.size());
-		depth_ref.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-		auto attachment = vk::AttachmentDescription{};
-		attachment.format = depth;
-		attachment.samples = samples;
-		attachment.loadOp = vk::AttachmentLoadOp::eClear;
-		attachment.storeOp = vk::AttachmentStoreOp::eDontCare;
-		attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-		attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-		attachment.initialLayout = attachment.finalLayout = depth_ref.layout;
-		attachments.push_back(attachment);
-	}
-
-	if (samples > vk::SampleCountFlagBits::e1) {
-		subpass.pResolveAttachments = &resolve_ref;
-		resolve_ref.attachment = static_cast<std::uint32_t>(attachments.size());
-		resolve_ref.layout = vk::ImageLayout::eColorAttachmentOptimal;
-
-		attachment.samples = vk::SampleCountFlagBits::e1;
-		attachment.loadOp = vk::AttachmentLoadOp::eDontCare;
-		attachment.storeOp = vk::AttachmentStoreOp::eStore;
-		attachments.push_back(attachment);
-	}
-
-	auto rpci = vk::RenderPassCreateInfo{};
-	rpci.attachmentCount = static_cast<std::uint32_t>(attachments.size());
-	rpci.pAttachments = attachments.data();
-	rpci.subpassCount = 1u;
-	rpci.pSubpasses = &subpass;
-	auto sd = vk::SubpassDependency{};
-	sd.srcSubpass = VK_SUBPASS_EXTERNAL;
-	sd.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-	sd.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-	sd.srcStageMask = sd.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests;
-	rpci.dependencyCount = 1u;
-	rpci.pDependencies = &sd;
-	return device.createRenderPassUnique(rpci);
 }
 
 DearImGui make_imgui(Window const& window, VulkanDevice const& device) {
@@ -1506,9 +1648,9 @@ DearImGui make_imgui(Window const& window, VulkanDevice const& device) {
 	init_info.Subpass = 0;
 	init_info.MinImageCount = 2;
 	init_info.ImageCount = 2;
-	init_info.MSAASamples = static_cast<VkSampleCountFlagBits>(from(device.impl->info.current_aa));
+	init_info.MSAASamples = static_cast<VkSampleCountFlagBits>(vk::SampleCountFlagBits::e1);
 
-	ImGui_ImplVulkan_Init(&init_info, *device.impl->render_pass.render_pass);
+	ImGui_ImplVulkan_Init(&init_info, *device.impl->fs_quad.rp);
 
 	{
 		auto cmd = Cmd{device};
@@ -1516,39 +1658,6 @@ DearImGui make_imgui(Window const& window, VulkanDevice const& device) {
 	}
 	ImGui_ImplVulkan_DestroyFontUploadObjects();
 
-	return ret;
-}
-
-ImageBarrier undef_to_colour(ImageView const& image) {
-	auto ret = ImageBarrier{};
-	ret.barrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead;
-	ret.barrier.oldLayout = vk::ImageLayout::eUndefined;
-	ret.barrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
-	ret.barrier.image = image.image;
-	ret.barrier.subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
-	ret.stages = {vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput};
-	return ret;
-}
-
-ImageBarrier undef_to_depth(ImageView const& image) {
-	auto ret = ImageBarrier{};
-	ret.barrier.srcAccessMask = ret.barrier.dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentRead;
-	ret.barrier.oldLayout = vk::ImageLayout::eUndefined;
-	ret.barrier.newLayout = vk::ImageLayout::eDepthAttachmentOptimal;
-	ret.barrier.image = image.image;
-	ret.barrier.subresourceRange = {vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1};
-	ret.stages.first = ret.stages.second = vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests;
-	return ret;
-}
-
-ImageBarrier colour_to_present(ImageView const& image) {
-	auto ret = ImageBarrier{};
-	ret.barrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead;
-	ret.barrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
-	ret.barrier.newLayout = vk::ImageLayout::ePresentSrcKHR;
-	ret.barrier.image = image.image;
-	ret.barrier.subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
-	ret.stages = {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe};
 	return ret;
 }
 
@@ -1620,10 +1729,9 @@ struct PipeInfo {
 	vk::ShaderModule vert;
 	vk::ShaderModule frag;
 	vk::PipelineLayout layout;
-	vk::RenderPass render_pass;
 
+	RenderPassView render_pass;
 	PipelineState state{};
-	vk::SampleCountFlagBits samples{vk::SampleCountFlagBits::e1};
 	bool sample_shading{true};
 };
 
@@ -1646,7 +1754,7 @@ vk::UniquePipelineLayout make_pipeline_layout(vk::Device device, std::span<vk::U
 
 vk::UniquePipeline make_pipeline(vk::Device device, PipeInfo const& info) {
 	auto gpci = vk::GraphicsPipelineCreateInfo{};
-	gpci.renderPass = info.render_pass;
+	gpci.renderPass = info.render_pass.render_pass;
 	gpci.layout = info.layout;
 
 	auto pvisci = vk::PipelineVertexInputStateCreateInfo{};
@@ -1699,7 +1807,7 @@ vk::UniquePipeline make_pipeline(vk::Device device, PipeInfo const& info) {
 	gpci.pViewportState = &pvsci;
 
 	auto pmssci = vk::PipelineMultisampleStateCreateInfo{};
-	pmssci.rasterizationSamples = info.samples;
+	pmssci.rasterizationSamples = info.render_pass.samples;
 	pmssci.sampleShadingEnable = info.sample_shading;
 	gpci.pMultisampleState = &pmssci;
 
@@ -1709,7 +1817,8 @@ vk::UniquePipeline make_pipeline(vk::Device device, PipeInfo const& info) {
 	return vk::UniquePipeline{ret, device};
 }
 
-void PipelineStorage::populate(Value& out, Vma const& vma, SpirV vert, SpirV frag) {
+template <std::size_t Buffering>
+void PipelineStorage<Buffering>::populate(Value& out, Vma const& vma, SpirV vert, SpirV frag) {
 	if (out.pipeline_layout) { return; }
 	out.set_layouts = make_set_layouts(vert.bytes, frag.bytes);
 	for (auto const& layout : out.set_layouts) {
@@ -1723,35 +1832,45 @@ void PipelineStorage::populate(Value& out, Vma const& vma, SpirV vert, SpirV fra
 	for (auto& pool : out.set_pools.t) { pool = {vma, out.set_layouts}; }
 }
 
-vk::Pipeline PipelineStorage::get(Value& out, Vma const& vma, PipelineState st, VertexInput::View vi, vk::RenderPass rp, Program program) {
-	if (auto it = out.pipelines.find(rp); it != out.pipelines.end()) { return *it->second; }
+template <std::size_t Buffering>
+vk::Pipeline PipelineStorage<Buffering>::get(Value& out, Vma const& vma, PipelineState st, VertexInput::View vi, RenderPassView rp, Program program) {
+	if (auto it = out.pipelines.find(rp.render_pass); it != out.pipelines.end()) { return *it->second; }
 	if (!out.pipeline_layout) { populate(out, vma, program.vert, program.frag); }
 	auto const pi = PipeInfo{
-		vi, *out.vert, *out.frag, *out.pipeline_layout, rp, st, samples, sample_rate_shading,
+		vi, *out.vert, *out.frag, *out.pipeline_layout, rp, st, sample_rate_shading,
 	};
 	auto ret = make_pipeline(vma.device, pi);
 	if (!ret) { throw Error{"TODO: error"}; }
-	auto [it, _] = out.pipelines.insert_or_assign(rp, std::move(ret));
+	auto [it, _] = out.pipelines.insert_or_assign(rp.render_pass, std::move(ret));
 	return *it->second;
 }
 
-void VulkanShader::update(std::uint32_t set, std::uint32_t binding, Texture const& texture) {
+template <std::size_t Buffering>
+void VulkanShader<Buffering>::update(std::uint32_t set, std::uint32_t binding, Texture const& texture) {
 	auto const* vt = texture.as<VulkanTexture>();
 	assert(vt);
 	get_set(set)->update(binding, vt->impl->view(), samplers->get(device, vt->impl->sampler));
 }
 
-void VulkanShader::update(std::uint32_t set, std::uint32_t binding, BufferView const& buffer) { get_set(set)->update(binding, buffer); }
-void VulkanShader::write(std::uint32_t set, std::uint32_t binding, void const* data, std::size_t size) { get_set(set)->write(binding, data, size); }
+template <std::size_t Buffering>
+void VulkanShader<Buffering>::update(std::uint32_t set, std::uint32_t binding, BufferView const& buffer) {
+	get_set(set)->update(binding, buffer);
+}
+template <std::size_t Buffering>
+void VulkanShader<Buffering>::write(std::uint32_t set, std::uint32_t binding, void const* data, std::size_t size) {
+	get_set(set)->write(binding, data, size);
+}
 
-Ptr<DescriptorSet> VulkanShader::get_set(std::uint32_t set) {
+template <std::size_t Buffering>
+Ptr<DescriptorSet> VulkanShader<Buffering>::get_set(std::uint32_t set) {
 	assert(set < max_sets_v && sets[set].descriptor_set);
 	auto& ret = sets[set];
 	ret.updated = true;
 	return ret.descriptor_set;
 }
 
-void VulkanShader::bind(vk::PipelineLayout layout, vk::CommandBuffer cb) const {
+template <std::size_t Buffering>
+void VulkanShader<Buffering>::bind(vk::PipelineLayout layout, vk::CommandBuffer cb) const {
 	for (auto const& set : sets) {
 		if (!set.descriptor_set) { continue; }
 		if (!set.updated) { logger::warn("[Shader] All descriptor sets not updated for bound pipeline"); }
@@ -2081,20 +2200,6 @@ vk::UniqueImageView Vma::make_image_view(vk::Image const image, vk::Format const
 	return device.createImageViewUnique(info);
 }
 
-void RenderTarget::to_draw(vk::CommandBuffer const cb) {
-	if (colour.view) { undef_to_colour(colour).transition(cb); }
-	if (resolve.view) { undef_to_colour(resolve).transition(cb); }
-	if (depth.view) { undef_to_depth(depth).transition(cb); }
-}
-
-void RenderTarget::to_present(vk::CommandBuffer const cb) {
-	if (resolve.view) {
-		colour_to_present(resolve).transition(cb);
-	} else {
-		colour_to_present(colour).transition(cb);
-	}
-}
-
 RenderFrame RenderFrame::make(VulkanDevice const& device) {
 	static constexpr auto flags = vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
 	auto ret = RenderFrame{
@@ -2107,7 +2212,7 @@ RenderFrame RenderFrame::make(VulkanDevice const& device) {
 		.cmd_alloc = CmdAllocator::make(*device.impl->device, device.impl->queue_family, flags),
 	};
 	ret.primary = ret.cmd_alloc.allocate(false);
-	ret.secondary = ret.cmd_alloc.allocate(true);
+	for (auto& cmd : ret.secondary) { cmd = ret.cmd_alloc.allocate(true); }
 	return ret;
 }
 
@@ -2147,7 +2252,7 @@ void write_view(VulkanDevice const& device, Camera const& camera, Lights const& 
 		.vpos_exposure = {camera.transform.position(), camera.exposure},
 	};
 	device.impl->view_ubo.update(&view, sizeof(view), 1);
-	device.impl->view_ubo.flush(device.impl->vma);
+	device.impl->view_ubo.flush(device.impl->vma, device.impl->buffered_index);
 
 	struct DirLightSSBO {
 		alignas(16) glm::vec3 direction{front_v};
@@ -2168,15 +2273,58 @@ void write_view(VulkanDevice const& device, Camera const& camera, Lights const& 
 			if (dir_lights.size() == dir_lights.capacity_v) { break; }
 		}
 		device.impl->dir_lights_ssbo.update(dir_lights.span().data(), dir_lights.span().size_bytes(), dir_lights.size());
-		device.impl->dir_lights_ssbo.flush(device.impl->vma);
+		device.impl->dir_lights_ssbo.flush(device.impl->vma, device.impl->buffered_index);
 	}
 }
 
-void update_view(VulkanDevice const& device, VulkanShader& shader) {
-	shader.update(0, 0, device.impl->view_ubo.view());
-	auto lights = device.impl->dir_lights_ssbo.view();
+template <std::size_t Buffering>
+void update_view(VulkanDevice const& device, VulkanShader<Buffering>& shader) {
+	shader.update(0, 0, device.impl->view_ubo.view(device.impl->buffered_index));
+	auto lights = device.impl->dir_lights_ssbo.view(device.impl->buffered_index);
 	auto buffer = lights.buffer ? lights : device.impl->blank_buffer.get().view();
 	shader.update(0, 1, buffer);
+}
+
+void render_mesh(VulkanDevice const& device, StaticMesh const& mesh, glm::mat4 const& parent, std::span<Transform const> instances, RenderCmd cmd,
+				 RenderPassView rp) {
+	static Material const s_default_mat{UnlitMaterial{}};
+	auto const& limits = device.impl->gpu.properties.limits;
+	auto const texture_fallback = TextureFallback{*device.impl->white_texture, *device.impl->black_texture};
+	for (auto const& primitive : mesh.primitives) {
+		auto const* vmg = primitive.geometry.as<VulkanMeshGeometry>();
+		assert(vmg);
+		if (!cmd.cb) {
+			logger::error("[GraphicsDevice] Attempt to call draw outside active render pass");
+			return;
+		}
+		auto const& material = primitive.material(mesh.materials, s_default_mat);
+		auto const state = PipelineState{
+			.polygon_mode = primitive.polygon_mode,
+			.topology = primitive.topology,
+			.depth_test = material.pipeline_state().depth_test,
+		};
+		auto cb = cmd.cb;
+		auto const& vlayout = vmg->impl->vertex_layout();
+		auto const i = device.impl->buffered_index;
+		auto vert = device.impl->shaders.get(*device.impl->reader, vlayout.shader_uri);
+		auto frag = device.impl->shaders.get(*device.impl->reader, material.shader_id());
+		auto pipe = device.impl->pipelines.get(device.impl->vma, state, vlayout.input, rp, {vert, frag}, i);
+		auto shader = VulkanShader{pipe, device.impl->samplers};
+		auto const line_width = std::clamp(material.pipeline_state().line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
+		pipe.bind(cb, cmd.extent, line_width);
+		update_view(device, shader);
+		material.write_sets(shader, texture_fallback);
+		shader.bind(pipe.layout, cb);
+		auto write_instances = [&](glm::mat4& out, std::size_t index) { out = parent * instances[index].matrix(); };
+		auto instance_buffer = device.impl->instance_vec.write(device.impl->vma, instances.size(), device.impl->buffered_index, write_instances);
+		if (primitive.geometry.has_joints()) {
+			assert(instances.size() == 1);
+			// TODO
+		} else {
+			cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
+		}
+		vmg->impl->draw(cb, static_cast<std::uint32_t>(instances.size()));
+	}
 }
 } // namespace
 } // namespace levk
@@ -2211,14 +2359,12 @@ void levk::gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& 
 
 	auto const depth = depth_format(out.impl->gpu.device);
 	auto const samples = from(out.impl->info.current_aa);
-	out.impl->render_pass.render_pass = make_render_pass(*out.impl->device, samples, out.impl->swapchain.info.imageFormat, depth);
-	out.impl->render_pass.depth.format = depth;
-	if (out.impl->info.current_aa > AntiAliasing::e1x) { out.impl->render_pass.colour.format = out.impl->swapchain.info.imageFormat; }
-	for (auto& frame : out.impl->render_frames.t) { frame = RenderFrame::make(out); }
+	out.impl->off_screen = OffScreen<>::make(out, samples, depth);
+	out.impl->fs_quad.rp = make_fs_quad_pass(out, out.impl->swapchain.info.imageFormat);
+
 	out.impl->dear_imgui = make_imgui(create_info.window, out);
 	out.impl->dear_imgui.new_frame();
 
-	out.impl->pipelines.samples = samples;
 	out.impl->pipelines.sample_rate_shading = out.impl->gpu.device.getFeatures().sampleRateShading;
 
 	out.impl->samplers.anisotropy = out.impl->gpu.properties.limits.maxSamplerAnisotropy;
@@ -2251,24 +2397,27 @@ levk::GraphicsDeviceInfo const& levk::gfx_info(VulkanDevice const& device) { ret
 
 bool levk::gfx_set_vsync(VulkanDevice& out, Vsync::Type vsync) { return make_swapchain(out, {}, from(vsync)) == vk::Result::eSuccess; }
 
+bool levk::gfx_set_render_scale(VulkanDevice& out, float scale) {
+	if (scale < render_scale_limit_v[0] || scale > render_scale_limit_v[1]) { return false; }
+	out.impl->info.render_scale = scale;
+	return true;
+}
+
 void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	struct OnReturn {
 		VulkanDevice& out;
 		~OnReturn() {
+			out.impl->buffered_index.next();
 			out.impl->dear_imgui.new_frame();
 			out.impl->defer.next();
-			out.impl->pipelines.rotate();
-			out.impl->render_frames.rotate();
-			out.impl->instance_vec.rotate();
-			out.impl->view_ubo.rotate();
-			out.impl->dir_lights_ssbo.rotate();
+			out.impl->instance_vec.release();
 		}
 	};
 
 	auto const on_return = OnReturn{out};
 	if (info.extent.x == 0 || info.extent.y == 0) { return; }
 
-	auto& frame = out.impl->render_frames.get();
+	auto& frame = out.impl->off_screen.rp.frames.get(out.impl->buffered_index);
 
 	auto recreate = [&out, extent = info.extent] {
 		if (make_swapchain(out, extent, {}) == vk::Result::eSuccess) {
@@ -2309,59 +2458,72 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 
 	reset(*out.impl->device, *frame.sync.drawn);
 
-	// refresh render target
-	auto render_target = make_render_target(out, acquired.image);
-	auto const attachments = render_target.attachments();
-
-	// refresh framebuffer
-	{
-		auto fbci = vk::FramebufferCreateInfo{};
-		fbci.renderPass = *out.impl->render_pass.render_pass;
-		auto const span = attachments.span();
-		fbci.attachmentCount = static_cast<std::uint32_t>(span.size());
-		fbci.pAttachments = span.data();
-		fbci.width = render_target.colour.extent.width;
-		fbci.height = render_target.colour.extent.height;
-		fbci.layers = 1;
-		frame.framebuffer = out.impl->device->createFramebufferUnique(fbci);
-	}
-	auto const framebuffer = Framebuffer{attachments, *frame.framebuffer, frame.primary, frame.secondary};
-
 	// write view
 	write_view(out, info.camera, info.lights, info.extent);
 
-	// begin recording commands
-	out.impl->render_context.cb = frame.secondary;
-	auto const cbii = vk::CommandBufferInheritanceInfo{*out.impl->render_pass.render_pass, 0, framebuffer.framebuffer};
-	frame.secondary.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
+	// refresh render targets
+	auto& fs_quad_fb = out.impl->fs_quad.framebuffer.get(out.impl->buffered_index);
+	frame.framebuffer = out.impl->off_screen.make_framebuffer(out, acquired.image.extent, out.impl->info.render_scale);
+	fs_quad_fb = out.impl->fs_quad.make_framebuffer(out, acquired.image);
 
-	info.renderer.render(info.device);
+	// begin recording
+	out.impl->cmd_3d = {frame.secondary[0], frame.framebuffer.render_target.extent};
+	out.impl->cmd_ui = {frame.secondary[1], fs_quad_fb.render_target.extent};
+	auto cbii = vk::CommandBufferInheritanceInfo{*out.impl->off_screen.rp.render_pass, 0, *frame.framebuffer.framebuffer};
+	out.impl->cmd_3d.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
+	cbii = {*out.impl->fs_quad.rp, 0, *fs_quad_fb.framebuffer};
+	out.impl->cmd_ui.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
+
+	// dispatch 3D render
+	info.renderer.render_3d(info.device);
+
+	// trace 3D output image to native render pass
+	auto fs_quad_vert = out.impl->shaders.get(*out.impl->reader, "shaders/fs_quad.vert");
+	auto fs_quad_frag = out.impl->shaders.get(*out.impl->reader, "shaders/fs_quad.frag");
+	auto fs_quad_pipe = out.impl->pipelines.get(out.impl->vma, {}, {}, {*out.impl->fs_quad.rp, vk::SampleCountFlagBits::e1}, {fs_quad_vert, fs_quad_frag},
+												out.impl->buffered_index);
+	// bind 3D output image to 0, 0
+	auto& fs_quad_set0 = fs_quad_pipe.set_pool->next_set(0);
+	fs_quad_set0.update(0, frame.framebuffer.render_target.output_image(), out.impl->samplers.get(*out.impl->device, {}));
+	fs_quad_pipe.bind(out.impl->cmd_ui.cb, fs_quad_fb.render_target.extent);
+	out.impl->cmd_ui.cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, fs_quad_pipe.layout, 0u, fs_quad_set0.set(), {});
+	// draw quad hard-coded in shader
+	out.impl->cmd_ui.cb.draw(6u, 1u, {}, {});
+
+	// dispatch UI render
+	info.renderer.render_ui(info.device);
+
+	// dispatch Dear ImGui render
 	out.impl->dear_imgui.end_frame();
+	out.impl->dear_imgui.render(out.impl->cmd_ui.cb);
 
-	// perform the actual Dear ImGui render
-	out.impl->dear_imgui.render(frame.secondary);
 	// end recording
-	frame.secondary.end();
-	out.impl->render_context = {};
+	out.impl->cmd_3d.cb.end();
+	out.impl->cmd_ui.cb.end();
 
-	// prepare render pass
+	// begin rendering
 	frame.primary.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-	// transition render target to be ready to draw to
-	render_target.to_draw(frame.primary);
 
 	auto const clear_colour = info.clear.to_vec4();
 	auto const vk_clear_colour = vk::ClearColorValue{std::array{clear_colour.x, clear_colour.y, clear_colour.z, clear_colour.w}};
-	// execute render pass
+	// execute 3D render pass
 	vk::ClearValue const clear_values[] = {vk_clear_colour, vk::ClearDepthStencilValue{1.0f, 0u}};
-	auto rpbi = vk::RenderPassBeginInfo{*out.impl->render_pass.render_pass, *frame.framebuffer, vk::Rect2D{{}, {info.extent.x, info.extent.y}}, clear_values};
+	auto rpbi = vk::RenderPassBeginInfo{*out.impl->off_screen.rp.render_pass, *frame.framebuffer.framebuffer,
+										vk::Rect2D{{}, frame.framebuffer.render_target.extent}, clear_values};
 	frame.primary.beginRenderPass(rpbi, vk::SubpassContents::eSecondaryCommandBuffers);
-	frame.primary.executeCommands(1u, &frame.secondary);
+	frame.primary.executeCommands(1u, &out.impl->cmd_3d.cb);
+	frame.primary.endRenderPass();
+	// execute UI render pass
+	rpbi = vk::RenderPassBeginInfo{*out.impl->fs_quad.rp, *fs_quad_fb.framebuffer, vk::Rect2D{{}, fs_quad_fb.render_target.extent}, clear_values};
+	frame.primary.beginRenderPass(rpbi, vk::SubpassContents::eSecondaryCommandBuffers);
+	frame.primary.executeCommands(1u, &out.impl->cmd_ui.cb);
 	frame.primary.endRenderPass();
 
-	// transition render target to be ready to be presented
-	render_target.to_present(frame.primary);
-	// end render pass
+	// end rendering
 	frame.primary.end();
+
+	out.impl->cmd_3d = {};
+	out.impl->cmd_ui = {};
 
 	static constexpr vk::PipelineStageFlags submit_wait = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 	auto submit_info = vk::SubmitInfo{*frame.sync.draw, submit_wait, frame.primary, *frame.sync.present};
@@ -2403,49 +2565,7 @@ levk::Sampler const& levk::gfx_tex_sampler(VulkanTexture const& texture) { retur
 levk::ColourSpace levk::gfx_tex_colour_space(VulkanTexture const& texture) { return texture.impl->colour_space(); }
 std::uint32_t levk::gfx_tex_mip_levels(VulkanTexture const& texture) { return texture.impl->mip_levels(); }
 
-void levk::gfx_render_mesh(VulkanDevice& out_device, Mesh const& mesh, std::span<Transform const> instances) {
-	static Material const s_default_mat{UnlitMaterial{}};
-	auto const& limits = out_device.impl->gpu.properties.limits;
-	auto const texture_fallback = TextureFallback{*out_device.impl->white_texture, *out_device.impl->black_texture};
-	for (auto const& primitive : mesh.primitives) {
-		auto const* vmg = primitive.geometry.as<VulkanMeshGeometry>();
-		assert(vmg);
-		if (!out_device.impl->render_context.cb) {
-			logger::error("[GraphicsDevice] Attempt to call draw outside active render pass");
-			return;
-		}
-		auto const& material = primitive.material(mesh.materials, s_default_mat);
-		auto const state = PipelineState{
-			.polygon_mode = primitive.polygon_mode,
-			.topology = primitive.topology,
-			.depth_test = material.pipeline_state().depth_test,
-		};
-		auto cb = out_device.impl->render_context.cb;
-		auto const& vlayout = vmg->impl->vertex_layout();
-		auto vert = out_device.impl->shaders.get(*out_device.impl->reader, vlayout.shader_uri);
-		auto frag = out_device.impl->shaders.get(*out_device.impl->reader, material.shader_id());
-		auto pipe = out_device.impl->pipelines.get(out_device.impl->vma, state, vlayout.input, *out_device.impl->render_pass.render_pass, {vert, frag});
-		auto shader = VulkanShader{pipe, out_device.impl->samplers};
-		cb.bindPipeline(vk::PipelineBindPoint::eGraphics, pipe.pipeline);
-		cb.setLineWidth(std::clamp(material.pipeline_state().line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]));
-		update_view(out_device, shader);
-		material.write_sets(shader, texture_fallback);
-		shader.bind(pipe.layout, cb);
-		auto const& uextent = out_device.impl->swapchain.storage.extent;
-		glm::vec2 const fextent = uextent;
-		auto viewport = vk::Viewport{0.0f, fextent.y, fextent.x, -fextent.y, 0.0f, 1.0f};
-		auto scissor = vk::Rect2D{{}, {uextent.x, uextent.y}};
-		cb.setViewport(0u, viewport);
-		cb.setScissor(0u, scissor);
-		auto write_instances = [&](glm::mat4& out, std::size_t index) { out = instances[index].matrix(); };
-		auto instance_buffer = out_device.impl->instance_vec.write(out_device.impl->vma, instances.size(), write_instances);
-		if (primitive.geometry.has_joints()) {
-			assert(instances.size() == 1);
-			// TODO
-		} else {
-			cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
-		}
-		vmg->impl->draw(cb, static_cast<std::uint32_t>(instances.size()));
-	}
+void levk::gfx_render(VulkanDevice& out_device, StaticMesh const& mesh, glm::mat4 const& parent, std::span<Transform const> instances) {
+	render_mesh(out_device, mesh, parent, instances, out_device.impl->cmd_3d, out_device.impl->off_screen.rp.view());
 	// TODO update stats
 }

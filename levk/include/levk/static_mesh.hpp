@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace levk {
-struct Mesh {
+struct StaticMesh {
 	struct Primitive {
 		MeshGeometry geometry;
 		std::optional<std::size_t> material_index{};

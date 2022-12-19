@@ -1,7 +1,7 @@
 #pragma once
 #include <levk/geometry.hpp>
 #include <levk/graphics_common.hpp>
-#include <levk/mesh.hpp>
+#include <levk/static_mesh.hpp>
 #include <levk/texture.hpp>
 #include <memory>
 
@@ -45,6 +45,7 @@ void gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& create
 void gfx_destroy_device(VulkanDevice& out);
 GraphicsDeviceInfo const& gfx_info(VulkanDevice const& device);
 bool gfx_set_vsync(VulkanDevice& out, Vsync::Type vsync);
+bool gfx_set_render_scale(VulkanDevice& out, float scale);
 void gfx_render(VulkanDevice& out, RenderInfo const& info);
 
 MeshGeometry gfx_make_mesh_geometry(VulkanDevice const& device, Geometry const& geometry, MeshJoints const& joints);
@@ -57,5 +58,5 @@ Sampler const& gfx_tex_sampler(VulkanTexture const& texture);
 ColourSpace gfx_tex_colour_space(VulkanTexture const& texture);
 std::uint32_t gfx_tex_mip_levels(VulkanTexture const& texture);
 
-void gfx_render_mesh(VulkanDevice& out, Mesh const& mesh, std::span<Transform const> instances);
+void gfx_render(VulkanDevice& out, StaticMesh const& mesh, glm::mat4 const& parent, std::span<Transform const> instances);
 } // namespace levk

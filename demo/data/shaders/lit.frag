@@ -109,7 +109,7 @@ vec3 cook_torrance() {
 		L0 += (kD * vec3(material.albedo) / pi_v + spec) * light.diffuse * max(in_vpos_exposure.w, 0.0) * NdotL;
 	}
 
-	vec3 colour = L0;
+	vec3 colour = max(L0, 0.03 * vec3(material.albedo));
 
 	colour /= (colour + vec3(1.0));
 	return colour;
