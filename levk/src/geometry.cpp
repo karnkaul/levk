@@ -67,6 +67,10 @@ Geometry& Geometry::append_cube(glm::vec3 size, glm::vec3 rgb, glm::vec3 const o
 	return append(vs, is);
 }
 
+Geometry::Packed Geometry::pack() const { return Packed::from(*this); }
+
+Geometry::operator Packed() const { return pack(); }
+
 Geometry::Packed Geometry::Packed::from(Geometry const& geometry) {
 	auto ret = Packed{};
 	for (auto const& vertex : geometry.vertices) {

@@ -26,8 +26,8 @@ struct Camera {
 		ViewPlane view_plane{-100.0f, 100.0f};
 	};
 
-	glm::mat4x4 view() const;
-	glm::mat4x4 projection(glm::vec2 extent) const;
+	glm::mat4 view() const;
+	glm::mat4 projection(glm::vec2 extent) const;
 
 	std::string name{};
 	Transform transform{};

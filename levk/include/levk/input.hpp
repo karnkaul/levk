@@ -22,10 +22,29 @@ struct Input {
 	constexpr Action keyboard_action(Key const key) const { return action(keyboard, key); }
 	constexpr Action mouse_action(MouseButton const button) const { return action(mouse, button); }
 
-	constexpr bool is_pressed(Key const key) const { return keyboard_action(key) == Action::ePress; }
-	constexpr bool is_held(Key const key) const { return keyboard_action(key) == Action::eHold; }
-	constexpr bool is_repeated(Key const key) const { return keyboard_action(key) == Action::eRepeat; }
-	constexpr bool is_released(Key const key) const { return keyboard_action(key) == Action::eRelease; }
+	template <std::same_as<Key>... T>
+	constexpr bool is_pressed(T const... key) const {
+		return ((keyboard_action(key) == Action::ePress) || ...);
+	}
+
+	template <std::same_as<Key>... T>
+	constexpr bool is_held(T const... key) const {
+		auto held = [this](Key const k) {
+			auto const a = keyboard_action(k);
+			return a == Action::eHold || a == Action::eRepeat;
+		};
+		return ((held(key)) || ...);
+	}
+
+	template <std::same_as<Key>... T>
+	constexpr bool is_repeated(T const... key) const {
+		return ((keyboard_action(key) == Action::eRepeat) || ...);
+	}
+
+	template <std::same_as<Key>... T>
+	constexpr bool is_released(T const... key) const {
+		return ((keyboard_action(key) == Action::eRelease) || ...);
+	}
 
 	constexpr bool is_pressed(MouseButton const button) const { return mouse_action(button) == Action::ePress; }
 	constexpr bool is_held(MouseButton const button) const { return mouse_action(button) == Action::eHold; }

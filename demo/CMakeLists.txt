@@ -5,12 +5,14 @@ target_link_libraries(levk-demo PRIVATE levk::lib)
 target_include_directories(levk-demo PRIVATE src)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL Clang OR CMAKE_CXX_COMPILER_ID STREQUAL GNU)
-  target_compile_options(levk PRIVATE
+  target_compile_options(levk-demo PRIVATE
     -Wall -Wextra -Wpedantic -Wconversion -Werror=return-type
   )
 endif()
 
 target_sources(levk-demo PRIVATE
+  src/experiment/scene.cpp
+  src/experiment/scene.hpp
   src/main.cpp
 )
 

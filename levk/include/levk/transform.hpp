@@ -9,7 +9,7 @@ inline constexpr auto quat_identity_v = glm::identity<glm::quat>();
 ///
 /// \brief Identity matrix.
 ///
-inline constexpr auto matrix_identity_v = glm::identity<glm::mat4x4>();
+inline constexpr auto matrix_identity_v = glm::identity<glm::mat4>();
 
 ///
 /// \brief Models an affine transformation in 3D space.
@@ -104,7 +104,7 @@ class Transform {
   private:
 	Transform& set_dirty();
 
-	mutable glm::mat4x4 m_matrix{matrix_identity_v};
+	mutable glm::mat4 m_matrix{matrix_identity_v};
 	Data m_data{};
 	mutable bool m_dirty{};
 };

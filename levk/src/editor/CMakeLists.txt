@@ -1,3 +1,3 @@
 target_sources(${PROJECT_NAME} PRIVATE
-  common.cpp
+  import_asset.cpp
 )

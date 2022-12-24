@@ -91,7 +91,7 @@ void levk::window_create(DesktopWindow& out, glm::uvec2 extent, char const* titl
 	glfwSetScrollCallback(out.window, [](GLFWwindow*, double x, double y) { g_storage.state.input.scroll += glm::dvec2{x, y}; });
 	glfwSetCursorPosCallback(out.window, [](GLFWwindow*, double x, double y) { g_storage.state.input.cursor = glm::dvec2{x, y}; });
 	glfwSetDropCallback(out.window, [](GLFWwindow*, int count, char const** paths) {
-		for (int i = 0; i < count; ++i) { g_storage.drops.push_back(paths[count]); }
+		for (int i = 0; i < count; ++i) { g_storage.drops.push_back(paths[i]); }
 	});
 	if (glfwRawMouseMotionSupported()) { glfwSetInputMode(out.window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE); }
 }

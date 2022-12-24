@@ -10,7 +10,11 @@
 #include <levk/impl/vulkan_device.hpp>
 #include <levk/impl/vulkan_surface.hpp>
 #include <levk/material.hpp>
+#include <levk/mesh.hpp>
+#include <levk/mesh_resources.hpp>
+#include <levk/skeleton.hpp>
 #include <levk/surface.hpp>
+#include <levk/texture.hpp>
 #include <levk/util/dyn_array.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
@@ -21,6 +25,7 @@
 #include <levk/util/ptr.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/unique.hpp>
+#include <levk/util/zip_ranges.hpp>
 #include <levk/window.hpp>
 #include <spirv_glsl.hpp>
 #include <vulkan/vulkan.hpp>
@@ -899,14 +904,13 @@ class VulkanMeshGeometry::Impl {
 
 	using Joints = MeshJoints;
 
-	Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints = {}, std::string name = "(Unnamed)");
-	Impl(VulkanDevice const& device, Geometry const& geometry, Joints joints = {}, std::string name = "(Unnamed)");
+	Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints = {});
 
-	std::string_view name() const { return m_name; }
 	Info info() const { return {m_vertices, m_indices}; }
 	VertexLayout const& vertex_layout() const { return m_vlayout; }
 	bool has_joints() const { return m_jwbo.get().get().size > 0; }
 	std::uint32_t instance_binding() const { return m_instance_binding; }
+	std::optional<std::uint32_t> joints_set() const { return m_jwbo.get().get().size > 0 ? std::optional<std::uint32_t>{3} : std::nullopt; }
 
 	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) const {
 		auto const& v = m_vibo.get().get();
@@ -942,7 +946,6 @@ class VulkanMeshGeometry::Impl {
 	Defer<UniqueBuffer> m_vibo{};
 	Defer<UniqueBuffer> m_jwbo{};
 	Offsets m_offsets{};
-	std::string m_name{};
 	std::uint32_t m_vertices{};
 	std::uint32_t m_indices{};
 	std::uint32_t m_instance_binding{};
@@ -957,9 +960,8 @@ class VulkanTexture::Impl {
   public:
 	using CreateInfo = TextureCreateInfo;
 
-	Impl(VulkanDevice const& device, Image::View image, CreateInfo info = {});
+	Impl(VulkanDevice const& device, Image::View image, CreateInfo const& info = {});
 
-	std::string_view name() const { return m_name; }
 	ImageView view() const { return m_image.get().get().image_view(); }
 	std::uint32_t mip_levels() const { return m_info.mip_levels; }
 	ColourSpace colour_space() const { return is_linear(m_info.format) ? ColourSpace::eLinear : ColourSpace::eSrgb; }
@@ -967,14 +969,13 @@ class VulkanTexture::Impl {
 	Sampler sampler{};
 
   protected:
-	Impl(VulkanDevice const& device, Sampler sampler, std::string name);
+	Impl(VulkanDevice const& device, Sampler sampler);
 
   private:
 	Ptr<VulkanDevice const> m_device{};
 	Defer<UniqueImage> m_image{};
 	ImageCreateInfo m_info{};
 	vk::ImageLayout m_layout{vk::ImageLayout::eUndefined};
-	std::string m_name{};
 };
 
 VulkanTexture::VulkanTexture() noexcept = default;
@@ -1009,6 +1010,7 @@ struct VulkanDevice::Impl {
 	RenderCmd cmd_3d{};
 	RenderCmd cmd_ui{};
 	BufferVec<glm::mat4> instance_vec{};
+	BufferVec<glm::mat4> joints_vec{};
 	UniqueBuffer blank_buffer{};
 	HostBuffer<> view_ubo{};
 	HostBuffer<> dir_lights_ssbo{};
@@ -1915,7 +1917,7 @@ VertexLayout instanced_vertex_layout() {
 	auto ret = common_vertex_layout();
 
 	// instance matrix
-	ret.input.bindings.insert(vk::VertexInputBindingDescription{6, sizeof(glm::mat4x4), vk::VertexInputRate::eInstance});
+	ret.input.bindings.insert(vk::VertexInputBindingDescription{6, sizeof(glm::mat4), vk::VertexInputRate::eInstance});
 	ret.input.attributes.insert(vk::VertexInputAttributeDescription{6, 6, vk::Format::eR32G32B32A32Sfloat, 0 * sizeof(glm::vec4)});
 	ret.input.attributes.insert(vk::VertexInputAttributeDescription{7, 6, vk::Format::eR32G32B32A32Sfloat, 1 * sizeof(glm::vec4)});
 	ret.input.attributes.insert(vk::VertexInputAttributeDescription{8, 6, vk::Format::eR32G32B32A32Sfloat, 2 * sizeof(glm::vec4)});
@@ -2103,15 +2105,12 @@ struct VulkanMeshGeometry::Impl::Uploader {
 	}
 };
 
-VulkanMeshGeometry::Impl::Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints, std::string name)
-	: m_vibo(device.impl->defer), m_jwbo(device.impl->defer), m_name(std::move(name)) {
+VulkanMeshGeometry::Impl::Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints)
+	: m_vibo(device.impl->defer), m_jwbo(device.impl->defer) {
 	Uploader{device, *this}(geometry, joints);
 }
 
-VulkanMeshGeometry::Impl::Impl(VulkanDevice const& device, Geometry const& geometry, Joints joints, std::string name)
-	: Impl(device, Geometry::Packed::from(geometry), joints, std::move(name)) {}
-
-VulkanTexture::Impl::Impl(VulkanDevice const& device, Image::View image, CreateInfo info) : Impl(device, info.sampler, std::move(info.name)) {
+VulkanTexture::Impl::Impl(VulkanDevice const& device, Image::View image, CreateInfo const& info) : Impl(device, info.sampler) {
 	static constexpr auto magenta_pixmap_v = FixedPixelMap<1, 1>{{magenta_v}};
 	m_info.format = info.colour_space == ColourSpace::eLinear ? vk::Format::eR8G8B8A8Unorm : vk::Format::eR8G8B8A8Srgb;
 	bool mip_mapped = info.mip_mapped;
@@ -2130,7 +2129,7 @@ VulkanTexture::Impl::Impl(VulkanDevice const& device, Image::View image, CreateI
 	m_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
 }
 
-VulkanTexture::Impl::Impl(VulkanDevice const& device, Sampler sampler, std::string name) : sampler(sampler), m_device(&device), m_name(std::move(name)) {}
+VulkanTexture::Impl::Impl(VulkanDevice const& device, Sampler sampler) : sampler(sampler), m_device(&device) {}
 
 void Vma::Deleter::operator()(Vma const& vma) const {
 	if (vma.allocator) { vmaDestroyAllocator(vma.allocator); }
@@ -2243,8 +2242,8 @@ VulkanDevice::~VulkanDevice() noexcept = default;
 namespace {
 void write_view(VulkanDevice const& device, Camera const& camera, Lights const& lights, glm::uvec2 const extent) {
 	struct ViewSSBO {
-		glm::mat4x4 mat_v;
-		glm::mat4x4 mat_p;
+		glm::mat4 mat_v;
+		glm::mat4 mat_p;
 		glm::vec4 vpos_exposure;
 	} view{
 		.mat_v = camera.view(),
@@ -2285,19 +2284,14 @@ void update_view(VulkanDevice const& device, VulkanShader<Buffering>& shader) {
 	shader.update(0, 1, buffer);
 }
 
-void render_mesh(VulkanDevice const& device, StaticMesh const& mesh, glm::mat4 const& parent, std::span<Transform const> instances, RenderCmd cmd,
-				 RenderPassView rp) {
+void render_mesh(VulkanDevice const& device, StaticMeshRenderInfo const& info, RenderCmd cmd, RenderPassView rp) {
 	static Material const s_default_mat{UnlitMaterial{}};
 	auto const& limits = device.impl->gpu.properties.limits;
-	auto const texture_fallback = TextureFallback{*device.impl->white_texture, *device.impl->black_texture};
-	for (auto const& primitive : mesh.primitives) {
+	auto const texture_fallback = TextureFallback{info.resources.textures, *device.impl->white_texture, *device.impl->black_texture};
+	for (auto const& primitive : info.mesh.primitives) {
 		auto const* vmg = primitive.geometry.as<VulkanMeshGeometry>();
 		assert(vmg);
-		if (!cmd.cb) {
-			logger::error("[GraphicsDevice] Attempt to call draw outside active render pass");
-			return;
-		}
-		auto const& material = primitive.material(mesh.materials, s_default_mat);
+		auto const& material = info.resources.materials.get_or(primitive.material, s_default_mat);
 		auto const state = PipelineState{
 			.polygon_mode = primitive.polygon_mode,
 			.topology = primitive.topology,
@@ -2315,15 +2309,54 @@ void render_mesh(VulkanDevice const& device, StaticMesh const& mesh, glm::mat4 c
 		update_view(device, shader);
 		material.write_sets(shader, texture_fallback);
 		shader.bind(pipe.layout, cb);
-		auto write_instances = [&](glm::mat4& out, std::size_t index) { out = parent * instances[index].matrix(); };
-		auto instance_buffer = device.impl->instance_vec.write(device.impl->vma, instances.size(), device.impl->buffered_index, write_instances);
-		if (primitive.geometry.has_joints()) {
-			assert(instances.size() == 1);
-			// TODO
-		} else {
-			cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
+		auto write_instances = [&](glm::mat4& out, std::size_t index) { out = info.parent * info.instances[index].matrix(); };
+		auto instance_buffer = device.impl->instance_vec.write(device.impl->vma, info.instances.size(), device.impl->buffered_index, write_instances);
+		assert(!primitive.geometry.has_joints());
+		cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
+		vmg->impl->draw(cb, static_cast<std::uint32_t>(info.instances.size()));
+	}
+}
+
+void render_mesh(VulkanDevice const& device, SkinnedMeshRenderInfo const& info, RenderCmd cmd, RenderPassView rp) {
+	static Material const s_default_mat{UnlitMaterial{}};
+	auto const& limits = device.impl->gpu.properties.limits;
+	auto const texture_fallback = TextureFallback{info.resources.textures, *device.impl->white_texture, *device.impl->black_texture};
+	for (auto const& primitive : info.mesh.primitives) {
+		auto const* vmg = primitive.geometry.as<VulkanMeshGeometry>();
+		assert(vmg);
+		if (!cmd.cb) {
+			logger::error("[GraphicsDevice] Attempt to call draw outside active render pass");
+			return;
 		}
-		vmg->impl->draw(cb, static_cast<std::uint32_t>(instances.size()));
+		auto const& material = info.resources.materials.get_or(primitive.material, s_default_mat);
+		auto const state = PipelineState{
+			.polygon_mode = primitive.polygon_mode,
+			.topology = primitive.topology,
+			.depth_test = material.pipeline_state().depth_test,
+		};
+		auto cb = cmd.cb;
+		auto const& vlayout = vmg->impl->vertex_layout();
+		auto const i = device.impl->buffered_index;
+		auto vert = device.impl->shaders.get(*device.impl->reader, vlayout.shader_uri);
+		auto frag = device.impl->shaders.get(*device.impl->reader, material.shader_id());
+		auto pipe = device.impl->pipelines.get(device.impl->vma, state, vlayout.input, rp, {vert, frag}, i);
+		auto shader = VulkanShader{pipe, device.impl->samplers};
+		auto const line_width = std::clamp(material.pipeline_state().line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
+		pipe.bind(cb, cmd.extent, line_width);
+		update_view(device, shader);
+		material.write_sets(shader, texture_fallback);
+		assert(primitive.geometry.has_joints());
+		auto joints_set = vmg->impl->joints_set();
+		assert(joints_set);
+		auto rewrite = [&](glm::mat4& out, std::size_t index) {
+			out = info.tree.global_transform(info.tree.get(info.skeleton.joints[index])) * info.skeleton.inverse_bind_matrices[index];
+		};
+		auto const joint_mats = [&] {
+			return device.impl->joints_vec.write(device.impl->vma, info.skeleton.joints.size(), device.impl->buffered_index, rewrite);
+		}();
+		shader.update(*joints_set, 0, joint_mats);
+		shader.bind(pipe.layout, cb);
+		vmg->impl->draw(cb);
 	}
 }
 } // namespace
@@ -2370,6 +2403,7 @@ void levk::gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& 
 	out.impl->samplers.anisotropy = out.impl->gpu.properties.limits.maxSamplerAnisotropy;
 
 	out.impl->instance_vec = {vk::BufferUsageFlagBits::eVertexBuffer};
+	out.impl->joints_vec = {vk::BufferUsageFlagBits::eStorageBuffer};
 	out.impl->blank_buffer = out.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eStorageBuffer, 1u, true);
 	static constexpr auto blank_byte_v = std::byte{};
 	std::memcpy(out.impl->blank_buffer.get().ptr, &blank_byte_v, 1u);
@@ -2380,10 +2414,10 @@ void levk::gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& 
 	static constexpr auto white_image_v = FixedPixelMap<1, 1>{{white_v}};
 	auto texture = VulkanTexture{};
 	texture.impl = std::make_unique<VulkanTexture::Impl>(out, white_image_v.view(), TextureCreateInfo{.name = "white", .mip_mapped = false});
-	out.impl->white_texture = std::move(texture);
+	out.impl->white_texture = Texture{std::move(texture), "textures/white"};
 	static constexpr auto black_image_v = FixedPixelMap<1, 1>{{black_v}};
 	texture.impl = std::make_unique<VulkanTexture::Impl>(out, black_image_v.view(), TextureCreateInfo{.name = "black", .mip_mapped = false});
-	out.impl->black_texture = std::move(texture);
+	out.impl->black_texture = Texture{std::move(texture), "textures/black"};
 }
 
 void levk::gfx_destroy_device(VulkanDevice& out) {
@@ -2406,11 +2440,16 @@ bool levk::gfx_set_render_scale(VulkanDevice& out, float scale) {
 void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	struct OnReturn {
 		VulkanDevice& out;
+		Index<> i;
+		OnReturn(VulkanDevice& out) : out(out), i(out.impl->buffered_index) {}
+
 		~OnReturn() {
 			out.impl->buffered_index.next();
 			out.impl->dear_imgui.new_frame();
 			out.impl->defer.next();
 			out.impl->instance_vec.release();
+			out.impl->joints_vec.release();
+			out.impl->pipelines.release_all(i);
 		}
 	};
 
@@ -2467,15 +2506,17 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	fs_quad_fb = out.impl->fs_quad.make_framebuffer(out, acquired.image);
 
 	// begin recording
-	out.impl->cmd_3d = {frame.secondary[0], frame.framebuffer.render_target.extent};
-	out.impl->cmd_ui = {frame.secondary[1], fs_quad_fb.render_target.extent};
+	auto cmd_3d = RenderCmd{frame.secondary[0], frame.framebuffer.render_target.extent};
+	auto cmd_ui = RenderCmd{frame.secondary[1], fs_quad_fb.render_target.extent};
 	auto cbii = vk::CommandBufferInheritanceInfo{*out.impl->off_screen.rp.render_pass, 0, *frame.framebuffer.framebuffer};
-	out.impl->cmd_3d.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
+	cmd_3d.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
 	cbii = {*out.impl->fs_quad.rp, 0, *fs_quad_fb.framebuffer};
-	out.impl->cmd_ui.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
+	cmd_ui.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
 
 	// dispatch 3D render
-	info.renderer.render_3d(info.device);
+	out.impl->cmd_3d = cmd_3d;
+	info.renderer.render_3d();
+	out.impl->cmd_3d = {};
 
 	// trace 3D output image to native render pass
 	auto fs_quad_vert = out.impl->shaders.get(*out.impl->reader, "shaders/fs_quad.vert");
@@ -2485,21 +2526,23 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	// bind 3D output image to 0, 0
 	auto& fs_quad_set0 = fs_quad_pipe.set_pool->next_set(0);
 	fs_quad_set0.update(0, frame.framebuffer.render_target.output_image(), out.impl->samplers.get(*out.impl->device, {}));
-	fs_quad_pipe.bind(out.impl->cmd_ui.cb, fs_quad_fb.render_target.extent);
-	out.impl->cmd_ui.cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, fs_quad_pipe.layout, 0u, fs_quad_set0.set(), {});
+	fs_quad_pipe.bind(cmd_ui.cb, fs_quad_fb.render_target.extent);
+	cmd_ui.cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, fs_quad_pipe.layout, 0u, fs_quad_set0.set(), {});
 	// draw quad hard-coded in shader
-	out.impl->cmd_ui.cb.draw(6u, 1u, {}, {});
+	cmd_ui.cb.draw(6u, 1u, {}, {});
 
 	// dispatch UI render
-	info.renderer.render_ui(info.device);
+	out.impl->cmd_ui = cmd_ui;
+	info.renderer.render_ui();
+	out.impl->cmd_ui = {};
 
 	// dispatch Dear ImGui render
 	out.impl->dear_imgui.end_frame();
-	out.impl->dear_imgui.render(out.impl->cmd_ui.cb);
+	out.impl->dear_imgui.render(cmd_ui.cb);
 
 	// end recording
-	out.impl->cmd_3d.cb.end();
-	out.impl->cmd_ui.cb.end();
+	cmd_3d.cb.end();
+	cmd_ui.cb.end();
 
 	// begin rendering
 	frame.primary.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
@@ -2511,19 +2554,16 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	auto rpbi = vk::RenderPassBeginInfo{*out.impl->off_screen.rp.render_pass, *frame.framebuffer.framebuffer,
 										vk::Rect2D{{}, frame.framebuffer.render_target.extent}, clear_values};
 	frame.primary.beginRenderPass(rpbi, vk::SubpassContents::eSecondaryCommandBuffers);
-	frame.primary.executeCommands(1u, &out.impl->cmd_3d.cb);
+	frame.primary.executeCommands(1u, &cmd_3d.cb);
 	frame.primary.endRenderPass();
 	// execute UI render pass
 	rpbi = vk::RenderPassBeginInfo{*out.impl->fs_quad.rp, *fs_quad_fb.framebuffer, vk::Rect2D{{}, fs_quad_fb.render_target.extent}, clear_values};
 	frame.primary.beginRenderPass(rpbi, vk::SubpassContents::eSecondaryCommandBuffers);
-	frame.primary.executeCommands(1u, &out.impl->cmd_ui.cb);
+	frame.primary.executeCommands(1u, &cmd_ui.cb);
 	frame.primary.endRenderPass();
 
 	// end rendering
 	frame.primary.end();
-
-	out.impl->cmd_3d = {};
-	out.impl->cmd_ui = {};
 
 	static constexpr vk::PipelineStageFlags submit_wait = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 	auto submit_info = vk::SubmitInfo{*frame.sync.draw, submit_wait, frame.primary, *frame.sync.present};
@@ -2544,7 +2584,7 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	}
 }
 
-levk::MeshGeometry levk::gfx_make_mesh_geometry(VulkanDevice const& device, Geometry const& geometry, MeshJoints const& joints) {
+levk::MeshGeometry levk::gfx_make_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints) {
 	auto mesh = VulkanMeshGeometry::Impl{device, geometry, joints};
 	auto ret = VulkanMeshGeometry{};
 	ret.impl = std::make_unique<VulkanMeshGeometry::Impl>(VulkanMeshGeometry::Impl{std::move(mesh)});
@@ -2555,17 +2595,30 @@ std::uint32_t levk::gfx_mesh_vertex_count(VulkanMeshGeometry const& mesh) { retu
 std::uint32_t levk::gfx_mesh_index_count(VulkanMeshGeometry const& mesh) { return mesh.impl->info().indices; }
 bool levk::gfx_mesh_has_joints(VulkanMeshGeometry const& mesh) { return mesh.impl->has_joints(); }
 
-levk::Texture levk::gfx_make_texture(VulkanDevice const& device, Texture::CreateInfo const& create_info, Image::View image) {
+levk::Texture levk::gfx_make_texture(VulkanDevice const& device, Texture::CreateInfo create_info, Image::View image) {
 	auto ret = VulkanTexture{};
 	ret.impl = std::make_unique<VulkanTexture::Impl>(device, image, create_info);
-	return ret;
+	return Texture{std::move(ret), std::move(create_info.name)};
 }
 
 levk::Sampler const& levk::gfx_tex_sampler(VulkanTexture const& texture) { return texture.impl->sampler; }
 levk::ColourSpace levk::gfx_tex_colour_space(VulkanTexture const& texture) { return texture.impl->colour_space(); }
 std::uint32_t levk::gfx_tex_mip_levels(VulkanTexture const& texture) { return texture.impl->mip_levels(); }
 
-void levk::gfx_render(VulkanDevice& out_device, StaticMesh const& mesh, glm::mat4 const& parent, std::span<Transform const> instances) {
-	render_mesh(out_device, mesh, parent, instances, out_device.impl->cmd_3d, out_device.impl->off_screen.rp.view());
+void levk::gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info) {
+	if (!out.impl->cmd_3d.cb) {
+		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
+		return;
+	}
+	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view());
+	// TODO update stats
+}
+
+void levk::gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info) {
+	if (!out.impl->cmd_3d.cb) {
+		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
+		return;
+	}
+	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view());
 	// TODO update stats
 }

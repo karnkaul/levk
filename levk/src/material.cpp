@@ -12,14 +12,14 @@ float bit_cast_f(AlphaMode const mode) {
 } // namespace
 
 void UnlitMaterial::write_sets(Shader& shader, TextureFallback const& fallback) const {
-	shader.update(1, 0, fallback.white.or_self(texture));
+	shader.update(1, 0, fallback.get_or(texture, fallback.white));
 	shader.write(2, 0, Rgba::to_srgb(tint.to_vec4()));
 }
 
 void LitMaterial::write_sets(Shader& shader, TextureFallback const& fallback) const {
-	shader.update(1, 0, fallback.white.or_self(base_colour));
-	shader.update(1, 1, fallback.white.or_self(roughness_metallic));
-	shader.update(1, 2, fallback.black.or_self(emissive));
+	shader.update(1, 0, fallback.get_or(base_colour, fallback.white));
+	shader.update(1, 1, fallback.get_or(roughness_metallic, fallback.white));
+	shader.update(1, 2, fallback.get_or(emissive, fallback.black));
 	struct MatUBO {
 		glm::vec4 albedo;
 		glm::vec4 m_r_aco_am;

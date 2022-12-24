@@ -2,12 +2,16 @@
 #include <glm/vec2.hpp>
 #include <levk/camera.hpp>
 #include <levk/lights.hpp>
+#include <levk/node.hpp>
 #include <levk/rgba.hpp>
 #include <cstdint>
 #include <span>
 
 namespace levk {
 class Window;
+class Mesh;
+struct SkeletonInstance;
+struct MeshResources;
 
 using Extent2D = glm::uvec2;
 
@@ -77,16 +81,29 @@ class GraphicsDevice;
 struct GraphicsRenderer {
 	virtual ~GraphicsRenderer() = default;
 
-	virtual void render_3d(GraphicsDevice& device) = 0;
-	virtual void render_ui(GraphicsDevice& device) = 0;
+	virtual void render_3d() = 0;
+	virtual void render_ui() = 0;
 };
 
 struct RenderInfo {
-	GraphicsDevice& device;
 	GraphicsRenderer& renderer;
 	Camera const& camera;
 	Lights const& lights;
 	Extent2D extent;
 	Rgba clear;
+};
+
+struct StaticMeshRenderInfo {
+	MeshResources const& resources;
+	Mesh const& mesh;
+	glm::mat4 const& parent;
+	std::span<Transform const> instances;
+};
+
+struct SkinnedMeshRenderInfo {
+	MeshResources const& resources;
+	Mesh const& mesh;
+	SkeletonInstance const& skeleton;
+	Node::Tree const& tree;
 };
 } // namespace levk

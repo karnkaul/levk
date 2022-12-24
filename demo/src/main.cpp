@@ -1,7 +1,7 @@
 #include <imgui.h>
-#include <levk/editor/common.hpp>
 #include <levk/engine.hpp>
 #include <levk/entity.hpp>
+#include <levk/imcpp/reflector.hpp>
 #include <levk/impl/desktop_window.hpp>
 #include <levk/impl/vulkan_device.hpp>
 #include <levk/transform_controller.hpp>
@@ -11,6 +11,9 @@
 #include <levk/util/resource_map.hpp>
 #include <levk/util/visitor.hpp>
 #include <filesystem>
+
+#include <experiment/scene.hpp>
+#include <levk/util/fixed_string.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -35,61 +38,92 @@ fs::path find_data(fs::path exe) {
 	return {};
 }
 
-using MeshStorage = ResourceMap<StaticMesh>;
-
-struct Scene : GraphicsRenderer {
-	MeshStorage meshes{};
-	Entity::Tree tree{};
-
-	void render(GraphicsDevice& device, Entity const& entity, glm::mat4 parent = glm::mat4{1.0f}) const {
-		if (auto const* uri = entity.find<Uri<StaticMesh>>()) {
-			if (auto const* mesh = meshes.find(*uri)) { device.render(*mesh, {&entity.transform, 1u}, parent); }
+bool walk_node(experiment::Scene& scene, Node& node, Id<Node>& inspect) {
+	auto flags = int{};
+	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
+	if (inspect == node.id()) { flags |= ImGuiTreeNodeFlags_Selected; }
+	if (node.children().empty()) { flags |= ImGuiTreeNodeFlags_Leaf; }
+	auto tn = imcpp::TreeNode{node.name.c_str(), flags};
+	if (ImGui::IsItemClicked()) { inspect = node.id(); }
+	auto const id = node.id().value();
+	if (ImGui::BeginDragDropSource()) {
+		ImGui::SetDragDropPayload("node", &id, sizeof(id));
+		ImGui::EndDragDropSource();
+	}
+	if (ImGui::BeginDragDropTarget()) {
+		if (auto const* payload = ImGui::AcceptDragDropPayload("entity")) {
+			auto const child = *static_cast<std::size_t const*>(payload->Data);
+			scene.tree.nodes.reparent(scene.tree.nodes.get(child), id);
+			return false;
 		}
-		if (entity.children().empty()) { return; }
-		parent = parent * entity.transform.matrix();
-		for (auto const id : entity.children()) {
-			if (auto const* child = tree.find(id)) { render(device, *child, parent); }
+		ImGui::EndDragDropTarget();
+	}
+	if (tn) {
+		for (auto& id : node.children()) {
+			if (!walk_node(scene, scene.tree.nodes.get(id), inspect)) { return false; }
 		}
 	}
+	return true;
+}
 
-	void render_3d(GraphicsDevice& device) final {
-		for (auto const& node : tree.roots()) { render(device, *tree.find(node)); }
+void draw_scene_tree(imcpp::NotClosed<imcpp::Window>, experiment::Scene& scene, Id<Node>& inspect) {
+	for (auto const& e : scene.tree.nodes.roots()) {
+		if (!walk_node(scene, scene.tree.nodes.get(e), inspect)) { return; }
 	}
+}
 
-	bool walk(Entity& e) {
-		auto tn = editor::TreeNode{e.name.c_str()};
-		auto const id = e.id().value();
-		if (ImGui::BeginDragDropSource()) {
-			ImGui::SetDragDropPayload("entity", &id, sizeof(id));
-			ImGui::EndDragDropSource();
-		}
-		if (ImGui::BeginDragDropTarget()) {
-			if (auto const* payload = ImGui::AcceptDragDropPayload("entity")) {
-				auto const child = *static_cast<std::size_t const*>(payload->Data);
-				tree.reparent(tree.get(child), id);
-				return false;
+void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene, Id<Node> id) {
+	if (!id) { return; }
+	auto* node = scene.tree.nodes.find(id);
+	if (!node) { return; }
+	ImGui::Text("%s", node->name.c_str());
+	// TODO
+	if (auto tn = imcpp::TreeNode("Transform", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
+		auto unified_scaling = Bool{true};
+		imcpp::Reflector{w}(node->transform, unified_scaling, {true});
+	}
+	auto* entity = scene.tree.entities.find(node->entity);
+	if (!entity) { return; }
+	auto inspect_skin = [&](experiment::SkinnedMeshRenderer::Skin& skin) {
+		if (skin.skeleton.animations.empty()) { return; }
+		if (auto tn = imcpp::TreeNode("Animation")) {
+			auto const preview = skin.enabled ? FixedString{"{}", skin.enabled->value()} : FixedString{"[None]"};
+			if (ImGui::BeginCombo("Active", preview.c_str())) {
+				if (ImGui::Selectable("[None]")) {
+					skin.change_animation({});
+				} else {
+					for (std::size_t i = 0; i < skin.skeleton.animations.size(); ++i) {
+						if (ImGui::Selectable(FixedString{"{}", i}.c_str(), skin.enabled && i == skin.enabled->value())) {
+							skin.change_animation(i);
+							break;
+						}
+					}
+				}
+				ImGui::EndCombo();
 			}
-			ImGui::EndDragDropTarget();
-		}
-		if (tn) {
-			for (auto& id : e.children()) {
-				if (!walk(tree.get(id))) { return false; }
+			if (skin.enabled) {
+				auto& animation = skin.skeleton.animations[*skin.enabled];
+				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", animation.duration()}.c_str());
+				float const progress = animation.elapsed / animation.duration();
+				ImGui::ProgressBar(progress);
 			}
 		}
-		return true;
-	}
-
-	void render_ui(GraphicsDevice& out) final {
-		if (auto w = editor::Window{"Scene"}) {
-			float scale = out.info().render_scale;
-			if (ImGui::DragFloat("Render Scale", &scale, 0.05f, render_scale_limit_v[0], render_scale_limit_v[1])) { out.set_render_scale(scale); }
-			ImGui::Separator();
-			for (auto const& e : tree.roots()) {
-				if (!walk(tree.get(e))) { return; }
-			}
+	};
+	if (auto* mesh_renderer = entity->find<experiment::MeshRenderer>()) {
+		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
+			auto const visitor = Visitor{
+				[&](experiment::StaticMeshRenderer& smr) {
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.resources->meshes.get(smr.mesh).name}.c_str());
+				},
+				[&](experiment::SkinnedMeshRenderer& smr) {
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.resources->meshes.get(smr.mesh).name}.c_str());
+					inspect_skin(smr.skin);
+				},
+			};
+			std::visit(visitor, mesh_renderer->renderer);
 		}
 	}
-};
+}
 
 struct FreeCam {
 	Ptr<Window> window{};
@@ -109,11 +143,14 @@ struct FreeCam {
 			if (window->cursor_mode() == CursorMode::eDisabled) { window->set_cursor_mode(CursorMode::eNormal); }
 		}
 
-		if (window && window->cursor_mode() == CursorMode::eDisabled) {
-			auto const dxy = input.cursor - prev_cursor;
-			if (std::abs(dxy.x) > 0.0f) { horz = glm::rotate(horz, glm::radians(-dxy.x) * look_speed, up_v); }
-			if (std::abs(dxy.y) > 0.0f) { vert = glm::rotate(vert, glm::radians(-dxy.y) * look_speed, right_v); }
+		if (window->cursor_mode() != CursorMode::eDisabled) {
+			prev_cursor = input.cursor;
+			return;
 		}
+
+		auto const dxy = input.cursor - prev_cursor;
+		if (std::abs(dxy.x) > 0.0f) { horz = glm::rotate(horz, glm::radians(-dxy.x) * look_speed, up_v); }
+		if (std::abs(dxy.y) > 0.0f) { vert = glm::rotate(vert, glm::radians(-dxy.y) * look_speed, right_v); }
 
 		auto dxyz = glm::vec3{};
 		data.orientation = horz * vert;
@@ -147,32 +184,10 @@ void run(fs::path data_path) {
 	auto reader = FileReader{};
 	reader.mount(data_path.generic_string());
 	auto engine = make_engine(reader);
-	auto scene = Scene{};
-	auto geometry = make_cube({1.0f, 1.0f, 1.0f});
+	auto mesh_resources = std::make_unique<MeshResources>();
+	auto scene = std::make_unique<experiment::Scene>(engine, *mesh_resources);
 	auto free_cam = FreeCam{&engine.window()};
-	auto mesh = StaticMesh{};
-	mesh.materials.push_back(LitMaterial{});
-	mesh.primitives.push_back(StaticMesh::Primitive{engine.device().make_mesh_geometry(geometry), 0});
-	scene.meshes.add("test_mesh", std::move(mesh));
-	auto e_0 = Entity{};
-	e_0.name = "e0";
-	e_0.attach(Uri<StaticMesh>{"test_mesh"});
-	auto& e0 = scene.tree.add(std::move(e_0));
-	auto e_1 = Entity{};
-	e_1.name = "e1";
-	e_1.attach(Uri<StaticMesh>{"test_mesh"});
-	auto& e1 = scene.tree.add(std::move(e_1), e0.id());
-	e1.transform.set_position({-2.0f, 0.0f, 0.0f});
-	auto e_2 = Entity{};
-	e_2.name = "e2";
-	e_2.attach(Uri<StaticMesh>{"test_mesh"});
-	e_2.transform.set_position({2.0f, 0.0f, 0.0f});
-	auto& e2 = scene.tree.add(std::move(e_2), e0.id());
-	auto e_3 = Entity{};
-	e_3.name = "e3";
-	e_3.attach(Uri<StaticMesh>{"test_mesh"});
-	auto& e3 = scene.tree.add(std::move(e_3));
-	e3.transform.set_position({0.0f, 2.0f, 0.0f});
+	auto inspect = Id<Node>{};
 
 	engine.show();
 	while (engine.is_running()) {
@@ -180,12 +195,39 @@ void run(fs::path data_path) {
 		if (frame.state.focus_changed() && frame.state.is_in_focus()) { reader.reload_out_of_date(); }
 		if (frame.state.input.chord(Key::eW, Key::eLeftControl) || frame.state.input.chord(Key::eW, Key::eRightControl)) { engine.shutdown(); }
 
-		// tick
-		e1.transform.set_orientation(glm::rotate(e1.transform.orientation(), glm::radians(frame.dt.count() * 10.0f), up_v));
-		free_cam.tick(engine.camera.transform, frame.state.input, frame.dt);
-		ImGui::ShowDemoWindow();
+		for (auto const& drop : frame.state.drops) {
+			if (fs::path{drop}.extension() == ".gltf") {
+				mesh_resources = std::make_unique<MeshResources>();
+				scene = std::make_unique<experiment::Scene>(engine, *mesh_resources);
+				scene->import_gltf(drop.c_str());
+				break;
+			}
+		}
 
-		engine.render(scene, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
+		// tick
+		scene->tick(frame.dt);
+		free_cam.tick(engine.camera.transform, frame.state.input, frame.dt);
+		if constexpr (debug_v) {
+			static bool show_demo{true};
+			if (show_demo) { ImGui::ShowDemoWindow(&show_demo); }
+		}
+
+		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
+		if (auto w = imcpp::Window{"Scene"}) {
+			float scale = engine.device().info().render_scale;
+			if (ImGui::DragFloat("Render Scale", &scale, 0.05f, render_scale_limit_v[0], render_scale_limit_v[1])) { engine.device().set_render_scale(scale); }
+			ImGui::Separator();
+			draw_scene_tree(w, *scene, inspect);
+		}
+		if (bool show_inspector = inspect) {
+			ImGui::SetNextWindowPos({ImGui::GetIO().DisplaySize.x - 500.0f, 0.0f});
+			ImGui::SetNextWindowSize({500.0f, ImGui::GetIO().DisplaySize.y});
+			if (auto w = imcpp::Window{"Inspector", &show_inspector}) { draw_inspector(w, *scene, inspect); }
+			if (!show_inspector) { inspect = {}; }
+		}
+
+		auto renderer = experiment::Scene::Renderer{*scene};
+		engine.render(renderer, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
 	}
 }
 } // namespace
@@ -195,6 +237,7 @@ int main(int argc, char** argv) {
 	namespace logger = levk::logger;
 	auto instance = logger::Instance{};
 	try {
+		assert(argc > 0);
 		levk::run(levk::find_data(argv[0]));
 	} catch (levk::Error const& e) {
 		logger::error("Runtime error: {}", e.what());

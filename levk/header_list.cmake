@@ -14,6 +14,7 @@ set(util_headers
   include/levk/util/id.hpp
   include/levk/util/loader.hpp
   include/levk/util/logger.hpp
+  include/levk/util/monotonic_map.hpp
   include/levk/util/nvec3.hpp
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
@@ -37,13 +38,21 @@ set(impl_headers
 )
 
 set(editor_headers
-  include/levk/editor/common.hpp
+  include/levk/editor/import_asset.hpp
+  include/levk/editor/import_result.hpp
+)
+
+set(imcpp_headers
+  include/levk/imcpp/common.hpp
+  include/levk/imcpp/reflector.hpp
 )
 
 set(levk_headers
   ${util_headers}
   ${editor_headers}
 
+  include/levk/animation.hpp
+  include/levk/animator.hpp
   include/levk/camera.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
@@ -53,13 +62,18 @@ set(levk_headers
   include/levk/graphics_device.hpp
   include/levk/image.hpp
   include/levk/input.hpp
+  include/levk/interpolator.hpp
   include/levk/lights.hpp
   include/levk/material.hpp
   include/levk/mesh_geometry.hpp
+  include/levk/mesh_resources.hpp
+  include/levk/mesh.hpp
+  include/levk/node.hpp
   include/levk/pixel_map.hpp
   include/levk/rgba.hpp
+  include/levk/scene_tree.hpp
   include/levk/shader.hpp
-  include/levk/static_mesh.hpp
+  include/levk/skeleton.hpp
   include/levk/surface.hpp
   include/levk/texture.hpp
   include/levk/transform_controller.hpp

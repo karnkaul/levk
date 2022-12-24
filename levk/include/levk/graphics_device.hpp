@@ -2,7 +2,8 @@
 #include <glm/vec2.hpp>
 #include <levk/geometry.hpp>
 #include <levk/graphics_common.hpp>
-#include <levk/static_mesh.hpp>
+#include <levk/mesh.hpp>
+#include <levk/skeleton.hpp>
 #include <levk/texture.hpp>
 #include <levk/util/ptr.hpp>
 #include <memory>
@@ -30,12 +31,11 @@ class GraphicsDevice {
 
 	void render(GraphicsRenderer& renderer, Camera const& camera, Lights const& lights, glm::uvec2 extent, Rgba clear);
 
-	MeshGeometry make_mesh_geometry(Geometry const& geometry, MeshJoints joints = {}) { return m_model->make_mesh_geometry(geometry, joints); }
-	Texture make_texture(Image::View image, Texture::CreateInfo const& create_info = {}) { return m_model->make_texture(image, create_info); }
+	MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints = {}) { return m_model->make_mesh_geometry(geometry, joints); }
+	Texture make_texture(Image::View image, Texture::CreateInfo create_info = {}) { return m_model->make_texture(image, std::move(create_info)); }
 
-	void render(StaticMesh const& mesh, std::span<Transform const> instances, glm::mat4 const& parent = glm::mat4{1.0f}) {
-		m_model->render(mesh, parent, instances);
-	}
+	void render(Mesh const& mesh, MeshResources const& resources, std::span<Transform const> instances, glm::mat4 const& parent = matrix_identity_v);
+	void render(Mesh const& mesh, MeshResources const& resources, Skeleton::Instance const& skeleton, Node::Tree const& tree);
 
 	template <typename T>
 	Ptr<T> as() const {
@@ -54,10 +54,11 @@ class GraphicsDevice {
 
 		virtual void render(RenderInfo const& info) = 0;
 
-		virtual MeshGeometry make_mesh_geometry(Geometry const& geometry, MeshJoints const& joints) = 0;
-		virtual Texture make_texture(Image::View image, Texture::CreateInfo const& info) = 0;
+		virtual MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) = 0;
+		virtual Texture make_texture(Image::View image, Texture::CreateInfo info) = 0;
 
-		virtual void render(StaticMesh const& mesh, glm::mat4 const& parent, std::span<Transform const> instances) = 0;
+		virtual void render(StaticMeshRenderInfo const&) = 0;
+		virtual void render(SkinnedMeshRenderInfo const&) = 0;
 	};
 
 	template <typename T>
@@ -72,10 +73,11 @@ class GraphicsDevice {
 
 		void render(RenderInfo const& info) final { gfx_render(impl, info); }
 
-		MeshGeometry make_mesh_geometry(Geometry const& geometry, MeshJoints const& joints) final { return gfx_make_mesh_geometry(impl, geometry, joints); }
-		Texture make_texture(Image::View image, Texture::CreateInfo const& create_info) final { return gfx_make_texture(impl, create_info, image); }
+		MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) final { return gfx_make_mesh_geometry(impl, geometry, joints); }
+		Texture make_texture(Image::View image, Texture::CreateInfo create_info) final { return gfx_make_texture(impl, std::move(create_info), image); }
 
-		void render(StaticMesh const& mesh, glm::mat4 const& parent, std::span<Transform const> instances) final { gfx_render(impl, mesh, parent, instances); }
+		void render(StaticMeshRenderInfo const& info) final { gfx_render(impl, info); }
+		void render(SkinnedMeshRenderInfo const& info) final { gfx_render(impl, info); }
 	};
 
 	std::unique_ptr<Base> m_model{};

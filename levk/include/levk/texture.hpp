@@ -29,17 +29,18 @@ class Texture {
 	using CreateInfo = TextureCreateInfo;
 
 	template <typename T>
-	Texture(T t) : m_model(std::make_unique<Model<T>>(std::move(t))) {}
+	Texture(T t, std::string name = "(Unnamed)") : m_model(std::make_unique<Model<T>>(std::move(t))), m_name(std::move(name)) {}
 
 	Sampler const& sampler() const { return m_model->sampler(); }
+	ColourSpace colour_space() const { return m_model->colour_space(); }
+	std::uint32_t mip_levels() const { return m_model->mip_levels(); }
+	std::string_view name() const { return m_name; }
 
 	template <typename T>
 	Ptr<T> as() const {
 		if (auto* p = dynamic_cast<Model<T>*>(m_model.get())) { return &p->impl; }
 		return {};
 	}
-
-	Texture const& or_self(Ptr<Texture const> other) const { return other ? *other : *this; }
 
   private:
 	struct Base {
@@ -61,5 +62,6 @@ class Texture {
 	};
 
 	std::unique_ptr<Base> m_model{};
+	std::string m_name{};
 };
 } // namespace levk

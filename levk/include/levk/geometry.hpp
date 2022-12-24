@@ -21,6 +21,9 @@ struct Geometry {
 
 	Geometry& append(std::span<Vertex const> vs, std::span<std::uint32_t const> is);
 	Geometry& append_cube(glm::vec3 size, glm::vec3 rgb = glm::vec3{1.0f}, glm::vec3 origin = {});
+
+	Packed pack() const;
+	operator Packed() const;
 };
 
 struct Geometry::Packed {
