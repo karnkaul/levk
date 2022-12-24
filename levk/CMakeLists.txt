@@ -10,6 +10,8 @@ target_compile_definitions(levk
   $<$<CONFIG:Debug>:LEVK_DEBUG>
 )
 
+target_compile_features(levk PUBLIC cxx_std_20)
+
 target_link_libraries(levk
   PUBLIC
   glm::glm
@@ -23,9 +25,11 @@ target_link_libraries(levk
 )
 
 target_include_directories(levk
-  PUBLIC include
+  PUBLIC include "${CMAKE_CURRENT_BINARY_DIR}/include"
   PRIVATE src
 )
+
+configure_file(src/build_version.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/include/levk/build_version.hpp" @ONLY)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL Clang OR CMAKE_CXX_COMPILER_ID STREQUAL GNU)
   target_compile_options(levk PRIVATE

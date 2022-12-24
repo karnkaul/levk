@@ -1,4 +1,5 @@
 #pragma once
+#include <levk/build_version.hpp>
 #include <levk/graphics_device.hpp>
 #include <levk/util/time.hpp>
 #include <levk/window.hpp>
