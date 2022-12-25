@@ -234,7 +234,7 @@ void run(fs::path data_path) {
 } // namespace
 } // namespace levk
 
-int main(int argc, char** argv) {
+int main([[maybe_unused]] int argc, char** argv) {
 	namespace logger = levk::logger;
 	auto instance = logger::Instance{};
 	try {
