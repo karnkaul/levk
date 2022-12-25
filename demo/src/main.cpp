@@ -114,10 +114,10 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
 				[&](experiment::StaticMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.resources->meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.resources->static_meshes.get(smr.mesh).name}.c_str());
 				},
 				[&](experiment::SkinnedMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.resources->meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.resources->skinned_meshes.get(smr.mesh).name}.c_str());
 					inspect_skin(smr.skin);
 				},
 			};

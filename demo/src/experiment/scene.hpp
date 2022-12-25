@@ -9,7 +9,7 @@
 
 namespace levk::experiment {
 struct StaticMeshRenderer {
-	Id<Mesh> mesh{};
+	Id<StaticMesh> mesh{};
 	Id<Node> node{};
 	std::vector<Transform> instances{};
 
@@ -24,7 +24,7 @@ struct SkinnedMeshRenderer {
 		void change_animation(std::optional<Id<Animation>> index);
 	};
 
-	Id<Mesh> mesh{};
+	Id<SkinnedMesh> mesh{};
 	Skin skin{};
 
 	void tick(Node::Tree& tree, Time dt);

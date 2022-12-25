@@ -10,9 +10,10 @@
 #include <levk/impl/vulkan_device.hpp>
 #include <levk/impl/vulkan_surface.hpp>
 #include <levk/material.hpp>
-#include <levk/mesh.hpp>
 #include <levk/mesh_resources.hpp>
 #include <levk/skeleton.hpp>
+#include <levk/skinned_mesh.hpp>
+#include <levk/static_mesh.hpp>
 #include <levk/surface.hpp>
 #include <levk/texture.hpp>
 #include <levk/util/dyn_array.hpp>
