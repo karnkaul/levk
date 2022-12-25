@@ -21,7 +21,7 @@ Node& Node::Tree::add(CreateInfo const& create_info) {
 			logger::warn("[Tree] Invalid parent Id<Node>: {}", create_info.parent.value());
 		}
 	}
-	if (!create_info.parent) { m_roots.push_back(node.m_id); }
+	if (!node.m_parent) { m_roots.push_back(node.m_id); }
 	auto [it, _] = m_nodes.insert_or_assign(node.m_id, std::move(node));
 	return it->second;
 }

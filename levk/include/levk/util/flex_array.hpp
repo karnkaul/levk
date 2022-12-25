@@ -8,12 +8,12 @@ namespace levk {
 /// \brief Concept for types that can be stored in a FlexArray.
 ///
 template <typename Type>
-concept FlexArrayItem = std::is_default_constructible_v<Type> && std::is_move_constructible_v<Type>;
+concept FlexArrayItemT = std::is_default_constructible_v<Type> && std::is_move_constructible_v<Type>;
 
 ///
 /// \brief Lightweight "flexible" length stack array.
 ///
-template <FlexArrayItem Type, std::size_t Capacity>
+template <FlexArrayItemT Type, std::size_t Capacity>
 class FlexArray {
   public:
 	static constexpr auto capacity_v = Capacity;

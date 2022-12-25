@@ -7,12 +7,12 @@ namespace levk {
 /// \brief Concept wrapping is_enum_v trait.
 ///
 template <typename Type>
-concept TEnum = std::is_enum_v<Type>;
+concept EnumT = std::is_enum_v<Type>;
 
 ///
 /// \brief Stores an array of Type, of size Size, indexable by enum E.
 ///
-template <TEnum E, typename Type, std::size_t Size = static_cast<std::size_t>(E::eCOUNT_)>
+template <EnumT E, typename Type, std::size_t Size = static_cast<std::size_t>(E::eCOUNT_)>
 struct EnumArray {
 	Type t[Size]{};
 

@@ -76,8 +76,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 	if (!id) { return; }
 	auto* node = scene.tree.nodes.find(id);
 	if (!node) { return; }
-	ImGui::Text("%s", node->name.c_str());
-	// TODO
+	imcpp::TreeNode::leaf(node->name.c_str());
 	if (auto tn = imcpp::TreeNode("Transform", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
 		auto unified_scaling = Bool{true};
 		imcpp::Reflector{w}(node->transform, unified_scaling, {true});
@@ -85,6 +84,8 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 	auto* entity = scene.tree.entities.find(node->entity);
 	if (!entity) { return; }
 	auto inspect_skin = [&](experiment::SkinnedMeshRenderer::Skin& skin) {
+		auto const& skeleton = scene.resources->skeletons.get(skin.skeleton.source);
+		imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
 		if (skin.skeleton.animations.empty()) { return; }
 		if (auto tn = imcpp::TreeNode("Animation")) {
 			auto const preview = skin.enabled ? FixedString{"{}", skin.enabled->value()} : FixedString{"[None]"};

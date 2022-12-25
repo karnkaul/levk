@@ -8,7 +8,7 @@
 
 namespace levk {
 template <typename Type>
-concept IdSettable = requires(Type& t, Id<Type> id) { t.set_id(id); };
+concept IdSettableT = requires(Type& t, Id<Type> id) { t.set_id(id); };
 
 template <typename Type, typename IdType = std::size_t>
 class MonotonicMap {
@@ -18,7 +18,7 @@ class MonotonicMap {
 	std::pair<Id<Type>, Type&> add(Type t = Type{}) {
 		auto lock = std::scoped_lock{m_mutex};
 		auto const id = ++m_next_id;
-		if constexpr (IdSettable<Type>) { t.set_id(id); }
+		if constexpr (IdSettableT<Type>) { t.set_id(id); }
 		auto& ret = *m_map.insert_or_assign(id, std::move(t)).first;
 		return {ret.first, ret.second};
 	}

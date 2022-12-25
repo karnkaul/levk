@@ -214,15 +214,15 @@ struct GltfImporter {
 		auto [joints, map] = MapGltfNodesToJoints{}(in, root.nodes);
 		auto skeleton = Skeleton{.joints = std::move(joints), .name = in.name};
 		for (auto const& in_animation : root.animations) {
-			auto animation = Skeleton::Anim{};
-			animation.name = in_animation.name;
-			for (auto const& channel : in_animation.channels) {
-				if (!channel.target.node) { continue; }
-				auto joint_it = map.find(*channel.target.node);
+			auto clip = Skeleton::Clip{};
+			clip.name = in_animation.name;
+			for (auto const& in_channel : in_animation.channels) {
+				if (!in_channel.target.node) { continue; }
+				auto joint_it = map.find(*in_channel.target.node);
 				if (joint_it == map.end()) { continue; }
 				using Path = gltf2cpp::Animation::Path;
-				auto animator = TransformAnimator{};
-				auto const& sampler = in_animation.samplers[channel.sampler];
+				auto channel = Skeleton::Channel{};
+				auto const& sampler = in_animation.samplers[in_channel.sampler];
 				if (sampler.interpolation == gltf2cpp::Interpolation::eCubicSpline) { continue; } // facade constraint
 				auto const& input = root.accessors[sampler.input];
 				assert(input.type == gltf2cpp::Accessor::Type::eScalar && input.component_type == gltf2cpp::ComponentType::eFloat);
@@ -230,19 +230,18 @@ struct GltfImporter {
 				auto const& output = root.accessors[sampler.output];
 				assert(output.component_type == gltf2cpp::ComponentType::eFloat);
 				auto const values = std::get<gltf2cpp::Accessor::Float>(output.data).span();
-				// TODO: fix confusing affordance: Id<Node> should not be an alias for Index<Joint>
-				animator.target = joint_it->second;
-				switch (channel.target.path) {
+				channel.target = joint_it->second;
+				switch (in_channel.target.path) {
 				case Path::eTranslation:
 				case Path::eScale: {
 					assert(output.type == gltf2cpp::Accessor::Type::eVec3);
 					auto vec = std::vector<glm::vec3>{};
 					vec.resize(values.size() / 3);
 					std::memcpy(vec.data(), values.data(), values.size_bytes());
-					if (channel.target.path == Path::eScale) {
-						animator.channel = TransformAnimator::Scale{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
+					if (in_channel.target.path == Path::eScale) {
+						channel.channel = TransformAnimator::Scale{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
 					} else {
-						animator.channel = TransformAnimator::Translate{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
+						channel.channel = TransformAnimator::Translate{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
 					}
 					break;
 				}
@@ -251,16 +250,16 @@ struct GltfImporter {
 					auto vec = std::vector<glm::quat>{};
 					vec.resize(values.size() / 4);
 					std::memcpy(vec.data(), values.data(), values.size_bytes());
-					animator.channel = TransformAnimator::Rotate{make_interpolator<glm::quat>(times, vec, sampler.interpolation)};
+					channel.channel = TransformAnimator::Rotate{make_interpolator<glm::quat>(times, vec, sampler.interpolation)};
 					break;
 				}
 				default:
 					// TODO not implemented
 					break;
 				}
-				animation.animators.push_back(std::move(animator));
+				clip.channels.push_back(std::move(channel));
 			}
-			if (!animation.animators.empty()) { skeleton.anims.push_back(std::move(animation)); }
+			if (!clip.channels.empty()) { skeleton.clips.push_back(std::move(clip)); }
 		}
 
 		if (in.inverse_bind_matrices) {
@@ -274,7 +273,9 @@ struct GltfImporter {
 
 		auto mesh_id = import_mesh(root.meshes[*skin_node->mesh], *skin_node->mesh);
 		auto& mesh = out_resources.meshes.get(mesh_id);
-		mesh.skeleton = out_resources.skeletons.add(std::move(skeleton)).first;
+		static_assert(IdSettableT<Skeleton>);
+		auto skeleton_id = out_resources.skeletons.add(std::move(skeleton)).first;
+		mesh.skeleton = skeleton_id;
 		lock.lock();
 		skeleton_map.map.insert_or_assign(index, mesh.skeleton);
 	}
