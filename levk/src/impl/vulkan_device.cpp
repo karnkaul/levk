@@ -10,9 +10,10 @@
 #include <levk/impl/vulkan_device.hpp>
 #include <levk/impl/vulkan_surface.hpp>
 #include <levk/material.hpp>
-#include <levk/mesh.hpp>
 #include <levk/mesh_resources.hpp>
 #include <levk/skeleton.hpp>
+#include <levk/skinned_mesh.hpp>
+#include <levk/static_mesh.hpp>
 #include <levk/surface.hpp>
 #include <levk/texture.hpp>
 #include <levk/util/dyn_array.hpp>
@@ -1663,7 +1664,7 @@ DearImGui make_imgui(Window const& window, VulkanDevice const& device) {
 	return ret;
 }
 
-constexpr bool has_all_sets(std::span<SetLayout const> layouts) {
+[[maybe_unused]] constexpr bool has_all_sets(std::span<SetLayout const> layouts) {
 	std::uint32_t set{};
 	for (auto const& layout : layouts) {
 		if (layout.set != set) { return false; }

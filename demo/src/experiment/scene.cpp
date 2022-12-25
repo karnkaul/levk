@@ -10,28 +10,38 @@ editor::ImportResult Scene::import_gltf(char const* path) {
 	auto str = std::string{"Imported:\n"};
 	fmt::format_to(std::back_inserter(str), "Textures\t: {}\n", ret.added_textures.size());
 	fmt::format_to(std::back_inserter(str), "Materials\t: {}\n", ret.added_materials.size());
+	fmt::format_to(std::back_inserter(str), "Static Meshes\t\t: {}\n", ret.added_static_meshes.size());
+	fmt::format_to(std::back_inserter(str), "Skinned Meshes\t\t: {}\n", ret.added_skinned_meshes.size());
 	fmt::format_to(std::back_inserter(str), "Skeletons\t: {}\n", ret.added_skeletons.size());
-	fmt::format_to(std::back_inserter(str), "Meshes\t\t: {}\n", ret.added_meshes.size());
-	auto const total = ret.added_textures.size() + ret.added_materials.size() + ret.added_skeletons.size() + ret.added_meshes.size();
+	auto const total =
+		ret.added_textures.size() + ret.added_materials.size() + ret.added_skeletons.size() + ret.added_static_meshes.size() + ret.added_skinned_meshes.size();
 	fmt::format_to(std::back_inserter(str), "  Total\t\t: {}\n", total);
 	logger::info("[Scene] {}", str);
 
-	if (!ret.added_meshes.empty()) {
-		auto const& mesh = resources->meshes.get(ret.added_meshes.front());
+	if (!ret.added_skinned_meshes.empty()) {
+		auto const& mesh = resources->skinned_meshes.get(ret.added_skinned_meshes.front());
 		auto& node = tree.add({}, NodeCreateInfo{.name = "test_node"});
 		test_node = node.id();
 		auto& entity = tree.entities.get(node.entity);
-		entity.attach(ret.added_meshes.front());
+		entity.attach(ret.added_skinned_meshes.front());
 		auto mesh_renderer = MeshRenderer{&engine->device(), resources};
-		if (mesh.skeleton) {
-			auto smr = SkinnedMeshRenderer{};
-			smr.mesh = ret.added_meshes.front();
-			smr.skin.skeleton = resources->skeletons.get(mesh.skeleton).instantiate(tree.nodes, test_node);
-			if (!smr.skin.skeleton.animations.empty()) { smr.skin.enabled = smr.skin.skeleton.animations.size() - 1; }
-			mesh_renderer.renderer = std::move(smr);
-		} else {
-			mesh_renderer.renderer = StaticMeshRenderer{.mesh = ret.added_meshes.front(), .node = node.id()};
-		}
+		assert(mesh.skeleton);
+		auto smr = SkinnedMeshRenderer{};
+		smr.mesh = ret.added_skinned_meshes.front();
+		smr.skin.skeleton = resources->skeletons.get(mesh.skeleton).instantiate(tree.nodes, test_node);
+		if (!smr.skin.skeleton.animations.empty()) { smr.skin.enabled = smr.skin.skeleton.animations.size() - 1; }
+		mesh_renderer.renderer = std::move(smr);
+		entity.attach(std::move(mesh_renderer));
+		assert(entity.find<MeshRenderer>());
+	}
+
+	if (!ret.added_static_meshes.empty()) {
+		auto& node = tree.add({}, NodeCreateInfo{.name = "test_node"});
+		test_node = node.id();
+		auto& entity = tree.entities.get(node.entity);
+		entity.attach(ret.added_static_meshes.front());
+		auto mesh_renderer = MeshRenderer{&engine->device(), resources};
+		mesh_renderer.renderer = StaticMeshRenderer{.mesh = ret.added_static_meshes.front(), .node = node.id()};
 		entity.attach(std::move(mesh_renderer));
 		assert(entity.find<MeshRenderer>());
 	}
@@ -39,7 +49,7 @@ editor::ImportResult Scene::import_gltf(char const* path) {
 }
 
 void StaticMeshRenderer::render(GraphicsDevice& device, MeshResources const& resources, Node::Tree const& tree) const {
-	auto const& m = resources.meshes.get(mesh);
+	auto const& m = resources.static_meshes.get(mesh);
 	if (m.primitives.empty()) { return; }
 	if (instances.empty()) {
 		static auto const s_instance = Transform{};
@@ -66,7 +76,7 @@ void SkinnedMeshRenderer::tick(Node::Tree& tree, Time dt) {
 }
 
 void SkinnedMeshRenderer::render(GraphicsDevice& device, MeshResources const& resources, Node::Tree const& tree) const {
-	auto const& m = resources.meshes.get(mesh);
+	auto const& m = resources.skinned_meshes.get(mesh);
 	if (m.primitives.empty()) { return; }
 	assert(m.primitives[0].geometry.has_joints());
 	device.render(m, resources, skin.skeleton, tree);

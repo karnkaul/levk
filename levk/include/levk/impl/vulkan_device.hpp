@@ -5,7 +5,7 @@
 #include <memory>
 
 namespace levk {
-class Reader;
+struct Reader;
 
 struct Sampler;
 struct TextureCreateInfo;

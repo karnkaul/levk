@@ -1,5 +1,6 @@
 #include <stb/stb_image.h>
 #include <levk/image.hpp>
+#include <levk/util/logger.hpp>
 #include <cstring>
 
 namespace levk {
@@ -11,7 +12,7 @@ Image::Image(std::span<std::byte const> compressed, std::string name) : m_name{s
 	int x, y, channels;
 	auto ptr = stbi_load_from_memory(reinterpret_cast<stbi_uc const*>(compressed.data()), static_cast<int>(compressed.size()), &x, &y, &channels, 4);
 	if (!ptr) {
-		// TODO err
+		logger::error("[Image] Failed to decompress [{}]", m_name);
 		return;
 	}
 	m_storage = Storage{static_cast<std::size_t>(x * y * 4), reinterpret_cast<std::byte const*>(ptr)};

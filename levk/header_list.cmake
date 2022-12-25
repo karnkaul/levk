@@ -66,14 +66,16 @@ set(levk_headers
   include/levk/lights.hpp
   include/levk/material.hpp
   include/levk/mesh_geometry.hpp
+  include/levk/mesh_primitive.hpp
   include/levk/mesh_resources.hpp
-  include/levk/mesh.hpp
   include/levk/node.hpp
   include/levk/pixel_map.hpp
   include/levk/rgba.hpp
   include/levk/scene_tree.hpp
   include/levk/shader.hpp
   include/levk/skeleton.hpp
+  include/levk/skinned_mesh.hpp
+  include/levk/static_mesh.hpp
   include/levk/surface.hpp
   include/levk/texture.hpp
   include/levk/transform_controller.hpp

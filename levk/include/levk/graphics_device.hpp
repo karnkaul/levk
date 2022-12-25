@@ -2,8 +2,9 @@
 #include <glm/vec2.hpp>
 #include <levk/geometry.hpp>
 #include <levk/graphics_common.hpp>
-#include <levk/mesh.hpp>
 #include <levk/skeleton.hpp>
+#include <levk/skinned_mesh.hpp>
+#include <levk/static_mesh.hpp>
 #include <levk/texture.hpp>
 #include <levk/util/ptr.hpp>
 #include <memory>
@@ -34,8 +35,8 @@ class GraphicsDevice {
 	MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints = {}) { return m_model->make_mesh_geometry(geometry, joints); }
 	Texture make_texture(Image::View image, Texture::CreateInfo create_info = {}) { return m_model->make_texture(image, std::move(create_info)); }
 
-	void render(Mesh const& mesh, MeshResources const& resources, std::span<Transform const> instances, glm::mat4 const& parent = matrix_identity_v);
-	void render(Mesh const& mesh, MeshResources const& resources, Skeleton::Instance const& skeleton, Node::Tree const& tree);
+	void render(StaticMesh const& mesh, MeshResources const& resources, std::span<Transform const> instances, glm::mat4 const& parent = matrix_identity_v);
+	void render(SkinnedMesh const& mesh, MeshResources const& resources, Skeleton::Instance const& skeleton, Node::Tree const& tree);
 
 	template <typename T>
 	Ptr<T> as() const {

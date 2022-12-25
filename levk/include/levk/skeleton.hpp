@@ -2,11 +2,14 @@
 #include <levk/animation.hpp>
 
 namespace levk {
+struct Skeleton;
+
 struct SkeletonInstance {
+	Id<Node> root{};
 	std::vector<Id<Node>> joints{};
 	std::vector<Animation> animations{};
-	std::span<glm::mat4 const> inverse_bind_matrices{};
-	std::string_view name{};
+	std::vector<glm::mat4> inverse_bind_matrices{};
+	Id<Skeleton> source{};
 };
 
 struct Skeleton {
@@ -23,16 +26,24 @@ struct Skeleton {
 		std::string name{};
 	};
 
-	struct Anim {
+	struct Channel {
+		std::variant<TransformAnimator::Translate, TransformAnimator::Rotate, TransformAnimator::Scale> channel{};
+		Index<Joint> target{};
+	};
+
+	struct Clip {
 		std::string name{};
-		std::vector<TransformAnimator> animators{};
+		std::vector<Channel> channels{};
 	};
 
 	std::vector<glm::mat4> inverse_bind_matrices{};
 	std::vector<Joint> joints{};
-	std::vector<Anim> anims{};
+	std::vector<Clip> clips{};
 	std::string name{};
+	Id<Skeleton> self{};
 
-	Instance instantiate(Node::Tree& out, Id<Node> parent = {}) const;
+	Instance instantiate(Node::Tree& out, Id<Node> root) const;
+
+	void set_id(Id<Skeleton> id) { self = id; }
 };
 } // namespace levk

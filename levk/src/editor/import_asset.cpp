@@ -214,15 +214,15 @@ struct GltfImporter {
 		auto [joints, map] = MapGltfNodesToJoints{}(in, root.nodes);
 		auto skeleton = Skeleton{.joints = std::move(joints), .name = in.name};
 		for (auto const& in_animation : root.animations) {
-			auto animation = Skeleton::Anim{};
-			animation.name = in_animation.name;
-			for (auto const& channel : in_animation.channels) {
-				if (!channel.target.node) { continue; }
-				auto joint_it = map.find(*channel.target.node);
+			auto clip = Skeleton::Clip{};
+			clip.name = in_animation.name;
+			for (auto const& in_channel : in_animation.channels) {
+				if (!in_channel.target.node) { continue; }
+				auto joint_it = map.find(*in_channel.target.node);
 				if (joint_it == map.end()) { continue; }
 				using Path = gltf2cpp::Animation::Path;
-				auto animator = TransformAnimator{};
-				auto const& sampler = in_animation.samplers[channel.sampler];
+				auto channel = Skeleton::Channel{};
+				auto const& sampler = in_animation.samplers[in_channel.sampler];
 				if (sampler.interpolation == gltf2cpp::Interpolation::eCubicSpline) { continue; } // facade constraint
 				auto const& input = root.accessors[sampler.input];
 				assert(input.type == gltf2cpp::Accessor::Type::eScalar && input.component_type == gltf2cpp::ComponentType::eFloat);
@@ -230,19 +230,18 @@ struct GltfImporter {
 				auto const& output = root.accessors[sampler.output];
 				assert(output.component_type == gltf2cpp::ComponentType::eFloat);
 				auto const values = std::get<gltf2cpp::Accessor::Float>(output.data).span();
-				// TODO: fix confusing affordance: Id<Node> should not be an alias for Index<Joint>
-				animator.target = joint_it->second;
-				switch (channel.target.path) {
+				channel.target = joint_it->second;
+				switch (in_channel.target.path) {
 				case Path::eTranslation:
 				case Path::eScale: {
 					assert(output.type == gltf2cpp::Accessor::Type::eVec3);
 					auto vec = std::vector<glm::vec3>{};
 					vec.resize(values.size() / 3);
 					std::memcpy(vec.data(), values.data(), values.size_bytes());
-					if (channel.target.path == Path::eScale) {
-						animator.channel = TransformAnimator::Scale{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
+					if (in_channel.target.path == Path::eScale) {
+						channel.channel = TransformAnimator::Scale{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
 					} else {
-						animator.channel = TransformAnimator::Translate{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
+						channel.channel = TransformAnimator::Translate{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
 					}
 					break;
 				}
@@ -251,16 +250,16 @@ struct GltfImporter {
 					auto vec = std::vector<glm::quat>{};
 					vec.resize(values.size() / 4);
 					std::memcpy(vec.data(), values.data(), values.size_bytes());
-					animator.channel = TransformAnimator::Rotate{make_interpolator<glm::quat>(times, vec, sampler.interpolation)};
+					channel.channel = TransformAnimator::Rotate{make_interpolator<glm::quat>(times, vec, sampler.interpolation)};
 					break;
 				}
 				default:
 					// TODO not implemented
 					break;
 				}
-				animation.animators.push_back(std::move(animator));
+				clip.channels.push_back(std::move(channel));
 			}
-			if (!animation.animators.empty()) { skeleton.anims.push_back(std::move(animation)); }
+			if (!clip.channels.empty()) { skeleton.clips.push_back(std::move(clip)); }
 		}
 
 		if (in.inverse_bind_matrices) {
@@ -272,9 +271,11 @@ struct GltfImporter {
 			skeleton.inverse_bind_matrices = std::vector<glm::mat4x4>(skeleton.joints.size(), glm::identity<glm::mat4x4>());
 		}
 
-		auto mesh_id = import_mesh(root.meshes[*skin_node->mesh], *skin_node->mesh);
-		auto& mesh = out_resources.meshes.get(mesh_id);
-		mesh.skeleton = out_resources.skeletons.add(std::move(skeleton)).first;
+		auto mesh_id = import_skinned_mesh(root.meshes[*skin_node->mesh], *skin_node->mesh);
+		auto& mesh = out_resources.skinned_meshes.get(mesh_id);
+		static_assert(IdSettableT<Skeleton>);
+		auto skeleton_id = out_resources.skeletons.add(std::move(skeleton)).first;
+		mesh.skeleton = skeleton_id;
 		lock.lock();
 		skeleton_map.map.insert_or_assign(index, mesh.skeleton);
 	}
@@ -330,11 +331,11 @@ struct GltfImporter {
 		return it->second;
 	}
 
-	Id<Mesh> import_mesh(gltf2cpp::Mesh const& in, std::size_t index) {
-		auto lock = std::unique_lock{mesh_map.mutex};
-		if (auto it = mesh_map.map.find(index); it != mesh_map.map.end()) { return it->second; }
+	Id<SkinnedMesh> import_skinned_mesh(gltf2cpp::Mesh const& in, std::size_t index) {
+		auto lock = std::unique_lock{skinned_mesh_map.mutex};
+		if (auto it = skinned_mesh_map.map.find(index); it != skinned_mesh_map.map.end()) { return it->second; }
 		lock.unlock();
-		auto mesh = Mesh{};
+		auto mesh = SkinnedMesh{};
 		mesh.name = in.name;
 		for (auto const& primitive : in.primitives) {
 			auto joints = std::vector<glm::uvec4>{};
@@ -347,22 +348,52 @@ struct GltfImporter {
 			}
 			auto material = Id<Material>{};
 			if (primitive.material) { material = import_material(root.materials[*primitive.material], *primitive.material); }
-			mesh.primitives.push_back(Mesh::Primitive{
+			mesh.primitives.push_back(MeshPrimitive{
 				.geometry = device.make_mesh_geometry(to_geometry(primitive), {joints, weights}),
 				.material = material,
 				.topology = from(primitive.mode),
 			});
 		}
-		auto ret = out_resources.meshes.add(std::move(mesh)).first;
+		auto ret = out_resources.skinned_meshes.add(std::move(mesh)).first;
 		lock.lock();
-		mesh_map.map.insert_or_assign(index, ret);
+		skinned_mesh_map.map.insert_or_assign(index, ret);
 		return ret;
+	}
+
+	Id<StaticMesh> import_static_mesh(gltf2cpp::Mesh const& in, std::size_t index) {
+		auto lock = std::unique_lock{static_mesh_map.mutex};
+		if (auto it = static_mesh_map.map.find(index); it != static_mesh_map.map.end()) { return it->second; }
+		lock.unlock();
+		auto mesh = StaticMesh{};
+		mesh.name = in.name;
+		for (auto const& primitive : in.primitives) {
+			assert(primitive.geometry.joints.empty());
+			auto material = Id<Material>{};
+			if (primitive.material) { material = import_material(root.materials[*primitive.material], *primitive.material); }
+			mesh.primitives.push_back(MeshPrimitive{
+				.geometry = device.make_mesh_geometry(to_geometry(primitive)),
+				.material = material,
+				.topology = from(primitive.mode),
+			});
+		}
+		auto ret = out_resources.static_meshes.add(std::move(mesh)).first;
+		lock.lock();
+		static_mesh_map.map.insert_or_assign(index, ret);
+		return ret;
+	}
+
+	void import_mesh(gltf2cpp::Mesh const& in, std::size_t index) {
+		auto lock = std::unique_lock{skinned_mesh_map.mutex};
+		if (auto it = skinned_mesh_map.map.find(index); it != skinned_mesh_map.map.end()) { return; }
+		lock.unlock();
+		import_static_mesh(in, index);
 	}
 
 	MapAndMutex<gltf2cpp::Index<gltf2cpp::Texture>, Id<Texture>> texture_map{};
 	MapAndMutex<gltf2cpp::Index<gltf2cpp::Material>, Id<Material>> material_map{};
 	MapAndMutex<gltf2cpp::Index<gltf2cpp::Skin>, Id<Skeleton>> skeleton_map{};
-	MapAndMutex<gltf2cpp::Index<gltf2cpp::Mesh>, Id<Mesh>> mesh_map{};
+	MapAndMutex<gltf2cpp::Index<gltf2cpp::Mesh>, Id<StaticMesh>> static_mesh_map{};
+	MapAndMutex<gltf2cpp::Index<gltf2cpp::Mesh>, Id<SkinnedMesh>> skinned_mesh_map{};
 	MapAndMutex<gltf2cpp::Index<gltf2cpp::Image>, Image> images{};
 };
 } // namespace
@@ -380,8 +411,10 @@ editor::ImportResult editor::import_gltf(gltf2cpp::Root const& root, GraphicsDev
 	for (auto const& [_, id] : importer.material_map.map) { ret.added_materials.push_back(id); }
 	ret.added_skeletons.reserve(importer.skeleton_map.map.size());
 	for (auto const& [_, id] : importer.skeleton_map.map) { ret.added_skeletons.push_back(id); }
-	ret.added_meshes.reserve(importer.mesh_map.map.size());
-	for (auto const& [_, id] : importer.mesh_map.map) { ret.added_meshes.push_back(id); }
+	ret.added_static_meshes.reserve(importer.static_mesh_map.map.size());
+	for (auto const& [_, id] : importer.static_mesh_map.map) { ret.added_static_meshes.push_back(id); }
+	ret.added_skinned_meshes.reserve(importer.skinned_mesh_map.map.size());
+	for (auto const& [_, id] : importer.skinned_mesh_map.map) { ret.added_skinned_meshes.push_back(id); }
 	return ret;
 }
 } // namespace levk

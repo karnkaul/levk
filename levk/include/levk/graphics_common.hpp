@@ -9,7 +9,8 @@
 
 namespace levk {
 class Window;
-class Mesh;
+struct StaticMesh;
+struct SkinnedMesh;
 struct SkeletonInstance;
 struct MeshResources;
 
@@ -95,14 +96,14 @@ struct RenderInfo {
 
 struct StaticMeshRenderInfo {
 	MeshResources const& resources;
-	Mesh const& mesh;
+	StaticMesh const& mesh;
 	glm::mat4 const& parent;
 	std::span<Transform const> instances;
 };
 
 struct SkinnedMeshRenderInfo {
 	MeshResources const& resources;
-	Mesh const& mesh;
+	SkinnedMesh const& mesh;
 	SkeletonInstance const& skeleton;
 	Node::Tree const& tree;
 };

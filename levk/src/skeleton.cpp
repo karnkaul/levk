@@ -1,4 +1,5 @@
 #include <levk/skeleton.hpp>
+#include <levk/util/logger.hpp>
 
 namespace levk {
 namespace {
@@ -14,21 +15,30 @@ void add_to(Skeleton::Instance& out_skin, Node::Tree& out_tree, JointToNode& out
 }
 } // namespace
 
-Skeleton::Instance Skeleton::instantiate(Node::Tree& out, Id<Node> parent) const {
-	auto ret = Instance{.inverse_bind_matrices = inverse_bind_matrices, .name = name};
+Skeleton::Instance Skeleton::instantiate(Node::Tree& out, Id<Node> root) const {
+	if (!root) {
+		logger::warn("[SkeletonInstance] [{}] No root node provided, creating one instead", name);
+		root = out.add({.name = name}).id();
+	}
+	if (!out.find(root)) {
+		logger::warn("[SkeletonInstance] [{}] Invalid root node provided, creating one instead", name);
+		root = out.add({.name = name}).id();
+	}
+	auto ret = Instance{.root = root, .inverse_bind_matrices = inverse_bind_matrices, .source = self};
 	auto map = JointToNode{};
-	for (std::size_t i = 0; i < joints.size(); ++i) { add_to(ret, out, map, joints, i, parent); }
+	for (std::size_t i = 0; i < joints.size(); ++i) { add_to(ret, out, map, joints, i, root); }
 	for (auto const& joint : joints) {
 		assert(map.contains(joint.self));
 		ret.joints.push_back(map[joint.self]);
 	}
-	ret.animations.reserve(anims.size());
-	for (auto const& src_animation : anims) {
+	ret.animations.reserve(clips.size());
+	for (auto const& src_animation : clips) {
 		auto animation = Animation{};
-		for (auto animator : src_animation.animators) {
-			auto it = map.find(animator.target);
-			assert(it != map.end());
-			animator.target = it->second;
+		for (auto const& channel : src_animation.channels) {
+			auto animator = TransformAnimator{};
+			animator.channel = channel.channel;
+			assert(map.contains(channel.target));
+			animator.target = map[channel.target];
 			animation.add(std::move(animator));
 		}
 		ret.animations.push_back(std::move(animation));
