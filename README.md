@@ -6,6 +6,8 @@ This project is a revamp of the original [`LittleEngineVk`](https://github.com/k
 
 [![Build Status](https://github.com/karnkaul/levk/actions/workflows/ci.yml/badge.svg)](https://github.com/karnkaul/levk/actions/workflows/ci.yml)
 
+https://user-images.githubusercontent.com/16272243/209456614-943b4c07-dc28-48ec-a9da-c3588f8bfc5a.mp4
+
 ## Features
 
 - [x] PBR materials
