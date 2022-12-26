@@ -1,12 +1,16 @@
 #include <glm/gtx/matrix_decompose.hpp>
+#include <gltf2cpp/gltf2cpp.hpp>
 #include <levk/editor/import_asset.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
 #include <levk/util/visitor.hpp>
 #include <levk/util/zip_ranges.hpp>
+#include <filesystem>
 #include <fstream>
 
 namespace levk {
+namespace fs = std::filesystem;
+
 namespace editor {
 namespace {
 constexpr AlphaMode from(gltf2cpp::AlphaMode const mode) {
@@ -316,6 +320,10 @@ struct GltfImporter {
 		};
 		auto const& image = load_image(root.images[in.source], in.source);
 		auto ret = out_resources.textures.add(device.make_texture(image, tci)).first;
+		{
+			auto lock = std::scoped_lock{texture_metadata.mutex};
+			texture_metadata.map.insert_or_assign(ret, TextureMetadata{tci.sampler, tci.colour_space, root.images[in.source].source_filename});
+		}
 		lock.lock();
 		texture_map.map.insert_or_assign(index, ret);
 		return ret;
@@ -395,14 +403,17 @@ struct GltfImporter {
 	MapAndMutex<gltf2cpp::Index<gltf2cpp::Mesh>, Id<StaticMesh>> static_mesh_map{};
 	MapAndMutex<gltf2cpp::Index<gltf2cpp::Mesh>, Id<SkinnedMesh>> skinned_mesh_map{};
 	MapAndMutex<gltf2cpp::Index<gltf2cpp::Image>, Image> images{};
+	MapAndMutex<std::size_t, TextureMetadata> texture_metadata{};
 };
 } // namespace
 } // namespace editor
 
-editor::ImportResult editor::import_gltf(gltf2cpp::Root const& root, GraphicsDevice& device, MeshResources& out_resources) {
+editor::ImportResult editor::import_gltf(char const* gltf_path, GraphicsDevice& device, MeshResources& out_resources, ResourceMetadata& out_meta) {
+	auto root = gltf2cpp::parse(gltf_path);
 	if (!root) { return {}; }
 	auto importer = GltfImporter{out_resources, device, root};
 	importer.import_all();
+	auto parent = fs::path{gltf_path}.parent_path();
 
 	auto ret = ImportResult{};
 	ret.added_textures.reserve(importer.texture_map.map.size());
@@ -415,6 +426,10 @@ editor::ImportResult editor::import_gltf(gltf2cpp::Root const& root, GraphicsDev
 	for (auto const& [_, id] : importer.static_mesh_map.map) { ret.added_static_meshes.push_back(id); }
 	ret.added_skinned_meshes.reserve(importer.skinned_mesh_map.map.size());
 	for (auto const& [_, id] : importer.skinned_mesh_map.map) { ret.added_skinned_meshes.push_back(id); }
+	for (auto& [id, tsi] : importer.texture_metadata.map) {
+		tsi.image_path = (parent / tsi.image_path).generic_string();
+		out_meta.textures.insert_or_assign(id, tsi);
+	}
 	return ret;
 }
 } // namespace levk

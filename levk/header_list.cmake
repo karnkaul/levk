@@ -49,7 +49,9 @@ set(imcpp_headers
 
 set(levk_headers
   ${util_headers}
+  ${impl_headers}
   ${editor_headers}
+  ${imcpp_headers}
 
   include/levk/animation.hpp
   include/levk/animator.hpp

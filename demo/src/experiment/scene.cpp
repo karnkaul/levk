@@ -4,18 +4,17 @@
 
 namespace levk::experiment {
 editor::ImportResult Scene::import_gltf(char const* path) {
-	auto root = gltf2cpp::parse(path);
-	if (!root) { return {}; }
-	auto ret = editor::import_gltf(root, engine->device(), *resources);
+	auto metadata = editor::ResourceMetadata{};
+	auto ret = editor::import_gltf(path, engine->device(), *resources, metadata);
 	auto str = std::string{"Imported:\n"};
-	fmt::format_to(std::back_inserter(str), "Textures\t: {}\n", ret.added_textures.size());
-	fmt::format_to(std::back_inserter(str), "Materials\t: {}\n", ret.added_materials.size());
-	fmt::format_to(std::back_inserter(str), "Static Meshes\t\t: {}\n", ret.added_static_meshes.size());
-	fmt::format_to(std::back_inserter(str), "Skinned Meshes\t\t: {}\n", ret.added_skinned_meshes.size());
-	fmt::format_to(std::back_inserter(str), "Skeletons\t: {}\n", ret.added_skeletons.size());
+	fmt::format_to(std::back_inserter(str), "[{}] Textures\n", ret.added_textures.size());
+	fmt::format_to(std::back_inserter(str), "[{}] Materials\n", ret.added_materials.size());
+	fmt::format_to(std::back_inserter(str), "[{}] Static Meshes\n", ret.added_static_meshes.size());
+	fmt::format_to(std::back_inserter(str), "[{}] Skinned Meshes\n", ret.added_skinned_meshes.size());
+	fmt::format_to(std::back_inserter(str), "[{}] Skeletons\n", ret.added_skeletons.size());
 	auto const total =
 		ret.added_textures.size() + ret.added_materials.size() + ret.added_skeletons.size() + ret.added_static_meshes.size() + ret.added_skinned_meshes.size();
-	fmt::format_to(std::back_inserter(str), "  Total\t\t: {}\n", total);
+	fmt::format_to(std::back_inserter(str), "===\n[{}] Total\n", total);
 	logger::info("[Scene] {}", str);
 
 	if (!ret.added_skinned_meshes.empty()) {
