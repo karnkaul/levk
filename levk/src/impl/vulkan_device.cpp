@@ -801,8 +801,8 @@ struct ShaderStorage {
 		auto entry = Entry{};
 		entry.spir_v_uri = to_spir_v(uri);
 		entry.glsl_meta.uri = uri;
-		auto const glsl_path = reader.absolute_path(entry.glsl_meta.uri);
-		auto const spir_v_path = reader.absolute_path(entry.spir_v_uri);
+		auto const glsl_path = reader.absolute_path_for(entry.glsl_meta.uri);
+		auto const spir_v_path = reader.absolute_path_for(entry.spir_v_uri);
 		compile(glsl_path.c_str(), spir_v_path.c_str(), false);
 		logger::info("[ShaderCompiler] Compiled GLSL [{}] to SPIR-V [{}]", uri, entry.spir_v_uri);
 		entry.glsl_meta.hash = reader.load(entry.glsl_meta.uri, Reader::eComputeHash).hash;

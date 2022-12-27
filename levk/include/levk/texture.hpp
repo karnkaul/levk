@@ -1,22 +1,11 @@
 #pragma once
 #include <levk/graphics_common.hpp>
 #include <levk/image.hpp>
+#include <levk/sampler.hpp>
 #include <levk/util/ptr.hpp>
 #include <memory>
 
 namespace levk {
-struct Sampler {
-	enum class Wrap : std::uint8_t { eRepeat, eClampEdge, eClampBorder };
-	enum class Filter : std::uint8_t { eLinear, eNearest };
-
-	Wrap wrap_s{Wrap::eRepeat};
-	Wrap wrap_t{Wrap::eRepeat};
-	Filter min{Filter::eLinear};
-	Filter mag{Filter::eLinear};
-
-	bool operator==(Sampler const&) const = default;
-};
-
 struct TextureCreateInfo {
 	std::string name{"(Unnamed)"};
 	bool mip_mapped{true};

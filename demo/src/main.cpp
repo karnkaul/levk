@@ -200,7 +200,7 @@ void run(fs::path data_path) {
 			if (fs::path{drop}.extension() == ".gltf") {
 				mesh_resources = std::make_unique<MeshResources>();
 				scene = std::make_unique<experiment::Scene>(engine, *mesh_resources);
-				scene->import_gltf(drop.c_str());
+				scene->import_gltf(drop.c_str(), data_path.c_str());
 				break;
 			}
 		}

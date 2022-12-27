@@ -46,7 +46,7 @@ class Scene {
 
 	Scene(Engine& engine, MeshResources& resources) : engine(&engine), resources(&resources) {}
 
-	editor::ImportResult import_gltf(char const* path);
+	editor::ImportResult import_gltf(char const* path, char const* dest);
 
 	void tick(Time dt);
 
