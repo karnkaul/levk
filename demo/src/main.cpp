@@ -12,6 +12,7 @@
 #include <levk/util/visitor.hpp>
 #include <filesystem>
 
+#include <experiment/import_asset.hpp>
 #include <experiment/scene.hpp>
 #include <levk/util/fixed_string.hpp>
 
@@ -197,10 +198,13 @@ void run(fs::path data_path) {
 		if (frame.state.input.chord(Key::eW, Key::eLeftControl) || frame.state.input.chord(Key::eW, Key::eRightControl)) { engine.shutdown(); }
 
 		for (auto const& drop : frame.state.drops) {
-			if (fs::path{drop}.extension() == ".gltf") {
-				mesh_resources = std::make_unique<MeshResources>();
-				scene = std::make_unique<experiment::Scene>(engine, *mesh_resources);
-				scene->import_gltf(drop.c_str(), data_path.c_str());
+			auto path = fs::path{drop};
+			if (path.extension() == ".gltf") {
+				// mesh_resources = std::make_unique<MeshResources>();
+				// scene = std::make_unique<experiment::Scene>(engine, *mesh_resources);
+				// scene->import_gltf(drop.c_str(), data_path.c_str());
+				auto export_path = data_path / path.filename().stem();
+				experiment::import_gltf_meshes(drop.c_str(), export_path.c_str());
 				break;
 			}
 		}

@@ -1,4 +1,5 @@
 #pragma once
+#include <djson/json.hpp>
 #include <experiment/import_result.hpp>
 #include <levk/graphics_device.hpp>
 #include <levk/mesh_resources.hpp>
@@ -10,6 +11,69 @@ struct TextureMetadata {
 	std::string image_path{};
 };
 
+template <typename Type>
+using AssetUri = Id<Type, std::string>;
+
+struct AssetMaterial {
+	Rgba albedo{white_v};
+	glm::vec3 emissive_factor{0.0f};
+	float metallic{0.5f};
+	float roughness{0.5f};
+	AssetUri<Texture> base_colour{};
+	AssetUri<Texture> roughness_metallic{};
+	AssetUri<Texture> emissive{};
+	PipelineState state{};
+	float alpha_cutoff{};
+	AlphaMode alpha_mode{AlphaMode::eOpaque};
+	std::string shader{"shaders/lit.frag"};
+};
+
+void from_json(dj::Json const& json, AssetMaterial& out);
+void to_json(dj::Json& out, AssetMaterial const& asset);
+
+struct BinGeometry {
+	struct Header {
+		std::uint64_t hash{};
+		std::uint64_t positions{};
+		std::uint64_t indices{};
+		std::uint64_t joints{};
+		std::uint64_t weights{};
+	};
+
+	Geometry::Packed geometry{};
+	std::vector<glm::uvec4> joints{};
+	std::vector<glm::vec4> weights{};
+
+	std::uint64_t compute_hash() const;
+	bool write(char const* path) const;
+	bool read(char const* path);
+};
+
+struct AssetMesh {
+	enum class Type { eStatic, eSkinned };
+
+	struct Primitive {
+		AssetUri<BinGeometry> geometry{};
+		AssetUri<Material> material{};
+	};
+
+	std::vector<Primitive> primitives{};
+	AssetUri<Skeleton> skeleton{};
+	Type type{};
+};
+
+void from_json(dj::Json const& json, AssetMesh& out);
+void to_json(dj::Json& out, AssetMesh const& asset);
+
+struct AssetSkeleton {
+	Skeleton skeleton{};
+};
+
+struct ImportedMeshes {
+	std::vector<AssetMesh> meshes{};
+	std::vector<AssetSkeleton> skeletons{};
+};
+
 struct ResourceMetadata {
 	template <typename Type, typename Meta>
 	using Map = std::unordered_map<Id<Type>, Meta, std::hash<std::size_t>>;
@@ -18,4 +82,5 @@ struct ResourceMetadata {
 };
 
 ImportResult import_gltf(char const* gltf_path, GraphicsDevice& device, MeshResources& out_resources, ResourceMetadata& out_meta);
+ImportedMeshes import_gltf_meshes(char const* gltf_path, char const* dest_dir);
 } // namespace levk::experiment

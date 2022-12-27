@@ -3,6 +3,8 @@
 #include <gltf2cpp/gltf2cpp.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
+#include <levk/util/hash_combine.hpp>
+#include <levk/util/logger.hpp>
 #include <levk/util/visitor.hpp>
 #include <levk/util/zip_ranges.hpp>
 #include <filesystem>
@@ -90,6 +92,37 @@ Transform from(gltf2cpp::Transform const& transform) {
 		},
 	};
 	std::visit(visitor, transform);
+	return ret;
+}
+
+std::string to_hex(Rgba const& rgba) {
+	auto ret = std::string{"#"};
+	fmt::format_to(std::back_inserter(ret), "{:x}", rgba.channels.x);
+	fmt::format_to(std::back_inserter(ret), "{:x}", rgba.channels.y);
+	fmt::format_to(std::back_inserter(ret), "{:x}", rgba.channels.z);
+	fmt::format_to(std::back_inserter(ret), "{:x}", rgba.channels.w);
+	return ret;
+}
+
+std::uint8_t to_channel(std::string_view const hex) {
+	assert(hex.size() == 2);
+	auto str = std::stringstream{};
+	str << std::hex << hex;
+	auto ret = std::uint32_t{};
+	str >> ret;
+	return static_cast<std::uint8_t>(ret);
+}
+
+Rgba to_rgba(std::string_view hex, float intensity) {
+	assert(!hex.empty());
+	if (hex[0] == '#') { hex = hex.substr(1); }
+	assert(hex.size() == 8);
+	auto ret = Rgba{};
+	ret.channels.x = to_channel(hex.substr(0, 2));
+	ret.channels.y = to_channel(hex.substr(2, 2));
+	ret.channels.z = to_channel(hex.substr(4, 2));
+	ret.channels.w = to_channel(hex.substr(6));
+	ret.intensity = intensity;
 	return ret;
 }
 
@@ -431,5 +464,322 @@ experiment::ImportResult experiment::import_gltf(char const* gltf_path, Graphics
 		out_meta.textures.insert_or_assign(id, tsi);
 	}
 	return ret;
+}
+} // namespace levk
+
+namespace levk {
+namespace experiment {
+namespace {
+struct ExportMeshes {
+	gltf2cpp::Root& in_root;
+	fs::path in_path;
+	fs::path out_path;
+
+	ImportedMeshes result{};
+
+	struct {
+		std::unordered_map<Index<gltf2cpp::Image>, std::string> images{};
+		std::unordered_map<Index<gltf2cpp::Geometry>, std::string> geometries{};
+		std::unordered_map<Index<gltf2cpp::Material>, std::string> materials{};
+		std::unordered_map<Index<gltf2cpp::Mesh>, std::string> meshes{};
+	} exported{};
+
+	fs::path unique_filename(fs::path in, std::string_view fallback) {
+		int index = 0;
+		auto out = in;
+		if (out.stem().empty()) {
+			assert(!fallback.empty());
+			in = fallback;
+			out = fmt::format("{}_{}.{}", in.stem().string(), index, in.extension().string());
+		}
+		static constexpr auto max_iter_v = 100;
+		auto path = out_path / out;
+		for (; fs::exists(path) && index < max_iter_v; ++index) {
+			out = fmt::format("{}_{}{}", in.stem().string(), index, in.extension().string());
+			path = out_path / out;
+		}
+		assert(index < max_iter_v);
+		return out;
+	}
+
+	std::string copy_image(gltf2cpp::Image const& in, std::size_t index) {
+		assert(!in.source_filename.empty());
+		if (auto it = exported.images.find(index); it != exported.images.end()) { return it->second; }
+		auto uri = unique_filename(in.source_filename, "image.bin");
+		auto dst = out_path / uri;
+		fs::create_directories(dst.parent_path());
+		fs::copy_file(in_path / in.source_filename, out_path / uri);
+		auto ret = uri.generic_string();
+		logger::info("[Import] Image [{}] copied from [{}]", ret, in.source_filename);
+		exported.images.insert_or_assign(index, ret);
+		return ret;
+	}
+
+	std::string copy_image(gltf2cpp::Texture const& in, std::size_t index) { return copy_image(in_root.images[in.source], index); }
+
+	AssetUri<Material> export_material(gltf2cpp::Material const& in, std::size_t index) {
+		if (auto it = exported.materials.find(index); it != exported.materials.end()) { return it->second; }
+		auto material = AssetMaterial{};
+		material.albedo = Rgba::from(glm::vec4{in.pbr.base_color_factor[0], in.pbr.base_color_factor[1], in.pbr.base_color_factor[2], 1.0f});
+		material.metallic = in.pbr.metallic_factor;
+		material.roughness = in.pbr.roughness_factor;
+		material.alpha_mode = from(in.alpha_mode);
+		material.alpha_cutoff = in.alpha_cutoff;
+		if (auto i = in.pbr.base_color_texture) { material.base_colour = copy_image(in_root.textures[i->texture], i->texture); }
+		if (auto i = in.pbr.metallic_roughness_texture) { material.roughness_metallic = copy_image(in_root.textures[i->texture], i->texture); }
+		if (auto i = in.emissive_texture) { material.emissive = copy_image(in_root.textures[i->texture], i->texture); }
+		material.emissive_factor = {in.emissive_factor[0], in.emissive_factor[1], in.emissive_factor[2]};
+		auto filename = in.name + ".json";
+		auto uri = unique_filename(filename, "material.json");
+		auto json = dj::Json{};
+		to_json(json, material);
+		json.to_file((out_path / uri).string().c_str());
+		auto ret = uri.generic_string();
+		logger::info("[Import] Material [{}] imported", ret);
+		exported.materials.insert_or_assign(index, ret);
+		return ret;
+	}
+
+	AssetUri<BinGeometry> export_geometry(gltf2cpp::Mesh::Primitive const& in, std::size_t index, std::string_view mesh_name) {
+		if (auto it = exported.geometries.find(index); it != exported.geometries.end()) { return it->second; }
+		auto bin = BinGeometry{};
+		bin.geometry = to_geometry(in);
+		auto filename = fmt::format("{}_geometry{}", mesh_name, index);
+		auto uri = unique_filename(filename, filename);
+		[[maybe_unused]] bool const res = bin.write((out_path / uri).string().c_str());
+		assert(res);
+		auto ret = uri.generic_string();
+		logger::info("[Import] BinGeometry [{}] imported", ret);
+		exported.geometries.insert_or_assign(index, ret);
+		return ret;
+	}
+
+	experiment::ImportedMeshes operator()() {
+		for (auto const& [in_mesh, mesh_index] : enumerate(in_root.meshes)) {
+			if (exported.meshes.contains(mesh_index)) { continue; }
+			auto out_mesh = AssetMesh{};
+			for (auto const& [in_primitive, primitive_index] : enumerate(in_mesh.primitives)) {
+				auto out_primitive = AssetMesh::Primitive{};
+				if (!in_primitive.geometry.joints.empty()) {
+					logger::warn("Skinned mesh not implemented");
+					continue;
+				}
+				if (in_primitive.material) { out_primitive.material = export_material(in_root.materials[*in_primitive.material], *in_primitive.material); }
+				out_primitive.geometry = export_geometry(in_primitive, primitive_index, in_mesh.name);
+				out_mesh.primitives.push_back(std::move(out_primitive));
+			}
+			if (out_mesh.primitives.empty()) { continue; }
+			auto filename = in_mesh.name + ".json";
+			auto uri = unique_filename(filename, "mesh.json");
+			auto json = dj::Json{};
+			to_json(json, out_mesh);
+			json.to_file((out_path / uri).string().c_str());
+			auto ret = uri.generic_string();
+			logger::info("[Import] Mesh [{}] imported", ret);
+			exported.meshes.insert_or_assign(mesh_index, ret);
+			result.meshes.push_back(std::move(out_mesh));
+		}
+		return std::move(result);
+	}
+};
+
+dj::Json make_json(Rgba const& rgba) {
+	auto ret = dj::Json{};
+	ret["hex"] = to_hex(rgba);
+	ret["intensity"] = rgba.intensity;
+	return ret;
+}
+
+Rgba make_rgba(dj::Json const& json) { return to_rgba(json["hex"].as_string(), json["intensity"].as<float>(1.0f)); }
+
+dj::Json make_json(glm::vec3 const& vec3) {
+	auto ret = dj::Json{};
+	ret["x"] = vec3.x;
+	ret["y"] = vec3.y;
+	ret["z"] = vec3.z;
+	return ret;
+}
+
+glm::vec3 make_vec3(dj::Json const& json, glm::vec3 const& fallback) {
+	auto ret = glm::vec3{};
+	ret.x = json["x"].as<float>(fallback.x);
+	ret.y = json["y"].as<float>(fallback.y);
+	ret.z = json["z"].as<float>(fallback.z);
+	return ret;
+}
+} // namespace
+
+std::uint64_t BinGeometry::compute_hash() const {
+	auto ret = std::size_t{};
+	for (auto const& position : geometry.positions) { hash_combine(ret, position.x, position.y, position.z); }
+	hash_combine(ret, geometry.rgbs.size(), geometry.normals.size(), geometry.uvs.size(), geometry.indices.size(), joints.size());
+	return static_cast<std::uint64_t>(ret);
+}
+
+bool BinGeometry::write(char const* path) const {
+	auto file = std::ofstream{path, std::ios::binary};
+	if (!file) { return false; }
+	auto const header = Header{
+		.hash = compute_hash(),
+		.positions = geometry.positions.size(),
+		.indices = geometry.indices.size(),
+		.joints = joints.size(),
+		.weights = weights.size(),
+	};
+	auto span = std::span{reinterpret_cast<char const*>(&header), sizeof(header)};
+	file.write(span.data(), static_cast<std::streamsize>(span.size()));
+	span = std::span{reinterpret_cast<char const*>(geometry.positions.data()), geometry.positions.size() * sizeof(geometry.positions[0])};
+	file.write(span.data(), static_cast<std::streamsize>(span.size()));
+	span = std::span{reinterpret_cast<char const*>(geometry.rgbs.data()), geometry.rgbs.size() * sizeof(geometry.rgbs[0])};
+	file.write(span.data(), static_cast<std::streamsize>(span.size()));
+	span = std::span{reinterpret_cast<char const*>(geometry.normals.data()), geometry.normals.size() * sizeof(geometry.normals[0])};
+	file.write(span.data(), static_cast<std::streamsize>(span.size()));
+	span = std::span{reinterpret_cast<char const*>(geometry.uvs.data()), geometry.uvs.size() * sizeof(geometry.uvs[0])};
+	file.write(span.data(), static_cast<std::streamsize>(span.size()));
+	span = std::span{reinterpret_cast<char const*>(geometry.indices.data()), geometry.indices.size() * sizeof(geometry.indices[0])};
+	file.write(span.data(), static_cast<std::streamsize>(span.size()));
+	if (!joints.empty()) {
+		span = std::span{reinterpret_cast<char const*>(joints.data()), joints.size() * sizeof(joints[0])};
+		file.write(span.data(), static_cast<std::streamsize>(span.size()));
+		span = std::span{reinterpret_cast<char const*>(weights.data()), weights.size() * sizeof(weights[0])};
+		file.write(span.data(), static_cast<std::streamsize>(span.size()));
+	}
+	return true;
+}
+
+bool BinGeometry::read(char const* path) {
+	auto file = std::ifstream{path, std::ios::binary | std::ios::ate};
+	if (!file) { return false; }
+	auto const total_size = file.tellg();
+	assert(static_cast<std::size_t>(total_size) > sizeof(Header));
+	file.seekg({}, std::ios::beg);
+	auto in = BinGeometry{};
+	auto header = Header{};
+
+	auto bytes = std::vector<std::byte>(sizeof(header));
+	file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(sizeof(header)));
+	std::memcpy(&header, bytes.data(), sizeof(header));
+
+	bytes.resize(static_cast<std::size_t>(header.positions) * sizeof(in.geometry.positions[0]));
+	in.geometry.positions.resize(static_cast<std::size_t>(header.positions));
+	file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.positions * sizeof(in.geometry.positions[0])));
+	std::memcpy(in.geometry.positions.data(), bytes.data(), header.positions * sizeof(in.geometry.positions[0]));
+
+	bytes.resize(static_cast<std::size_t>(header.positions) * sizeof(in.geometry.rgbs[0]));
+	in.geometry.rgbs.resize(static_cast<std::size_t>(header.positions));
+	file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.positions * sizeof(in.geometry.rgbs[0])));
+	std::memcpy(in.geometry.rgbs.data(), bytes.data(), header.positions * sizeof(in.geometry.rgbs[0]));
+
+	bytes.resize(static_cast<std::size_t>(header.positions) * sizeof(in.geometry.normals[0]));
+	in.geometry.normals.resize(static_cast<std::size_t>(header.positions));
+	file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.positions * sizeof(in.geometry.normals[0])));
+	std::memcpy(in.geometry.normals.data(), bytes.data(), header.positions * sizeof(in.geometry.normals[0]));
+
+	bytes.resize(static_cast<std::size_t>(header.positions) * sizeof(in.geometry.uvs[0]));
+	in.geometry.uvs.resize(static_cast<std::size_t>(header.positions));
+	file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.positions * sizeof(in.geometry.uvs[0])));
+	std::memcpy(in.geometry.uvs.data(), bytes.data(), header.positions * sizeof(in.geometry.uvs[0]));
+
+	if (header.indices) {
+		bytes.resize(static_cast<std::size_t>(header.indices) * sizeof(in.geometry.indices[0]));
+		in.geometry.indices.resize(static_cast<std::size_t>(header.indices));
+		file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.indices * sizeof(in.geometry.indices[0])));
+		std::memcpy(in.geometry.indices.data(), bytes.data(), header.indices * sizeof(in.geometry.indices[0]));
+	}
+
+	if (header.joints) {
+		bytes.resize(static_cast<std::size_t>(header.joints) * sizeof(in.joints[0]));
+		in.joints.resize(static_cast<std::size_t>(header.joints));
+		file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.joints * sizeof(in.joints[0])));
+		std::memcpy(in.joints.data(), bytes.data(), header.joints * sizeof(in.joints[0]));
+
+		assert(header.weights == header.joints);
+		bytes.resize(static_cast<std::size_t>(header.weights) * sizeof(in.weights[0]));
+		in.weights.resize(static_cast<std::size_t>(header.weights));
+		file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.weights * sizeof(in.weights[0])));
+		std::memcpy(in.joints.data(), bytes.data(), header.weights * sizeof(in.weights[0]));
+	}
+
+	if (in.compute_hash() != header.hash) {
+		logger::error("[Import] Hash mismatch for BinGeometry. Corrupted file?");
+		return false;
+	}
+
+	*this = std::move(in);
+	return true;
+}
+} // namespace experiment
+
+void experiment::from_json(dj::Json const& json, AssetMaterial& out) {
+	out.albedo = make_rgba(json["albedo"]);
+	out.emissive_factor = make_vec3(json["emissive_factor"], out.emissive_factor);
+	out.metallic = json["metallic"].as<float>(out.metallic);
+	out.roughness = json["roughness"].as<float>(out.roughness);
+	out.base_colour = std::string{json["base_colour"].as_string()};
+	out.roughness_metallic = std::string{json["roughness_metallic"].as_string()};
+	out.emissive = std::string{json["emissive"].as_string()};
+	out.alpha_cutoff = json["alpha_cutoff"].as<float>(out.alpha_cutoff);
+	out.shader = json["shader"].as_string(out.shader);
+}
+
+void experiment::to_json(dj::Json& out, AssetMaterial const& asset) {
+	out["albedo"] = make_json(asset.albedo);
+	out["emissive_factor"] = make_json(asset.emissive_factor);
+	out["metallic"] = asset.metallic;
+	out["roughness"] = asset.roughness;
+	if (!asset.base_colour.value().empty()) { out["base_colour"] = asset.base_colour.value(); }
+	if (!asset.roughness_metallic.value().empty()) { out["roughness_metallic"] = asset.roughness_metallic.value(); }
+	if (!asset.emissive.value().empty()) { out["emissive"] = asset.emissive.value(); }
+	out["alpha_cutoff"] = asset.alpha_cutoff;
+	out["shader"] = asset.shader;
+}
+
+void experiment::from_json(dj::Json const& json, AssetMesh& out) {
+	out.type = json["type"].as_string() == "skinned" ? AssetMesh::Type::eSkinned : AssetMesh::Type::eStatic;
+	for (auto const& in_primitive : json["primitives"].array_view()) {
+		auto primitive = AssetMesh::Primitive{};
+		primitive.geometry = std::string{in_primitive["geometry"].as_string()};
+		primitive.material = std::string{in_primitive["material"].as_string()};
+		out.primitives.push_back(std::move(primitive));
+	}
+	out.skeleton = std::string{json["skeleton"].as_string()};
+}
+
+void experiment::to_json(dj::Json& out, AssetMesh const& asset) {
+	out["type"] = asset.type == AssetMesh::Type::eSkinned ? "skinned" : "static";
+	if (!asset.primitives.empty()) {
+		auto primitives = dj::Json{};
+		for (auto const& in_primitive : asset.primitives) {
+			auto out_primitive = dj::Json{};
+			out_primitive["geometry"] = in_primitive.geometry.value();
+			if (!in_primitive.material.value().empty()) { out_primitive["material"] = in_primitive.material.value(); }
+			primitives.push_back(std::move(out_primitive));
+		}
+		out["primitives"] = std::move(primitives);
+	}
+	if (!asset.skeleton.value().empty()) { out["skeleton"] = asset.skeleton.value(); }
+}
+
+experiment::ImportedMeshes experiment::import_gltf_meshes(char const* gltf_path, char const* dest_dir) {
+	if (!fs::is_regular_file(gltf_path)) {
+		logger::error("[Import] Invalid GLTF file path [{}]", gltf_path);
+		return {};
+	}
+	if (fs::is_regular_file(dest_dir)) {
+		logger::error("[Import] Destination path [{}] occupied by a file", dest_dir);
+		return {};
+	}
+	auto root = gltf2cpp::parse(gltf_path);
+	if (!root) {
+		logger::error("[Import] Failed to parse GLTF file [{}]", gltf_path);
+		return {};
+	}
+	if (fs::is_directory(dest_dir)) {
+		logger::info("[Import] Destination directory [{}] already exists", dest_dir);
+	} else {
+		fs::create_directories(dest_dir);
+	}
+	auto in_path = fs::path{gltf_path}.parent_path();
+	return ExportMeshes{root, std::move(in_path), dest_dir}();
 }
 } // namespace levk
