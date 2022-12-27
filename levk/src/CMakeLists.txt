@@ -1,5 +1,4 @@
 add_subdirectory(util)
-add_subdirectory(editor)
 add_subdirectory(imcpp)
 
 target_sources(levk PRIVATE

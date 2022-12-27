@@ -1,5 +1,5 @@
 #pragma once
-#include <levk/editor/import_result.hpp>
+#include <experiment/import_result.hpp>
 #include <levk/engine.hpp>
 #include <levk/mesh_resources.hpp>
 #include <levk/scene_tree.hpp>
@@ -46,7 +46,7 @@ class Scene {
 
 	Scene(Engine& engine, MeshResources& resources) : engine(&engine), resources(&resources) {}
 
-	editor::ImportResult import_gltf(char const* path, char const* dest);
+	ImportResult import_gltf(char const* path, char const* dest);
 
 	void tick(Time dt);
 

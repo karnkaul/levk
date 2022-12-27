@@ -1,9 +1,9 @@
 #pragma once
-#include <levk/editor/import_result.hpp>
+#include <experiment/import_result.hpp>
 #include <levk/graphics_device.hpp>
 #include <levk/mesh_resources.hpp>
 
-namespace levk::editor {
+namespace levk::experiment {
 struct TextureMetadata {
 	Sampler sampler{};
 	ColourSpace colour_space{ColourSpace::eSrgb};
@@ -18,4 +18,4 @@ struct ResourceMetadata {
 };
 
 ImportResult import_gltf(char const* gltf_path, GraphicsDevice& device, MeshResources& out_resources, ResourceMetadata& out_meta);
-} // namespace levk::editor
+} // namespace levk::experiment

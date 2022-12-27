@@ -1,6 +1,6 @@
+#include <experiment/import_asset.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <gltf2cpp/gltf2cpp.hpp>
-#include <levk/editor/import_asset.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
 #include <levk/util/visitor.hpp>
@@ -11,7 +11,7 @@
 namespace levk {
 namespace fs = std::filesystem;
 
-namespace editor {
+namespace experiment {
 namespace {
 constexpr AlphaMode from(gltf2cpp::AlphaMode const mode) {
 	switch (mode) {
@@ -406,9 +406,9 @@ struct GltfImporter {
 	MapAndMutex<std::size_t, TextureMetadata> texture_metadata{};
 };
 } // namespace
-} // namespace editor
+} // namespace experiment
 
-editor::ImportResult editor::import_gltf(char const* gltf_path, GraphicsDevice& device, MeshResources& out_resources, ResourceMetadata& out_meta) {
+experiment::ImportResult experiment::import_gltf(char const* gltf_path, GraphicsDevice& device, MeshResources& out_resources, ResourceMetadata& out_meta) {
 	auto root = gltf2cpp::parse(gltf_path);
 	if (!root) { return {}; }
 	auto importer = GltfImporter{out_resources, device, root};

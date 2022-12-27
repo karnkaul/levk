@@ -37,11 +37,6 @@ set(impl_headers
   include/levk/impl/vulkan_surface.hpp
 )
 
-set(editor_headers
-  include/levk/editor/import_asset.hpp
-  include/levk/editor/import_result.hpp
-)
-
 set(imcpp_headers
   include/levk/imcpp/common.hpp
   include/levk/imcpp/reflector.hpp
@@ -50,7 +45,6 @@ set(imcpp_headers
 set(levk_headers
   ${util_headers}
   ${impl_headers}
-  ${editor_headers}
   ${imcpp_headers}
 
   include/levk/animation.hpp

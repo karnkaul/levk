@@ -1,15 +1,11 @@
+#include <experiment/import_asset.hpp>
 #include <experiment/scene.hpp>
-#include <levk/asset/asset.hpp>
-#include <levk/editor/import_asset.hpp>
 #include <levk/util/logger.hpp>
-#include <filesystem>
 
 namespace levk::experiment {
-namespace fs = std::filesystem;
-
-editor::ImportResult Scene::import_gltf(char const* path, char const* dest) {
-	auto metadata = editor::ResourceMetadata{};
-	auto ret = editor::import_gltf(path, engine->device(), *resources, metadata);
+ImportResult Scene::import_gltf(char const* path, char const* dest) {
+	auto metadata = ResourceMetadata{};
+	auto ret = experiment::import_gltf(path, engine->device(), *resources, metadata);
 	auto str = std::string{"Imported:\n"};
 	fmt::format_to(std::back_inserter(str), "[{}] Textures\n", ret.added_textures.size());
 	fmt::format_to(std::back_inserter(str), "[{}] Materials\n", ret.added_materials.size());
@@ -20,25 +16,6 @@ editor::ImportResult Scene::import_gltf(char const* path, char const* dest) {
 		ret.added_textures.size() + ret.added_materials.size() + ret.added_skeletons.size() + ret.added_static_meshes.size() + ret.added_skinned_meshes.size();
 	fmt::format_to(std::back_inserter(str), "===\n[{}] Total\n", total);
 	logger::info("[Scene] {}", str);
-
-	{
-		auto prefix = fs::path{dest};
-		fs::create_directories(prefix / "textures");
-		for (auto const& [id, meta] : metadata.textures) {
-			auto in = meta.image_path;
-			auto uri = fs::path{"textures"} / fs::path{in}.filename();
-			assert(fs::is_regular_file(in));
-			fs::copy(in, prefix / uri);
-			auto asset = TextureAsset{uri, meta.colour_space, meta.sampler};
-			auto json = dj::Json{};
-			to_json(json, asset);
-			uri = fs::path{"textures"} / fs::path{in}.stem();
-			uri += ".json";
-			auto out = prefix / uri;
-			json.to_file(out.c_str());
-			logger::info("[Importer] Imported TextureAsset [{}]", uri.generic_string());
-		}
-	}
 
 	if (!ret.added_skinned_meshes.empty()) {
 		auto const& mesh = resources->skinned_meshes.get(ret.added_skinned_meshes.front());

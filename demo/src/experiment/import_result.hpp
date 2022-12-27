@@ -9,7 +9,7 @@ struct Skeleton;
 struct StaticMesh;
 struct SkinnedMesh;
 
-namespace editor {
+namespace experiment {
 struct ImportResult {
 	std::vector<Id<Texture>> added_textures{};
 	std::vector<Id<Material>> added_materials{};
@@ -17,5 +17,5 @@ struct ImportResult {
 	std::vector<Id<StaticMesh>> added_static_meshes{};
 	std::vector<Id<SkinnedMesh>> added_skinned_meshes{};
 };
-} // namespace editor
+} // namespace experiment
 } // namespace levk
