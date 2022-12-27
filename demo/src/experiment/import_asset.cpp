@@ -1,6 +1,7 @@
 #include <experiment/import_asset.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <gltf2cpp/gltf2cpp.hpp>
+#include <levk/util/binary_file.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
 #include <levk/util/hash_combine.hpp>
@@ -544,7 +545,7 @@ struct ExportMeshes {
 		if (auto it = exported.geometries.find(index); it != exported.geometries.end()) { return it->second; }
 		auto bin = BinGeometry{};
 		bin.geometry = to_geometry(in);
-		auto filename = fmt::format("{}_geometry{}", mesh_name, index);
+		auto filename = fmt::format("{}_geometry{}.bin", mesh_name, index);
 		auto uri = unique_filename(filename, filename);
 		[[maybe_unused]] bool const res = bin.write((out_path / uri).string().c_str());
 		assert(res);
@@ -617,7 +618,7 @@ std::uint64_t BinGeometry::compute_hash() const {
 }
 
 bool BinGeometry::write(char const* path) const {
-	auto file = std::ofstream{path, std::ios::binary};
+	auto file = BinaryOutFile{path};
 	if (!file) { return false; }
 	auto const header = Header{
 		.hash = compute_hash(),
@@ -626,78 +627,51 @@ bool BinGeometry::write(char const* path) const {
 		.joints = joints.size(),
 		.weights = weights.size(),
 	};
-	auto span = std::span{reinterpret_cast<char const*>(&header), sizeof(header)};
-	file.write(span.data(), static_cast<std::streamsize>(span.size()));
-	span = std::span{reinterpret_cast<char const*>(geometry.positions.data()), geometry.positions.size() * sizeof(geometry.positions[0])};
-	file.write(span.data(), static_cast<std::streamsize>(span.size()));
-	span = std::span{reinterpret_cast<char const*>(geometry.rgbs.data()), geometry.rgbs.size() * sizeof(geometry.rgbs[0])};
-	file.write(span.data(), static_cast<std::streamsize>(span.size()));
-	span = std::span{reinterpret_cast<char const*>(geometry.normals.data()), geometry.normals.size() * sizeof(geometry.normals[0])};
-	file.write(span.data(), static_cast<std::streamsize>(span.size()));
-	span = std::span{reinterpret_cast<char const*>(geometry.uvs.data()), geometry.uvs.size() * sizeof(geometry.uvs[0])};
-	file.write(span.data(), static_cast<std::streamsize>(span.size()));
-	span = std::span{reinterpret_cast<char const*>(geometry.indices.data()), geometry.indices.size() * sizeof(geometry.indices[0])};
-	file.write(span.data(), static_cast<std::streamsize>(span.size()));
+	file.write(std::span{&header, 1});
+	file.write(std::span{geometry.positions});
+	file.write(std::span{geometry.rgbs});
+	file.write(std::span{geometry.normals});
+	file.write(std::span{geometry.uvs});
+	file.write(std::span{geometry.indices});
 	if (!joints.empty()) {
-		span = std::span{reinterpret_cast<char const*>(joints.data()), joints.size() * sizeof(joints[0])};
-		file.write(span.data(), static_cast<std::streamsize>(span.size()));
-		span = std::span{reinterpret_cast<char const*>(weights.data()), weights.size() * sizeof(weights[0])};
-		file.write(span.data(), static_cast<std::streamsize>(span.size()));
+		file.write(std::span{joints});
+		file.write(std::span{weights});
 	}
 	return true;
 }
 
 bool BinGeometry::read(char const* path) {
-	auto file = std::ifstream{path, std::ios::binary | std::ios::ate};
+	auto file = BinaryInFile{path};
 	if (!file) { return false; }
-	auto const total_size = file.tellg();
-	assert(static_cast<std::size_t>(total_size) > sizeof(Header));
-	file.seekg({}, std::ios::beg);
+
 	auto in = BinGeometry{};
 	auto header = Header{};
+	file.read(header);
 
-	auto bytes = std::vector<std::byte>(sizeof(header));
-	file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(sizeof(header)));
-	std::memcpy(&header, bytes.data(), sizeof(header));
-
-	bytes.resize(static_cast<std::size_t>(header.positions) * sizeof(in.geometry.positions[0]));
 	in.geometry.positions.resize(static_cast<std::size_t>(header.positions));
-	file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.positions * sizeof(in.geometry.positions[0])));
-	std::memcpy(in.geometry.positions.data(), bytes.data(), header.positions * sizeof(in.geometry.positions[0]));
+	file.read(std::span{in.geometry.positions});
 
-	bytes.resize(static_cast<std::size_t>(header.positions) * sizeof(in.geometry.rgbs[0]));
 	in.geometry.rgbs.resize(static_cast<std::size_t>(header.positions));
-	file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.positions * sizeof(in.geometry.rgbs[0])));
-	std::memcpy(in.geometry.rgbs.data(), bytes.data(), header.positions * sizeof(in.geometry.rgbs[0]));
+	file.read(std::span{in.geometry.rgbs});
 
-	bytes.resize(static_cast<std::size_t>(header.positions) * sizeof(in.geometry.normals[0]));
 	in.geometry.normals.resize(static_cast<std::size_t>(header.positions));
-	file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.positions * sizeof(in.geometry.normals[0])));
-	std::memcpy(in.geometry.normals.data(), bytes.data(), header.positions * sizeof(in.geometry.normals[0]));
+	file.read(std::span{in.geometry.normals});
 
-	bytes.resize(static_cast<std::size_t>(header.positions) * sizeof(in.geometry.uvs[0]));
 	in.geometry.uvs.resize(static_cast<std::size_t>(header.positions));
-	file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.positions * sizeof(in.geometry.uvs[0])));
-	std::memcpy(in.geometry.uvs.data(), bytes.data(), header.positions * sizeof(in.geometry.uvs[0]));
+	file.read(std::span{in.geometry.uvs});
 
 	if (header.indices) {
-		bytes.resize(static_cast<std::size_t>(header.indices) * sizeof(in.geometry.indices[0]));
 		in.geometry.indices.resize(static_cast<std::size_t>(header.indices));
-		file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.indices * sizeof(in.geometry.indices[0])));
-		std::memcpy(in.geometry.indices.data(), bytes.data(), header.indices * sizeof(in.geometry.indices[0]));
+		file.read(std::span{in.geometry.indices});
 	}
 
 	if (header.joints) {
-		bytes.resize(static_cast<std::size_t>(header.joints) * sizeof(in.joints[0]));
 		in.joints.resize(static_cast<std::size_t>(header.joints));
-		file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.joints * sizeof(in.joints[0])));
-		std::memcpy(in.joints.data(), bytes.data(), header.joints * sizeof(in.joints[0]));
+		file.read(std::span{in.joints});
 
 		assert(header.weights == header.joints);
-		bytes.resize(static_cast<std::size_t>(header.weights) * sizeof(in.weights[0]));
 		in.weights.resize(static_cast<std::size_t>(header.weights));
-		file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(header.weights * sizeof(in.weights[0])));
-		std::memcpy(in.joints.data(), bytes.data(), header.weights * sizeof(in.weights[0]));
+		file.read(std::span{in.weights});
 	}
 
 	if (in.compute_hash() != header.hash) {
