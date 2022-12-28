@@ -3,7 +3,7 @@
 
 namespace levk {
 float TransformAnimator::duration() const {
-	return std::visit([](auto const& ch) { return ch.duration(); }, channel);
+	return std::visit([](auto const& ch) { return ch.duration(); }, sampler);
 }
 
 void TransformAnimator::update(Node& node, float time) const {
@@ -18,6 +18,6 @@ void TransformAnimator::update(Node& node, float time) const {
 			if (auto const s = scale(time)) { node.transform.set_scale(*s); }
 		},
 	};
-	std::visit(visitor, channel);
+	std::visit(visitor, sampler);
 }
 } // namespace levk

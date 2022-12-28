@@ -64,17 +64,17 @@ constexpr bool is_linear(vk::Format format) {
 
 constexpr bool is_srgb(vk::Format format) { return std::find(std::begin(srgb_formats_v), std::end(srgb_formats_v), format) != std::end(srgb_formats_v); }
 
-constexpr vk::SamplerAddressMode from(Sampler::Wrap const wrap) {
+constexpr vk::SamplerAddressMode from(TextureSampler::Wrap const wrap) {
 	switch (wrap) {
-	case Sampler::Wrap::eClampBorder: return vk::SamplerAddressMode::eClampToBorder;
-	case Sampler::Wrap::eClampEdge: return vk::SamplerAddressMode::eClampToEdge;
+	case TextureSampler::Wrap::eClampBorder: return vk::SamplerAddressMode::eClampToBorder;
+	case TextureSampler::Wrap::eClampEdge: return vk::SamplerAddressMode::eClampToEdge;
 	default: return vk::SamplerAddressMode::eRepeat;
 	}
 }
 
-constexpr vk::Filter from(Sampler::Filter const filter) {
+constexpr vk::Filter from(TextureSampler::Filter const filter) {
 	switch (filter) {
-	case Sampler::Filter::eNearest: return vk::Filter::eNearest;
+	case TextureSampler::Filter::eNearest: return vk::Filter::eNearest;
 	default: return vk::Filter::eLinear;
 	}
 }
@@ -840,13 +840,13 @@ struct ShaderStorage {
 
 struct SamplerStorage {
 	struct Hasher {
-		std::size_t operator()(Sampler const& sampler) const { return make_combined_hash(sampler.min, sampler.mag, sampler.wrap_s, sampler.wrap_t); }
+		std::size_t operator()(TextureSampler const& sampler) const { return make_combined_hash(sampler.min, sampler.mag, sampler.wrap_s, sampler.wrap_t); }
 	};
 
-	std::unordered_map<Sampler, vk::UniqueSampler, Hasher> map{};
+	std::unordered_map<TextureSampler, vk::UniqueSampler, Hasher> map{};
 	float anisotropy{};
 
-	vk::Sampler get(vk::Device device, Sampler const& sampler) {
+	vk::Sampler get(vk::Device device, TextureSampler const& sampler) {
 		if (auto it = map.find(sampler); it != map.end()) { return *it->second; }
 		auto sci = vk::SamplerCreateInfo{};
 		sci.minFilter = from(sampler.min);
@@ -967,10 +967,10 @@ class VulkanTexture::Impl {
 	std::uint32_t mip_levels() const { return m_info.mip_levels; }
 	ColourSpace colour_space() const { return is_linear(m_info.format) ? ColourSpace::eLinear : ColourSpace::eSrgb; }
 
-	Sampler sampler{};
+	TextureSampler sampler{};
 
   protected:
-	Impl(VulkanDevice const& device, Sampler sampler);
+	Impl(VulkanDevice const& device, TextureSampler sampler);
 
   private:
 	Ptr<VulkanDevice const> m_device{};
@@ -2130,7 +2130,7 @@ VulkanTexture::Impl::Impl(VulkanDevice const& device, Image::View image, CreateI
 	m_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
 }
 
-VulkanTexture::Impl::Impl(VulkanDevice const& device, Sampler sampler) : sampler(sampler), m_device(&device) {}
+VulkanTexture::Impl::Impl(VulkanDevice const& device, TextureSampler sampler) : sampler(sampler), m_device(&device) {}
 
 void Vma::Deleter::operator()(Vma const& vma) const {
 	if (vma.allocator) { vmaDestroyAllocator(vma.allocator); }
@@ -2602,7 +2602,7 @@ levk::Texture levk::gfx_make_texture(VulkanDevice const& device, Texture::Create
 	return Texture{std::move(ret), std::move(create_info.name)};
 }
 
-levk::Sampler const& levk::gfx_tex_sampler(VulkanTexture const& texture) { return texture.impl->sampler; }
+levk::TextureSampler const& levk::gfx_tex_sampler(VulkanTexture const& texture) { return texture.impl->sampler; }
 levk::ColourSpace levk::gfx_tex_colour_space(VulkanTexture const& texture) { return texture.impl->colour_space(); }
 std::uint32_t levk::gfx_tex_mip_levels(VulkanTexture const& texture) { return texture.impl->mip_levels(); }
 

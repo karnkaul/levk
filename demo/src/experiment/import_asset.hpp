@@ -6,7 +6,7 @@
 
 namespace levk::experiment {
 struct TextureMetadata {
-	Sampler sampler{};
+	TextureSampler sampler{};
 	ColourSpace colour_space{ColourSpace::eSrgb};
 	std::string image_path{};
 };

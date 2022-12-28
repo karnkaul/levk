@@ -2,7 +2,7 @@
 #include <cstdint>
 
 namespace levk {
-struct Sampler {
+struct TextureSampler {
 	enum class Wrap : std::uint8_t { eRepeat, eClampEdge, eClampBorder };
 	enum class Filter : std::uint8_t { eLinear, eNearest };
 
@@ -11,6 +11,6 @@ struct Sampler {
 	Filter min{Filter::eLinear};
 	Filter mag{Filter::eLinear};
 
-	bool operator==(Sampler const&) const = default;
+	bool operator==(TextureSampler const&) const = default;
 };
 } // namespace levk

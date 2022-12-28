@@ -68,13 +68,13 @@ set(levk_headers
   include/levk/node.hpp
   include/levk/pixel_map.hpp
   include/levk/rgba.hpp
-  include/levk/sampler.hpp
   include/levk/scene_tree.hpp
   include/levk/shader.hpp
   include/levk/skeleton.hpp
   include/levk/skinned_mesh.hpp
   include/levk/static_mesh.hpp
   include/levk/surface.hpp
+  include/levk/texture_sampler.hpp
   include/levk/texture.hpp
   include/levk/transform_controller.hpp
   include/levk/transform.hpp

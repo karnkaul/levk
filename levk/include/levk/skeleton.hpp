@@ -14,6 +14,7 @@ struct SkeletonInstance {
 
 struct Skeleton {
 	using Instance = SkeletonInstance;
+	using Sampler = TransformAnimator::Sampler;
 
 	template <typename T>
 	using Index = std::size_t;
@@ -27,7 +28,7 @@ struct Skeleton {
 	};
 
 	struct Channel {
-		std::variant<TransformAnimator::Translate, TransformAnimator::Rotate, TransformAnimator::Scale> channel{};
+		Sampler sampler{};
 		Index<Joint> target{};
 	};
 

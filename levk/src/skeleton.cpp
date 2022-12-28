@@ -36,7 +36,7 @@ Skeleton::Instance Skeleton::instantiate(Node::Tree& out, Id<Node> root) const {
 		auto animation = Animation{};
 		for (auto const& channel : src_animation.channels) {
 			auto animator = TransformAnimator{};
-			animator.channel = channel.channel;
+			animator.sampler = channel.sampler;
 			assert(map.contains(channel.target));
 			animator.target = map[channel.target];
 			animation.add(std::move(animator));

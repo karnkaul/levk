@@ -25,25 +25,25 @@ constexpr AlphaMode from(gltf2cpp::AlphaMode const mode) {
 	}
 }
 
-constexpr Sampler::Wrap from(gltf2cpp::Wrap const wrap) {
+constexpr TextureSampler::Wrap from(gltf2cpp::Wrap const wrap) {
 	switch (wrap) {
-	case gltf2cpp::Wrap::eClampEdge: return Sampler::Wrap::eClampEdge;
-	case gltf2cpp::Wrap::eMirrorRepeat: return Sampler::Wrap::eRepeat;
+	case gltf2cpp::Wrap::eClampEdge: return TextureSampler::Wrap::eClampEdge;
+	case gltf2cpp::Wrap::eMirrorRepeat: return TextureSampler::Wrap::eRepeat;
 	default:
-	case gltf2cpp::Wrap::eRepeat: return Sampler::Wrap::eRepeat;
+	case gltf2cpp::Wrap::eRepeat: return TextureSampler::Wrap::eRepeat;
 	}
 }
 
-constexpr Sampler::Filter from(gltf2cpp::Filter const filter) {
+constexpr TextureSampler::Filter from(gltf2cpp::Filter const filter) {
 	switch (filter) {
 	default:
-	case gltf2cpp::Filter::eLinear: return Sampler::Filter::eLinear;
-	case gltf2cpp::Filter::eNearest: return Sampler::Filter::eNearest;
+	case gltf2cpp::Filter::eLinear: return TextureSampler::Filter::eLinear;
+	case gltf2cpp::Filter::eNearest: return TextureSampler::Filter::eNearest;
 	}
 }
 
-constexpr Sampler from(gltf2cpp::Sampler const& sampler) {
-	auto ret = Sampler{};
+constexpr TextureSampler from(gltf2cpp::Sampler const& sampler) {
+	auto ret = TextureSampler{};
 	ret.wrap_s = from(sampler.wrap_s);
 	ret.wrap_t = from(sampler.wrap_t);
 	if (sampler.min_filter) { ret.min = from(*sampler.min_filter); }
@@ -277,9 +277,9 @@ struct GltfImporter {
 					vec.resize(values.size() / 3);
 					std::memcpy(vec.data(), values.data(), values.size_bytes());
 					if (in_channel.target.path == Path::eScale) {
-						channel.channel = TransformAnimator::Scale{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
+						channel.sampler = TransformAnimator::Scale{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
 					} else {
-						channel.channel = TransformAnimator::Translate{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
+						channel.sampler = TransformAnimator::Translate{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
 					}
 					break;
 				}
@@ -288,7 +288,7 @@ struct GltfImporter {
 					auto vec = std::vector<glm::quat>{};
 					vec.resize(values.size() / 4);
 					std::memcpy(vec.data(), values.data(), values.size_bytes());
-					channel.channel = TransformAnimator::Rotate{make_interpolator<glm::quat>(times, vec, sampler.interpolation)};
+					channel.sampler = TransformAnimator::Rotate{make_interpolator<glm::quat>(times, vec, sampler.interpolation)};
 					break;
 				}
 				default:
@@ -344,7 +344,7 @@ struct GltfImporter {
 		auto lock = std::unique_lock{texture_map.mutex};
 		if (auto it = texture_map.map.find(index); it != texture_map.map.end()) { return it->second; }
 		lock.unlock();
-		auto sampler = Sampler{};
+		auto sampler = TextureSampler{};
 		if (in.sampler) { sampler = from(root.samplers[*in.sampler]); }
 		auto tci = Texture::CreateInfo{
 			in.name,
