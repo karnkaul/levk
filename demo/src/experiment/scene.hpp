@@ -44,15 +44,15 @@ class Scene {
   public:
 	struct Renderer;
 
-	Scene(Engine& engine, MeshResources& resources) : engine(&engine), resources(&resources) {}
+	Scene(Engine& engine, MeshResources& resources) : engine(&engine), mesh_resources(&resources) {}
 
-	ImportResult import_gltf(char const* path, char const* dest);
+	ImportResult import_gltf(char const* in_path, char const* out_path);
 
 	void tick(Time dt);
 
 	SceneTree tree{};
 	Ptr<Engine> engine;
-	Ptr<MeshResources> resources;
+	Ptr<MeshResources> mesh_resources;
 
 	Id<Node> test_node{};
 };

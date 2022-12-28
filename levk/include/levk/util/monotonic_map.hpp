@@ -72,13 +72,13 @@ class MonotonicMap {
 	template <typename F>
 	void for_each(F&& func) {
 		auto lock = std::scoped_lock{m_mutex};
-		for (auto& kvp : m_map) { func(kvp); }
+		for (auto& [key, value] : m_map) { func(key, value); }
 	}
 
 	template <typename F>
 	void for_each(F&& func) const {
 		auto lock = std::scoped_lock{m_mutex};
-		for (auto& kvp : m_map) { func(kvp); }
+		for (auto& [key, value] : m_map) { func(key, value); }
 	}
 
   private:

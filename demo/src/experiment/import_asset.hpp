@@ -79,14 +79,6 @@ struct ImportedMeshes {
 	std::vector<AssetUri<AssetSkeleton>> skeletons{};
 };
 
-struct ResourceMetadata {
-	template <typename Type, typename Meta>
-	using Map = std::unordered_map<Id<Type>, Meta, std::hash<std::size_t>>;
-
-	Map<Texture, TextureMetadata> textures{};
-};
-
-ImportResult import_gltf(char const* gltf_path, GraphicsDevice& device, MeshResources& out_resources, ResourceMetadata& out_meta);
 ImportedMeshes import_gltf_meshes(char const* gltf_path, char const* dest_dir);
 
 struct AssetLoader {

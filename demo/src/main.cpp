@@ -85,7 +85,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 	auto* entity = scene.tree.entities.find(node->entity);
 	if (!entity) { return; }
 	auto inspect_skin = [&](experiment::SkinnedMeshRenderer::Skin& skin) {
-		auto const& skeleton = scene.resources->skeletons.get(skin.skeleton.source);
+		auto const& skeleton = scene.mesh_resources->skeletons.get(skin.skeleton.source);
 		imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
 		if (skin.skeleton.animations.empty()) { return; }
 		if (auto tn = imcpp::TreeNode("Animation")) {
@@ -115,10 +115,10 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
 				[&](experiment::StaticMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.resources->static_meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.mesh_resources->static_meshes.get(smr.mesh).name}.c_str());
 				},
 				[&](experiment::SkinnedMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.resources->skinned_meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.mesh_resources->skinned_meshes.get(smr.mesh).name}.c_str());
 					inspect_skin(smr.skin);
 				},
 			};
@@ -196,7 +196,6 @@ void run(fs::path data_path) {
 		bg.read((data_path / "Suzanne/Suzanne_geometry0.bin").string().c_str());
 	}
 
-	auto ticking_entity = Id<Entity>{};
 	engine.show();
 	while (engine.is_running()) {
 		auto frame = engine.next_frame();
@@ -206,51 +205,14 @@ void run(fs::path data_path) {
 		for (auto const& drop : frame.state.drops) {
 			auto path = fs::path{drop};
 			if (path.extension() == ".gltf") {
-				// mesh_resources = std::make_unique<MeshResources>();
-				// scene = std::make_unique<experiment::Scene>(engine, *mesh_resources);
-				// scene->import_gltf(drop.c_str(), data_path.c_str());
 				auto export_path = data_path / path.filename().stem();
-				auto imported = experiment::import_gltf_meshes(drop.c_str(), export_path.c_str());
-				if (!imported.meshes.empty()) {
-					auto const& imported_mesh = imported.meshes.front();
-					auto mesh_path = (data_path / path.filename().stem() / imported_mesh.value()).string();
-					auto asset_loader = experiment::AssetLoader{engine.device(), *mesh_resources};
-					auto mesh_id = asset_loader.try_load_mesh(mesh_path.c_str());
-					if (std::holds_alternative<std::monostate>(mesh_id)) { continue; }
-					if (auto const* skinned_mesh_id = std::get_if<Id<SkinnedMesh>>(&mesh_id)) {
-						auto const& mesh = mesh_resources->skinned_meshes.get(*skinned_mesh_id);
-						auto& node = scene->tree.add({}, NodeCreateInfo{.name = "imported_mesh"});
-						auto& entity = scene->tree.entities.get(node.entity);
-						auto skin = experiment::SkinnedMeshRenderer::Skin{};
-						if (mesh.skeleton) {
-							auto const& skeleton = mesh_resources->skeletons.get(mesh.skeleton);
-							skin.skeleton = skeleton.instantiate(scene->tree.nodes, node.id());
-							if (!skin.skeleton.animations.empty()) { skin.enabled = 0; }
-						}
-						auto mesh_renderer = experiment::SkinnedMeshRenderer{
-							*skinned_mesh_id,
-							skin,
-						};
-						entity.attach(experiment::MeshRenderer{&engine.device(), mesh_resources.get(), std::move(mesh_renderer)});
-						ticking_entity = entity.id();
-					} else {
-						auto static_mesh_id = std::get<Id<StaticMesh>>(mesh_id);
-						auto& node = scene->tree.add({}, NodeCreateInfo{.name = "imported_mesh"});
-						auto& entity = scene->tree.entities.get(node.entity);
-						auto mesh_renderer = experiment::StaticMeshRenderer{
-							static_mesh_id,
-							node.id(),
-						};
-						entity.attach(experiment::MeshRenderer{&engine.device(), mesh_resources.get(), std::move(mesh_renderer)});
-					}
-				}
+				scene->import_gltf(drop.c_str(), export_path.string().c_str());
 				break;
 			}
 		}
 
 		// tick
 		scene->tick(frame.dt);
-		if (auto const* entity = scene->tree.entities.find(ticking_entity)) { entity->get<experiment::MeshRenderer>().tick(scene->tree.nodes, frame.dt); }
 		free_cam.tick(engine.camera.transform, frame.state.input, frame.dt);
 		if constexpr (debug_v) {
 			static bool show_demo{true};
