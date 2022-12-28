@@ -472,6 +472,7 @@ namespace levk {
 namespace experiment {
 namespace {
 struct ExportMeshes {
+	std::string_view json_name;
 	gltf2cpp::Root& in_root;
 	fs::path in_path;
 	fs::path out_path;
@@ -485,35 +486,43 @@ struct ExportMeshes {
 		std::unordered_map<Index<gltf2cpp::Mesh>, std::string> meshes{};
 	} exported{};
 
-	fs::path unique_filename(fs::path in, std::string_view fallback) {
-		int index = 0;
-		auto out = in;
-		if (out.stem().empty()) {
+	fs::path unique_filename(fs::path in, std::string_view extension, std::string_view fallback) {
+		int duplicate_filename = 1;
+		auto out = in.string();
+		auto path = out_path / fmt::format("{}{}", out, extension);
+		if (out.empty() || out == "(Unnamed)") {
 			assert(!fallback.empty());
 			in = fallback;
-			out = fmt::format("{}_{}.{}", in.stem().string(), index, in.extension().string());
+			out = in;
 		}
-		static constexpr auto max_iter_v = 100;
-		auto path = out_path / out;
-		for (; fs::exists(path) && index < max_iter_v; ++index) {
-			out = fmt::format("{}_{}{}", in.stem().string(), index, in.extension().string());
-			path = out_path / out;
+		static constexpr auto max_iter_v = 1000;
+		for (; fs::exists(path) && duplicate_filename < max_iter_v; ++duplicate_filename) {
+			out = fmt::format("{}_{}", in.string(), duplicate_filename);
+			path = out_path / fmt::format("{}{}", out, extension);
 		}
-		assert(index < max_iter_v);
-		return out;
+		assert(duplicate_filename < max_iter_v);
+		return fmt::format("{}{}", out, extension);
 	}
 
 	std::string copy_image(gltf2cpp::Image const& in, std::size_t index) {
 		assert(!in.source_filename.empty());
 		if (auto it = exported.images.find(index); it != exported.images.end()) { return it->second; }
-		auto uri = unique_filename(in.source_filename, "image.bin");
+		auto filename = fs::path{in.source_filename};
+		auto extension = std::string{};
+		auto uri = std::string{};
+		if (filename.empty()) {
+			uri = unique_filename({}, ".bin", "image");
+		} else {
+			auto extension = filename.extension().string();
+			filename = filename.stem();
+			uri = unique_filename(filename, extension, {});
+		}
 		auto dst = out_path / uri;
 		fs::create_directories(dst.parent_path());
 		fs::copy_file(in_path / in.source_filename, out_path / uri);
-		auto ret = uri.generic_string();
-		logger::info("[Import] Image [{}] copied from [{}]", ret, in.source_filename);
-		exported.images.insert_or_assign(index, ret);
-		return ret;
+		logger::info("[Import] Image [{}] copied from [{}]", uri, in.source_filename);
+		exported.images.insert_or_assign(index, uri);
+		return uri;
 	}
 
 	std::string copy_image(gltf2cpp::Texture const& in, std::size_t index) { return copy_image(in_root.images[in.source], index); }
@@ -531,8 +540,7 @@ struct ExportMeshes {
 		if (auto i = in.pbr.metallic_roughness_texture) { material.roughness_metallic = copy_image(in_root.textures[i->texture], i->texture); }
 		if (auto i = in.emissive_texture) { material.emissive = copy_image(in_root.textures[i->texture], i->texture); }
 		material.emissive_factor = {in.emissive_factor[0], in.emissive_factor[1], in.emissive_factor[2]};
-		auto filename = in.name + ".json";
-		auto uri = unique_filename(filename, "material.json");
+		auto uri = unique_filename(in.name, ".json", "material");
 		auto json = dj::Json{};
 		to_json(json, material);
 		json.to_file((out_path / uri).string().c_str());
@@ -542,12 +550,12 @@ struct ExportMeshes {
 		return ret;
 	}
 
-	AssetUri<BinGeometry> export_geometry(gltf2cpp::Mesh::Primitive const& in, std::size_t index, std::string_view mesh_name) {
+	AssetUri<BinGeometry> export_geometry(gltf2cpp::Mesh::Primitive const& in, std::size_t index) {
 		if (auto it = exported.geometries.find(index); it != exported.geometries.end()) { return it->second; }
 		auto bin = BinGeometry{};
 		bin.geometry = to_geometry(in);
-		auto filename = fmt::format("{}_geometry{}.bin", mesh_name, index);
-		auto uri = unique_filename(filename, filename);
+		auto filename = fmt::format("geometry{}", index);
+		auto uri = unique_filename(filename, ".bin", {});
 		[[maybe_unused]] bool const res = bin.write((out_path / uri).string().c_str());
 		assert(res);
 		auto ret = uri.generic_string();
@@ -567,13 +575,12 @@ struct ExportMeshes {
 					continue;
 				}
 				if (in_primitive.material) { out_primitive.material = export_material(in_root.materials[*in_primitive.material], *in_primitive.material); }
-				out_primitive.geometry = export_geometry(in_primitive, primitive_index, in_mesh.name);
+				out_primitive.geometry = export_geometry(in_primitive, primitive_index);
 				out_mesh.primitives.push_back(std::move(out_primitive));
 			}
 			if (out_mesh.primitives.empty()) { continue; }
 			out_mesh.name = in_mesh.name;
-			auto filename = in_mesh.name + ".json";
-			auto uri = unique_filename(filename, "mesh.json");
+			auto uri = unique_filename(out_mesh.name, ".json", json_name);
 			auto json = dj::Json{};
 			to_json(json, out_mesh);
 			json.to_file((out_path / uri).string().c_str());
@@ -833,6 +840,7 @@ experiment::ImportedMeshes experiment::import_gltf_meshes(char const* gltf_path,
 		fs::create_directories(dest_dir);
 	}
 	auto in_path = fs::path{gltf_path}.parent_path();
-	return ExportMeshes{root, std::move(in_path), dest_dir}();
+	auto json_name = fs::path{gltf_path}.filename().stem().string();
+	return ExportMeshes{json_name, root, std::move(in_path), dest_dir}();
 }
 } // namespace levk
