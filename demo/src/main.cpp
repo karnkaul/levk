@@ -6,15 +6,14 @@
 #include <levk/impl/vulkan_device.hpp>
 #include <levk/transform_controller.hpp>
 #include <levk/util/error.hpp>
+#include <levk/util/fixed_string.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/resource_map.hpp>
 #include <levk/util/visitor.hpp>
 #include <filesystem>
 
-#include <experiment/import_asset.hpp>
 #include <experiment/scene.hpp>
-#include <levk/util/fixed_string.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -190,11 +189,6 @@ void run(fs::path data_path) {
 	auto scene = std::make_unique<experiment::Scene>(engine, *mesh_resources);
 	auto free_cam = FreeCam{&engine.window()};
 	auto inspect = Id<Node>{};
-
-	{
-		auto bg = experiment::BinGeometry{};
-		bg.read((data_path / "Suzanne/Suzanne_geometry0.bin").string().c_str());
-	}
 
 	engine.show();
 	while (engine.is_running()) {

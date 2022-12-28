@@ -1,6 +1,6 @@
-#include <experiment/import_asset.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <gltf2cpp/gltf2cpp.hpp>
+#include <levk/import_asset.hpp>
 #include <levk/util/binary_file.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
@@ -14,7 +14,6 @@
 namespace levk {
 namespace fs = std::filesystem;
 
-namespace experiment {
 namespace {
 constexpr AlphaMode from(gltf2cpp::AlphaMode const mode) {
 	switch (mode) {
@@ -417,7 +416,7 @@ struct ExportMeshes {
 		return ret;
 	}
 
-	experiment::ImportedMeshes operator()() {
+	ImportedMeshes operator()() {
 		for (auto [skin, index] : enumerate(in_root.skins)) { export_skeleton(skin, index); }
 		for (auto [mesh, index] : enumerate(in_root.meshes)) { export_mesh(mesh, index, {}); }
 		return std::move(result);
@@ -822,9 +821,9 @@ std::variant<std::monostate, Id<StaticMesh>, Id<SkinnedMesh>> AssetLoader::try_l
 	logger::error("[Load] Failed to load mesh [{}]", path);
 	return std::monostate{};
 }
-} // namespace experiment
+} // namespace levk
 
-void experiment::from_json(dj::Json const& json, AssetMaterial& out) {
+void levk::from_json(dj::Json const& json, AssetMaterial& out) {
 	assert(json["asset_type"].as_string() == "material");
 	out.albedo = make_rgba(json["albedo"]);
 	out.emissive_factor = glm_vec_from_json<3>(json["emissive_factor"], out.emissive_factor);
@@ -838,7 +837,7 @@ void experiment::from_json(dj::Json const& json, AssetMaterial& out) {
 	out.name = json["name"].as_string();
 }
 
-void experiment::to_json(dj::Json& out, AssetMaterial const& asset) {
+void levk::to_json(dj::Json& out, AssetMaterial const& asset) {
 	out["asset_type"] = "material";
 	out["albedo"] = make_json(asset.albedo);
 	out["emissive_factor"] = make_json(asset.emissive_factor);
@@ -852,7 +851,7 @@ void experiment::to_json(dj::Json& out, AssetMaterial const& asset) {
 	out["name"] = asset.name;
 }
 
-void experiment::from_json(dj::Json const& json, AssetMesh& out) {
+void levk::from_json(dj::Json const& json, AssetMesh& out) {
 	assert(json["asset_type"].as_string() == "mesh");
 	out.type = json["type"].as_string() == "skinned" ? AssetMesh::Type::eSkinned : AssetMesh::Type::eStatic;
 	for (auto const& in_primitive : json["primitives"].array_view()) {
@@ -865,7 +864,7 @@ void experiment::from_json(dj::Json const& json, AssetMesh& out) {
 	out.name = json["name"].as_string();
 }
 
-void experiment::to_json(dj::Json& out, AssetMesh const& asset) {
+void levk::to_json(dj::Json& out, AssetMesh const& asset) {
 	out["asset_type"] = "mesh";
 	out["type"] = asset.type == AssetMesh::Type::eSkinned ? "skinned" : "static";
 	if (!asset.primitives.empty()) {
@@ -882,7 +881,7 @@ void experiment::to_json(dj::Json& out, AssetMesh const& asset) {
 	out["name"] = asset.name;
 }
 
-void experiment::from_json(dj::Json const& json, AssetSkeleton& out) {
+void levk::from_json(dj::Json const& json, AssetSkeleton& out) {
 	assert(json["asset_type"].as_string() == "skeleton");
 	out.skeleton.name = json["name"].as_string();
 	for (auto const& in_ibm : json["inverse_bind_matrices"].array_view()) { out.skeleton.inverse_bind_matrices.push_back(glm_mat_from_json(in_ibm)); }
@@ -905,7 +904,7 @@ void experiment::from_json(dj::Json const& json, AssetSkeleton& out) {
 	}
 }
 
-void experiment::to_json(dj::Json& out, AssetSkeleton const& asset) {
+void levk::to_json(dj::Json& out, AssetSkeleton const& asset) {
 	out["asset_type"] = "skeleton";
 	out["name"] = asset.skeleton.name;
 	auto ibm = dj::Json{};
@@ -941,7 +940,7 @@ void experiment::to_json(dj::Json& out, AssetSkeleton const& asset) {
 	out["clips"] = std::move(clips);
 }
 
-experiment::ImportedMeshes experiment::import_gltf_meshes(char const* gltf_path, char const* dest_dir) {
+levk::ImportedMeshes levk::import_gltf_meshes(char const* gltf_path, char const* dest_dir) {
 	if (!fs::is_regular_file(gltf_path)) {
 		logger::error("[Import] Invalid GLTF file path [{}]", gltf_path);
 		return {};
@@ -964,4 +963,3 @@ experiment::ImportedMeshes experiment::import_gltf_meshes(char const* gltf_path,
 	auto json_name = fs::path{gltf_path}.filename().stem().string();
 	return ExportMeshes{json_name, root, std::move(in_path), dest_dir}();
 }
-} // namespace levk

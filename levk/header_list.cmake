@@ -58,6 +58,7 @@ set(levk_headers
   include/levk/graphics_common.hpp
   include/levk/graphics_device.hpp
   include/levk/image.hpp
+  include/levk/import_asset.hpp
   include/levk/input.hpp
   include/levk/interpolator.hpp
   include/levk/lights.hpp

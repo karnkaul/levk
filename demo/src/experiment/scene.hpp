@@ -1,5 +1,4 @@
 #pragma once
-#include <experiment/import_result.hpp>
 #include <levk/engine.hpp>
 #include <levk/mesh_resources.hpp>
 #include <levk/scene_tree.hpp>
@@ -38,6 +37,14 @@ struct MeshRenderer {
 
 	void tick(Node::Tree& tree, Time dt);
 	void render(Node::Tree const& tree) const;
+};
+
+struct ImportResult {
+	std::vector<Id<Texture>> added_textures{};
+	std::vector<Id<Material>> added_materials{};
+	std::vector<Id<Skeleton>> added_skeletons{};
+	std::vector<Id<StaticMesh>> added_static_meshes{};
+	std::vector<Id<SkinnedMesh>> added_skinned_meshes{};
 };
 
 class Scene {

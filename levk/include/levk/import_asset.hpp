@@ -1,10 +1,9 @@
 #pragma once
 #include <djson/json.hpp>
-#include <experiment/import_result.hpp>
 #include <levk/graphics_device.hpp>
 #include <levk/mesh_resources.hpp>
 
-namespace levk::experiment {
+namespace levk {
 struct TextureMetadata {
 	TextureSampler sampler{};
 	ColourSpace colour_space{ColourSpace::eSrgb};
@@ -93,4 +92,4 @@ struct AssetLoader {
 	Id<SkinnedMesh> load_skinned_mesh(char const* path, dj::Json const& json) const;
 	std::variant<std::monostate, Id<StaticMesh>, Id<SkinnedMesh>> try_load_mesh(char const* path) const;
 };
-} // namespace levk::experiment
+} // namespace levk

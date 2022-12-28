@@ -12,6 +12,7 @@ target_sources(levk PRIVATE
   geometry.cpp
   graphics_device.cpp
   image.cpp
+  import_asset.cpp
   material.cpp
   node.cpp
   rgba.cpp

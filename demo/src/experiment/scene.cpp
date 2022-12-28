@@ -1,5 +1,5 @@
-#include <experiment/import_asset.hpp>
 #include <experiment/scene.hpp>
+#include <levk/import_asset.hpp>
 #include <levk/util/logger.hpp>
 #include <filesystem>
 
@@ -11,11 +11,11 @@ ImportResult Scene::import_gltf(char const* in_path, char const* out_path) {
 	auto dst = fs::path{out_path};
 	auto src_filename = src.filename().stem();
 	auto export_path = dst / src_filename;
-	auto imported = experiment::import_gltf_meshes(in_path, export_path.c_str());
+	auto imported = import_gltf_meshes(in_path, export_path.c_str());
 	if (!imported.meshes.empty()) {
 		auto const& imported_mesh = imported.meshes.front();
 		auto mesh_path = (dst / src_filename / imported_mesh.value()).string();
-		auto asset_loader = experiment::AssetLoader{engine->device(), *mesh_resources};
+		auto asset_loader = AssetLoader{engine->device(), *mesh_resources};
 		auto mesh_id = asset_loader.try_load_mesh(mesh_path.c_str());
 		if (std::holds_alternative<std::monostate>(mesh_id)) { return {}; }
 		if (auto const* skinned_mesh_id = std::get_if<Id<SkinnedMesh>>(&mesh_id)) {
