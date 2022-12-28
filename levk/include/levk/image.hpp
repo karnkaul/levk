@@ -26,6 +26,13 @@ class Image {
 	explicit Image(std::span<std::byte const> compressed, std::string name = {});
 
 	///
+	/// \brief Decompress image data (PNG, JPG, TGA, etc) from a file.
+	/// \param file_path Path to image
+	/// \param name Name of the image (optional)
+	///
+	explicit Image(char const* file_path, std::string name = {});
+
+	///
 	/// \brief Obtain a view into the stored image.
 	/// \returns View into the image
 	///

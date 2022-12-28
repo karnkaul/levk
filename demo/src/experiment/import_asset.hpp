@@ -26,6 +26,7 @@ struct AssetMaterial {
 	float alpha_cutoff{};
 	AlphaMode alpha_mode{AlphaMode::eOpaque};
 	std::string shader{"shaders/lit.frag"};
+	std::string name{};
 };
 
 void from_json(dj::Json const& json, AssetMaterial& out);
@@ -59,6 +60,7 @@ struct AssetMesh {
 
 	std::vector<Primitive> primitives{};
 	AssetUri<Skeleton> skeleton{};
+	std::string name{};
 	Type type{};
 };
 
@@ -70,8 +72,8 @@ struct AssetSkeleton {
 };
 
 struct ImportedMeshes {
-	std::vector<AssetMesh> meshes{};
-	std::vector<AssetSkeleton> skeletons{};
+	std::vector<AssetUri<AssetMesh>> meshes{};
+	std::vector<AssetUri<AssetSkeleton>> skeletons{};
 };
 
 struct ResourceMetadata {
@@ -83,4 +85,7 @@ struct ResourceMetadata {
 
 ImportResult import_gltf(char const* gltf_path, GraphicsDevice& device, MeshResources& out_resources, ResourceMetadata& out_meta);
 ImportedMeshes import_gltf_meshes(char const* gltf_path, char const* dest_dir);
+
+Id<Texture> load_texture(char const* path, GraphicsDevice& device, MeshResources& resources, ColourSpace colour_space);
+Id<StaticMesh> load_static_mesh(char const* path, GraphicsDevice& device, MeshResources& resources);
 } // namespace levk::experiment

@@ -526,6 +526,7 @@ struct ExportMeshes {
 		material.roughness = in.pbr.roughness_factor;
 		material.alpha_mode = from(in.alpha_mode);
 		material.alpha_cutoff = in.alpha_cutoff;
+		material.name = in.name;
 		if (auto i = in.pbr.base_color_texture) { material.base_colour = copy_image(in_root.textures[i->texture], i->texture); }
 		if (auto i = in.pbr.metallic_roughness_texture) { material.roughness_metallic = copy_image(in_root.textures[i->texture], i->texture); }
 		if (auto i = in.emissive_texture) { material.emissive = copy_image(in_root.textures[i->texture], i->texture); }
@@ -570,6 +571,7 @@ struct ExportMeshes {
 				out_mesh.primitives.push_back(std::move(out_primitive));
 			}
 			if (out_mesh.primitives.empty()) { continue; }
+			out_mesh.name = in_mesh.name;
 			auto filename = in_mesh.name + ".json";
 			auto uri = unique_filename(filename, "mesh.json");
 			auto json = dj::Json{};
@@ -578,7 +580,7 @@ struct ExportMeshes {
 			auto ret = uri.generic_string();
 			logger::info("[Import] Mesh [{}] imported", ret);
 			exported.meshes.insert_or_assign(mesh_index, ret);
-			result.meshes.push_back(std::move(out_mesh));
+			result.meshes.push_back(uri.generic_string());
 		}
 		return std::move(result);
 	}
@@ -694,6 +696,7 @@ void experiment::from_json(dj::Json const& json, AssetMaterial& out) {
 	out.emissive = std::string{json["emissive"].as_string()};
 	out.alpha_cutoff = json["alpha_cutoff"].as<float>(out.alpha_cutoff);
 	out.shader = json["shader"].as_string(out.shader);
+	out.name = json["name"].as_string();
 }
 
 void experiment::to_json(dj::Json& out, AssetMaterial const& asset) {
@@ -706,6 +709,7 @@ void experiment::to_json(dj::Json& out, AssetMaterial const& asset) {
 	if (!asset.emissive.value().empty()) { out["emissive"] = asset.emissive.value(); }
 	out["alpha_cutoff"] = asset.alpha_cutoff;
 	out["shader"] = asset.shader;
+	out["name"] = asset.name;
 }
 
 void experiment::from_json(dj::Json const& json, AssetMesh& out) {
@@ -717,6 +721,7 @@ void experiment::from_json(dj::Json const& json, AssetMesh& out) {
 		out.primitives.push_back(std::move(primitive));
 	}
 	out.skeleton = std::string{json["skeleton"].as_string()};
+	out.name = json["name"].as_string();
 }
 
 void experiment::to_json(dj::Json& out, AssetMesh const& asset) {
@@ -732,6 +737,7 @@ void experiment::to_json(dj::Json& out, AssetMesh const& asset) {
 		out["primitives"] = std::move(primitives);
 	}
 	if (!asset.skeleton.value().empty()) { out["skeleton"] = asset.skeleton.value(); }
+	out["name"] = asset.name;
 }
 
 experiment::ImportedMeshes experiment::import_gltf_meshes(char const* gltf_path, char const* dest_dir) {
@@ -755,5 +761,71 @@ experiment::ImportedMeshes experiment::import_gltf_meshes(char const* gltf_path,
 	}
 	auto in_path = fs::path{gltf_path}.parent_path();
 	return ExportMeshes{root, std::move(in_path), dest_dir}();
+}
+
+Id<Texture> experiment::load_texture(char const* path, GraphicsDevice& device, MeshResources& resources, ColourSpace colour_space) {
+	auto image = Image{path, fs::path{path}.filename().string()};
+	if (!image) {
+		logger::error("[Load] Failed to load image [{}]", path);
+		return {};
+	}
+	auto const tci = TextureCreateInfo{.mip_mapped = colour_space == ColourSpace::eSrgb, .colour_space = colour_space};
+	return resources.textures.add(device.make_texture(image, tci)).first;
+}
+
+Id<StaticMesh> experiment::load_static_mesh(char const* path, GraphicsDevice& device, MeshResources& resources) {
+	auto json = dj::Json::from_file(path);
+	if (!json) {
+		logger::error("[Load] Failed to open [{}]", path);
+		return {};
+	}
+	if (json["type"].as_string() != "static") {
+		logger::error("[Load] JSON is not a static mesh [{}]", path);
+		return {};
+	}
+	auto dir = fs::path{path}.parent_path();
+	auto mesh = StaticMesh{};
+	mesh.name = json["name"].as_string();
+	for (auto const& in_primitive : json["primitives"].array_view()) {
+		auto const& in_geometry = in_primitive["geometry"].as_string();
+		auto const& in_material = in_primitive["material"].as_string();
+		assert(!in_geometry.empty());
+		auto bin_geometry = BinGeometry{};
+		if (!bin_geometry.read((dir / in_geometry).string().c_str())) {
+			logger::error("[Load] Failed to read bin geometry [{}]", in_geometry);
+			continue;
+		}
+		auto asset_material = AssetMaterial{};
+		if (!in_material.empty()) {
+			auto json = dj::Json::from_file((dir / in_material).string().c_str());
+			if (!json) {
+				logger::error("[Load] Failed to open material JSON [{}]", in_material);
+			} else {
+				from_json(json, asset_material);
+			}
+		}
+		auto material = LitMaterial{};
+		material.albedo = asset_material.albedo;
+		material.emissive_factor = asset_material.emissive_factor;
+		material.metallic = asset_material.metallic;
+		material.roughness = asset_material.roughness;
+		material.alpha_cutoff = asset_material.alpha_cutoff;
+		material.alpha_mode = asset_material.alpha_mode;
+		material.shader = asset_material.shader;
+		if (!asset_material.base_colour.value().empty()) {
+			material.base_colour = load_texture((dir / asset_material.base_colour.value()).string().c_str(), device, resources, ColourSpace::eSrgb);
+		}
+		if (!asset_material.emissive.value().empty()) {
+			material.emissive = load_texture((dir / asset_material.emissive.value()).string().c_str(), device, resources, ColourSpace::eSrgb);
+		}
+		if (!asset_material.roughness_metallic.value().empty()) {
+			material.roughness_metallic =
+				load_texture((dir / asset_material.roughness_metallic.value()).string().c_str(), device, resources, ColourSpace::eLinear);
+		}
+		auto material_id = resources.materials.add(std::move(material)).first;
+		auto geometry = device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
+		mesh.primitives.push_back(MeshPrimitive{std::move(geometry), material_id});
+	}
+	return resources.static_meshes.add(std::move(mesh)).first;
 }
 } // namespace levk
