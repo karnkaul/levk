@@ -86,6 +86,11 @@ struct ResourceMetadata {
 ImportResult import_gltf(char const* gltf_path, GraphicsDevice& device, MeshResources& out_resources, ResourceMetadata& out_meta);
 ImportedMeshes import_gltf_meshes(char const* gltf_path, char const* dest_dir);
 
-Id<Texture> load_texture(char const* path, GraphicsDevice& device, MeshResources& resources, ColourSpace colour_space);
-Id<StaticMesh> load_static_mesh(char const* path, GraphicsDevice& device, MeshResources& resources);
+struct AssetLoader {
+	GraphicsDevice& graphics_device;
+	MeshResources& mesh_resources;
+
+	Id<Texture> load_texture(char const* path, ColourSpace colour_space) const;
+	Id<StaticMesh> load_static_mesh(char const* path) const;
+};
 } // namespace levk::experiment
