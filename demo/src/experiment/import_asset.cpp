@@ -64,12 +64,36 @@ constexpr Topology from(gltf2cpp::PrimitiveMode mode) {
 	throw Error{"Unsupported primitive mode: " + std::to_string(static_cast<int>(mode))};
 }
 
+constexpr Interpolation to_interpolation(std::string_view const str) {
+	if (str == "step") { return Interpolation::eStep; }
+	return Interpolation::eLinear;
+}
+
+constexpr std::string_view from(Interpolation const i) {
+	switch (i) {
+	case Interpolation::eStep: return "step";
+	default: return "linear";
+	}
+}
+
 glm::mat4x4 from(gltf2cpp::Mat4x4 const& in) {
 	auto ret = glm::mat4x4{};
 	std::memcpy(&ret[0], &in[0], sizeof(ret[0]));
 	std::memcpy(&ret[1], &in[1], sizeof(ret[1]));
 	std::memcpy(&ret[2], &in[2], sizeof(ret[2]));
 	std::memcpy(&ret[3], &in[3], sizeof(ret[3]));
+	return ret;
+}
+
+Transform from(glm::mat4 const& mat) {
+	auto ret = Transform{};
+	glm::vec3 scale{1.0f}, pos{}, skew{};
+	glm::vec4 persp{};
+	glm::quat orn{quat_identity_v};
+	glm::decompose(mat, scale, orn, pos, skew, persp);
+	ret.set_position(pos);
+	ret.set_orientation(orn);
+	ret.set_scale(scale);
 	return ret;
 }
 
@@ -81,16 +105,7 @@ Transform from(gltf2cpp::Transform const& transform) {
 			ret.set_orientation({trs.rotation[3], trs.rotation[0], trs.rotation[1], trs.rotation[2]});
 			ret.set_scale({trs.scale[0], trs.scale[1], trs.scale[2]});
 		},
-		[&ret](gltf2cpp::Mat4x4 const& mat) {
-			auto m = from(mat);
-			glm::vec3 scale{1.0f}, pos{}, skew{};
-			glm::vec4 persp{};
-			glm::quat orn{quat_identity_v};
-			glm::decompose(m, scale, orn, pos, skew, persp);
-			ret.set_position(pos);
-			ret.set_orientation(orn);
-			ret.set_scale(scale);
-		},
+		[&ret](gltf2cpp::Mat4x4 const& mat) { ret = from(from(mat)); },
 	};
 	std::visit(visitor, transform);
 	return ret;
@@ -98,10 +113,10 @@ Transform from(gltf2cpp::Transform const& transform) {
 
 std::string to_hex(Rgba const& rgba) {
 	auto ret = std::string{"#"};
-	fmt::format_to(std::back_inserter(ret), "{:x}", rgba.channels.x);
-	fmt::format_to(std::back_inserter(ret), "{:x}", rgba.channels.y);
-	fmt::format_to(std::back_inserter(ret), "{:x}", rgba.channels.z);
-	fmt::format_to(std::back_inserter(ret), "{:x}", rgba.channels.w);
+	fmt::format_to(std::back_inserter(ret), "{:02x}", rgba.channels.x);
+	fmt::format_to(std::back_inserter(ret), "{:02x}", rgba.channels.y);
+	fmt::format_to(std::back_inserter(ret), "{:02x}", rgba.channels.z);
+	fmt::format_to(std::back_inserter(ret), "{:02x}", rgba.channels.w);
 	return ret;
 }
 
@@ -484,23 +499,24 @@ struct ExportMeshes {
 		std::unordered_map<Index<gltf2cpp::Geometry>, std::string> geometries{};
 		std::unordered_map<Index<gltf2cpp::Material>, std::string> materials{};
 		std::unordered_map<Index<gltf2cpp::Mesh>, std::string> meshes{};
+		std::unordered_map<Index<gltf2cpp::Skin>, std::string> skeletons{};
 	} exported{};
 
 	fs::path unique_filename(fs::path in, std::string_view extension, std::string_view fallback) {
 		int duplicate_filename = 1;
 		auto out = in.string();
-		auto path = out_path / fmt::format("{}{}", out, extension);
 		if (out.empty() || out == "(Unnamed)") {
 			assert(!fallback.empty());
 			in = fallback;
 			out = in;
 		}
+		auto path = out_path / fmt::format("{}{}", out, extension);
 		static constexpr auto max_iter_v = 1000;
 		for (; fs::exists(path) && duplicate_filename < max_iter_v; ++duplicate_filename) {
 			out = fmt::format("{}_{}", in.string(), duplicate_filename);
 			path = out_path / fmt::format("{}{}", out, extension);
 		}
-		assert(duplicate_filename < max_iter_v);
+		assert(duplicate_filename < max_iter_v && !fs::exists(path));
 		return fmt::format("{}{}", out, extension);
 	}
 
@@ -550,10 +566,13 @@ struct ExportMeshes {
 		return ret;
 	}
 
-	AssetUri<BinGeometry> export_geometry(gltf2cpp::Mesh::Primitive const& in, std::size_t index) {
+	AssetUri<BinGeometry> export_geometry(gltf2cpp::Mesh::Primitive const& in, std::size_t index, std::vector<glm::uvec4> joints,
+										  std::vector<glm::vec4> weights) {
 		if (auto it = exported.geometries.find(index); it != exported.geometries.end()) { return it->second; }
 		auto bin = BinGeometry{};
 		bin.geometry = to_geometry(in);
+		bin.joints = std::move(joints);
+		bin.weights = std::move(weights);
 		auto filename = fmt::format("geometry{}", index);
 		auto uri = unique_filename(filename, ".bin", {});
 		[[maybe_unused]] bool const res = bin.write((out_path / uri).string().c_str());
@@ -564,31 +583,134 @@ struct ExportMeshes {
 		return ret;
 	}
 
-	experiment::ImportedMeshes operator()() {
-		for (auto const& [in_mesh, mesh_index] : enumerate(in_root.meshes)) {
-			if (exported.meshes.contains(mesh_index)) { continue; }
-			auto out_mesh = AssetMesh{};
-			for (auto const& [in_primitive, primitive_index] : enumerate(in_mesh.primitives)) {
-				auto out_primitive = AssetMesh::Primitive{};
-				if (!in_primitive.geometry.joints.empty()) {
-					logger::warn("Skinned mesh not implemented");
-					continue;
-				}
-				if (in_primitive.material) { out_primitive.material = export_material(in_root.materials[*in_primitive.material], *in_primitive.material); }
-				out_primitive.geometry = export_geometry(in_primitive, primitive_index);
-				out_mesh.primitives.push_back(std::move(out_primitive));
+	AssetUri<SkinnedMesh> export_mesh(gltf2cpp::Mesh const& in_mesh, std::size_t index, AssetUri<Skeleton> skeleton) {
+		if (auto it = exported.meshes.find(index); it != exported.meshes.end()) { return it->second; }
+		auto out_mesh = AssetMesh{};
+		out_mesh.type = skeleton.value().empty() ? AssetMesh::Type::eStatic : AssetMesh::Type::eSkinned;
+		for (auto const& [in_primitive, primitive_index] : enumerate(in_mesh.primitives)) {
+			auto out_primitive = AssetMesh::Primitive{};
+			if (in_primitive.material) { out_primitive.material = export_material(in_root.materials[*in_primitive.material], *in_primitive.material); }
+			assert(!(in_primitive.geometry.joints.empty() ^ skeleton.value().empty()));
+			auto joints = std::vector<glm::uvec4>{};
+			auto weights = std::vector<glm::vec4>{};
+			if (!in_primitive.geometry.joints.empty()) {
+				joints.resize(in_primitive.geometry.joints[0].size());
+				std::memcpy(joints.data(), in_primitive.geometry.joints[0].data(), std::span{in_primitive.geometry.joints[0]}.size_bytes());
+				weights.resize(in_primitive.geometry.weights[0].size());
+				std::memcpy(weights.data(), in_primitive.geometry.weights[0].data(), std::span{in_primitive.geometry.weights[0]}.size_bytes());
 			}
-			if (out_mesh.primitives.empty()) { continue; }
-			out_mesh.name = in_mesh.name;
-			auto uri = unique_filename(out_mesh.name, ".json", json_name);
-			auto json = dj::Json{};
-			to_json(json, out_mesh);
-			json.to_file((out_path / uri).string().c_str());
-			auto ret = uri.generic_string();
-			logger::info("[Import] Mesh [{}] imported", ret);
-			exported.meshes.insert_or_assign(mesh_index, ret);
-			result.meshes.push_back(uri.generic_string());
+			out_primitive.geometry = export_geometry(in_primitive, primitive_index, std::move(joints), std::move(weights));
+			out_mesh.primitives.push_back(std::move(out_primitive));
 		}
+		if (out_mesh.primitives.empty()) {
+			logger::warn("[Import] Mesh has no primitives: [{}] (index {}), skipping", in_mesh.name, index);
+			return {};
+		}
+		if (!skeleton.value().empty()) { out_mesh.skeleton = std::move(skeleton); }
+		auto uri = unique_filename(out_mesh.name, ".json", json_name);
+		out_mesh.name = fs::path{uri}.stem().string();
+		auto json = dj::Json{};
+		to_json(json, out_mesh);
+		json.to_file((out_path / uri).string().c_str());
+		auto ret = uri.generic_string();
+		logger::info("[Import] Mesh [{}] imported", ret);
+		exported.meshes.insert_or_assign(index, ret);
+		result.meshes.push_back(uri.generic_string());
+		return ret;
+	}
+
+	AssetUri<Skeleton> export_skeleton(gltf2cpp::Skin const& in, std::size_t index) {
+		auto skin_node = Ptr<gltf2cpp::Node const>{};
+		for (auto& node : in_root.nodes) {
+			if (node.skin && *node.skin == index) { skin_node = &node; }
+		}
+		if (!skin_node) { return {}; }
+
+		assert(skin_node->mesh.has_value());
+		if (auto it = exported.skeletons.find(index); it != exported.skeletons.end()) { return it->second; }
+
+		auto [joints, map] = MapGltfNodesToJoints{}(in, in_root.nodes);
+		auto skeleton = Skeleton{.joints = std::move(joints)};
+		for (auto const& in_animation : in_root.animations) {
+			auto clip = Skeleton::Clip{};
+			clip.name = in_animation.name;
+			for (auto const& in_channel : in_animation.channels) {
+				if (!in_channel.target.node) { continue; }
+				auto joint_it = map.find(*in_channel.target.node);
+				if (joint_it == map.end()) { continue; }
+				using Path = gltf2cpp::Animation::Path;
+				auto channel = Skeleton::Channel{};
+				auto const& sampler = in_animation.samplers[in_channel.sampler];
+				if (sampler.interpolation == gltf2cpp::Interpolation::eCubicSpline) { continue; } // facade constraint
+				auto const& input = in_root.accessors[sampler.input];
+				assert(input.type == gltf2cpp::Accessor::Type::eScalar && input.component_type == gltf2cpp::ComponentType::eFloat);
+				auto times = std::get<gltf2cpp::Accessor::Float>(input.data).span();
+				auto const& output = in_root.accessors[sampler.output];
+				assert(output.component_type == gltf2cpp::ComponentType::eFloat);
+				auto const values = std::get<gltf2cpp::Accessor::Float>(output.data).span();
+				channel.target = joint_it->second;
+				switch (in_channel.target.path) {
+				case Path::eTranslation:
+				case Path::eScale: {
+					assert(output.type == gltf2cpp::Accessor::Type::eVec3);
+					auto vec = std::vector<glm::vec3>{};
+					vec.resize(values.size() / 3);
+					std::memcpy(vec.data(), values.data(), values.size_bytes());
+					if (in_channel.target.path == Path::eScale) {
+						channel.sampler = TransformAnimator::Scale{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
+					} else {
+						channel.sampler = TransformAnimator::Translate{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
+					}
+					break;
+				}
+				case Path::eRotation: {
+					assert(output.type == gltf2cpp::Accessor::Type::eVec4);
+					auto vec = std::vector<glm::quat>{};
+					vec.resize(values.size() / 4);
+					std::memcpy(vec.data(), values.data(), values.size_bytes());
+					channel.sampler = TransformAnimator::Rotate{make_interpolator<glm::quat>(times, vec, sampler.interpolation)};
+					break;
+				}
+				default:
+					// TODO not implemented
+					break;
+				}
+				clip.channels.push_back(std::move(channel));
+			}
+			if (!clip.channels.empty()) { skeleton.clips.push_back(std::move(clip)); }
+		}
+
+		if (in.inverse_bind_matrices) {
+			auto const ibm = in_root.accessors[*in.inverse_bind_matrices].to_mat4();
+			assert(ibm.size() >= in.joints.size());
+			skeleton.inverse_bind_matrices.reserve(ibm.size());
+			for (auto const& mat : ibm) { skeleton.inverse_bind_matrices.push_back(from(mat)); }
+		} else {
+			skeleton.inverse_bind_matrices = std::vector<glm::mat4x4>(skeleton.joints.size(), glm::identity<glm::mat4x4>());
+		}
+
+		auto asset = AssetSkeleton{std::move(skeleton)};
+		auto fallback_name = in.name;
+		if (fallback_name.empty() || fallback_name == "(Unnamed)") { fallback_name = in_root.meshes[*skin_node->mesh].name; }
+		if (fallback_name.empty() || fallback_name == "(Unnamed)") { fallback_name = json_name; }
+		fallback_name = fmt::format("{}_skeleton", fallback_name);
+
+		auto uri = unique_filename(skeleton.name, ".json", fallback_name);
+		asset.skeleton.name = fs::path{uri}.stem().string();
+		auto json = dj::Json{};
+		to_json(json, asset);
+		auto mesh_uri = export_mesh(in_root.meshes[*skin_node->mesh], *skin_node->mesh, uri.string());
+		json.to_file((out_path / uri).string().c_str());
+		auto ret = uri.generic_string();
+		logger::info("[Import] Skeleton [{}] imported", ret);
+		exported.skeletons.insert_or_assign(index, ret);
+		result.skeletons.push_back(uri.generic_string());
+		return ret;
+	}
+
+	experiment::ImportedMeshes operator()() {
+		for (auto [skin, index] : enumerate(in_root.skins)) { export_skeleton(skin, index); }
+		for (auto [mesh, index] : enumerate(in_root.meshes)) { export_mesh(mesh, index, {}); }
 		return std::move(result);
 	}
 };
@@ -602,19 +724,143 @@ dj::Json make_json(Rgba const& rgba) {
 
 Rgba make_rgba(dj::Json const& json) { return to_rgba(json["hex"].as_string(), json["intensity"].as<float>(1.0f)); }
 
-dj::Json make_json(glm::vec3 const& vec3) {
-	auto ret = dj::Json{};
-	ret["x"] = vec3.x;
-	ret["y"] = vec3.y;
-	ret["z"] = vec3.z;
+template <glm::length_t Dim>
+void add_to(dj::Json& out, glm::vec<Dim, float> const& vec) {
+	out.push_back(vec.x);
+	if constexpr (Dim > 1) { out.push_back(vec.y); }
+	if constexpr (Dim > 2) { out.push_back(vec.z); }
+	if constexpr (Dim > 3) { out.push_back(vec.w); }
+}
+
+template <glm::length_t Dim, typename T = float>
+glm::vec<Dim, T> glm_vec_from_json(dj::Json const& json, glm::vec<Dim, T> const& fallback = {}, std::size_t offset = 0) {
+	auto ret = glm::vec<Dim, T>{};
+	ret.x = json[offset + 0].as<T>(fallback.x);
+	if constexpr (Dim > 1) { ret.y = json[offset + 1].as<T>(fallback.y); }
+	if constexpr (Dim > 2) { ret.z = json[offset + 2].as<T>(fallback.z); }
+	if constexpr (Dim > 3) { ret.w = json[offset + 3].as<T>(fallback.w); }
 	return ret;
 }
 
-glm::vec3 make_vec3(dj::Json const& json, glm::vec3 const& fallback) {
-	auto ret = glm::vec3{};
-	ret.x = json["x"].as<float>(fallback.x);
-	ret.y = json["y"].as<float>(fallback.y);
-	ret.z = json["z"].as<float>(fallback.z);
+glm::mat4 glm_mat_from_json(dj::Json const& json) {
+	auto ret = glm::mat4{};
+	ret[0] = glm_vec_from_json<4>(json);
+	ret[1] = glm_vec_from_json<4>(json, {}, 4);
+	ret[2] = glm_vec_from_json<4>(json, {}, 8);
+	ret[3] = glm_vec_from_json<4>(json, {}, 12);
+	return ret;
+}
+
+dj::Json make_json(glm::vec3 const& vec3) {
+	auto ret = dj::Json{};
+	add_to(ret, vec3);
+	return ret;
+}
+
+dj::Json make_json(glm::quat const& quat) {
+	auto ret = dj::Json{};
+	auto vec4 = glm::vec4{quat.x, quat.y, quat.z, quat.w};
+	add_to(ret, vec4);
+	return ret;
+}
+
+dj::Json make_json(glm::mat4 const& mat) {
+	auto ret = dj::Json{};
+	for (glm::length_t i = 0; i < 4; ++i) { add_to(ret, mat[i]); }
+	return ret;
+}
+
+glm::quat make_quat(dj::Json const& json) {
+	auto ret = glm::quat{};
+	assert(json.array_view().size() >= 4);
+	ret.x = json[0].as<float>();
+	ret.y = json[1].as<float>();
+	ret.z = json[2].as<float>();
+	ret.w = json[3].as<float>();
+	return ret;
+}
+
+template <typename... T>
+[[maybe_unused]] constexpr bool false_v = false;
+
+template <typename T>
+T glm_from_json(dj::Json const& json) {
+	if constexpr (std::same_as<T, glm::quat>) {
+		return make_quat(json);
+	} else if constexpr (std::same_as<T, glm::vec3>) {
+		return glm_vec_from_json<3>(json);
+	} else {
+		static_assert(false_v<T>, "Type not implemented");
+	}
+}
+
+template <typename T>
+dj::Json make_json(std::vector<typename Interpolator<T>::Keyframe> const& keyframes) {
+	auto ret = dj::Json{};
+	for (auto const& in_kf : keyframes) {
+		auto out_kf = dj::Json{};
+		out_kf["timestamp"] = in_kf.timestamp;
+		out_kf["value"] = make_json(in_kf.value);
+		ret.push_back(std::move(out_kf));
+	}
+	return ret;
+}
+
+template <typename T>
+std::vector<typename Interpolator<T>::Keyframe> make_keyframes(dj::Json const& json) {
+	auto ret = std::vector<typename Interpolator<T>::Keyframe>{};
+	for (auto const& in_kf : json.array_view()) {
+		auto out_kf = typename Interpolator<T>::Keyframe{};
+		out_kf.timestamp = in_kf["timestamp"].as<float>();
+		out_kf.value = glm_from_json<T>(in_kf["value"]);
+		ret.push_back(std::move(out_kf));
+	}
+	return ret;
+}
+
+Skeleton::Sampler make_skeleton_sampler(dj::Json const& json) {
+	auto ret = Skeleton::Sampler{};
+	auto const type = json["type"].as_string();
+	if (type == "translate") {
+		auto sampler = TransformAnimator::Translate{};
+		sampler.keyframes = make_keyframes<glm::vec3>(json["keyframes"]);
+		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
+		ret = std::move(sampler);
+	} else if (type == "rotate") {
+		auto sampler = TransformAnimator::Rotate{};
+		sampler.keyframes = make_keyframes<glm::quat>(json["keyframes"]);
+		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
+		ret = std::move(sampler);
+	} else if (type == "scale") {
+		auto sampler = TransformAnimator::Scale{};
+		sampler.keyframes = make_keyframes<glm::vec3>(json["keyframes"]);
+		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
+		ret = std::move(sampler);
+	}
+	return ret;
+}
+
+dj::Json make_json(Skeleton::Sampler const& asset) {
+	auto ret = dj::Json{};
+	ret["asset_type"] = "animation_sampler";
+	auto visitor = Visitor{
+		[&](TransformAnimator::Translate const& t) {
+			ret["type"] = "translate";
+			ret["interpolation"] = from(t.interpolation);
+			ret["keyframes"] = make_json<glm::vec3>(t.keyframes);
+		},
+		[&](TransformAnimator::Rotate const& r) {
+			ret["type"] = "rotate";
+			ret["interpolation"] = from(r.interpolation);
+			ret["keyframes"] = make_json<glm::quat>(r.keyframes);
+		},
+		[&](TransformAnimator::Scale const s) {
+			ret["type"] = "scale";
+			ret["interpolation"] = from(s.interpolation);
+			ret["keyframes"] = make_json<glm::vec3>(s.keyframes);
+		},
+	};
+	std::visit(visitor, asset);
 	return ret;
 }
 } // namespace
@@ -708,14 +954,23 @@ Id<Texture> AssetLoader::load_texture(char const* path, ColourSpace colour_space
 	return mesh_resources.textures.add(std::move(texture)).first;
 }
 
-Id<StaticMesh> AssetLoader::load_static_mesh(char const* path) const {
+Id<StaticMesh> AssetLoader::try_load_static_mesh(char const* path) const {
 	auto json = dj::Json::from_file(path);
 	if (!json) {
 		logger::error("[Load] Failed to open [{}]", path);
 		return {};
 	}
+	if (json["asset_type"].as_string() != "mesh") {
+		logger::error("[Load] JSON is not a Mesh [{}]", path);
+		return {};
+	}
+	if (json["type"].as_string() != "static") { return {}; }
+	return load_static_mesh(path, json);
+}
+
+Id<StaticMesh> AssetLoader::load_static_mesh(char const* path, dj::Json const& json) const {
 	if (json["type"].as_string() != "static") {
-		logger::error("[Load] JSON is not a static mesh [{}]", path);
+		logger::error("[Load] JSON is not a StaticMesh [{}]", path);
 		return {};
 	}
 	auto dir = fs::path{path}.parent_path();
@@ -764,11 +1019,106 @@ Id<StaticMesh> AssetLoader::load_static_mesh(char const* path) const {
 	logger::info("[Load] [{}] StaticMesh loaded", mesh.name);
 	return mesh_resources.static_meshes.add(std::move(mesh)).first;
 }
+
+Id<Skeleton> AssetLoader::load_skeleton(char const* path) const {
+	auto json = dj::Json::from_file(path);
+	if (!json) {
+		logger::error("[Load] Failed to open [{}]", path);
+		return {};
+	}
+	if (json["asset_type"].as_string() != "skeleton") {
+		logger::error("[Load] JSON is not a Skeleton [{}]", path);
+		return {};
+	}
+	auto asset = AssetSkeleton{};
+	from_json(json, asset);
+	logger::info("[Load] [{}] Skeleton loaded", asset.skeleton.name);
+	return mesh_resources.skeletons.add(std::move(asset.skeleton)).first;
+}
+
+Id<SkinnedMesh> AssetLoader::try_load_skinned_mesh(char const* path) const {
+	auto json = dj::Json::from_file(path);
+	if (!json) {
+		logger::error("[Load] Failed to open [{}]", path);
+		return {};
+	}
+	if (json["asset_type"].as_string() != "mesh") {
+		logger::error("[Load] JSON is not a Mesh [{}]", path);
+		return {};
+	}
+	if (json["type"].as_string() != "skinned") { return {}; }
+	return load_skinned_mesh(path, json);
+}
+
+Id<SkinnedMesh> AssetLoader::load_skinned_mesh(char const* path, dj::Json const& json) const {
+	if (json["type"].as_string() != "skinned") {
+		logger::error("[Load] JSON is not a SkinnedMesh [{}]", path);
+		return {};
+	}
+	auto dir = fs::path{path}.parent_path();
+	auto asset_path = [&dir](std::string_view const suffix) { return (dir / suffix).string(); };
+	auto mesh = SkinnedMesh{};
+	mesh.name = json["name"].as_string();
+	for (auto const& in_primitive : json["primitives"].array_view()) {
+		auto const& in_geometry = in_primitive["geometry"].as_string();
+		auto const& in_material = in_primitive["material"].as_string();
+		assert(!in_geometry.empty());
+		auto bin_geometry = BinGeometry{};
+		if (!bin_geometry.read((dir / in_geometry).string().c_str())) {
+			logger::error("[Load] Failed to read bin geometry [{}]", in_geometry);
+			continue;
+		}
+		auto asset_material = AssetMaterial{};
+		if (!in_material.empty()) {
+			auto json = dj::Json::from_file((dir / in_material).string().c_str());
+			if (!json) {
+				logger::error("[Load] Failed to open material JSON [{}]", in_material);
+			} else {
+				from_json(json, asset_material);
+			}
+		}
+		auto material = LitMaterial{};
+		material.albedo = asset_material.albedo;
+		material.emissive_factor = asset_material.emissive_factor;
+		material.metallic = asset_material.metallic;
+		material.roughness = asset_material.roughness;
+		material.alpha_cutoff = asset_material.alpha_cutoff;
+		material.alpha_mode = asset_material.alpha_mode;
+		material.shader = asset_material.shader;
+		if (!asset_material.base_colour.value().empty()) {
+			material.base_colour = load_texture(asset_path(asset_material.base_colour.value()).c_str(), ColourSpace::eSrgb);
+		}
+		if (!asset_material.emissive.value().empty()) {
+			material.emissive = load_texture(asset_path(asset_material.emissive.value()).c_str(), ColourSpace::eSrgb);
+		}
+		if (!asset_material.roughness_metallic.value().empty()) {
+			material.roughness_metallic = load_texture(asset_path(asset_material.roughness_metallic.value()).c_str(), ColourSpace::eLinear);
+		}
+		auto material_id = mesh_resources.materials.add(std::move(material)).first;
+		auto geometry = graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
+		mesh.primitives.push_back(MeshPrimitive{std::move(geometry), material_id});
+	}
+
+	if (auto const& skeleton = json["skeleton"]) {
+		auto const skeleton_uri = dir / skeleton.as_string();
+		mesh.skeleton = load_skeleton(skeleton_uri.c_str());
+	}
+	logger::info("[Load] [{}] SkinnedMesh loaded", mesh.name);
+	return mesh_resources.skinned_meshes.add(std::move(mesh)).first;
+}
+
+std::variant<std::monostate, Id<StaticMesh>, Id<SkinnedMesh>> AssetLoader::try_load_mesh(char const* path) const {
+	if (auto ret = try_load_skinned_mesh(path)) { return ret; }
+	if (auto ret = try_load_static_mesh(path)) { return ret; }
+	logger::error("[Load] Failed to load mesh [{}]", path);
+	return std::monostate{};
+}
 } // namespace experiment
 
 void experiment::from_json(dj::Json const& json, AssetMaterial& out) {
+	assert(json["asset_type"].as_string() == "material");
 	out.albedo = make_rgba(json["albedo"]);
-	out.emissive_factor = make_vec3(json["emissive_factor"], out.emissive_factor);
+	out.emissive_factor = glm_vec_from_json<3>(json["emissive_factor"], out.emissive_factor);
 	out.metallic = json["metallic"].as<float>(out.metallic);
 	out.roughness = json["roughness"].as<float>(out.roughness);
 	out.base_colour = std::string{json["base_colour"].as_string()};
@@ -780,6 +1130,7 @@ void experiment::from_json(dj::Json const& json, AssetMaterial& out) {
 }
 
 void experiment::to_json(dj::Json& out, AssetMaterial const& asset) {
+	out["asset_type"] = "material";
 	out["albedo"] = make_json(asset.albedo);
 	out["emissive_factor"] = make_json(asset.emissive_factor);
 	out["metallic"] = asset.metallic;
@@ -793,6 +1144,7 @@ void experiment::to_json(dj::Json& out, AssetMaterial const& asset) {
 }
 
 void experiment::from_json(dj::Json const& json, AssetMesh& out) {
+	assert(json["asset_type"].as_string() == "mesh");
 	out.type = json["type"].as_string() == "skinned" ? AssetMesh::Type::eSkinned : AssetMesh::Type::eStatic;
 	for (auto const& in_primitive : json["primitives"].array_view()) {
 		auto primitive = AssetMesh::Primitive{};
@@ -805,6 +1157,7 @@ void experiment::from_json(dj::Json const& json, AssetMesh& out) {
 }
 
 void experiment::to_json(dj::Json& out, AssetMesh const& asset) {
+	out["asset_type"] = "mesh";
 	out["type"] = asset.type == AssetMesh::Type::eSkinned ? "skinned" : "static";
 	if (!asset.primitives.empty()) {
 		auto primitives = dj::Json{};
@@ -818,6 +1171,65 @@ void experiment::to_json(dj::Json& out, AssetMesh const& asset) {
 	}
 	if (!asset.skeleton.value().empty()) { out["skeleton"] = asset.skeleton.value(); }
 	out["name"] = asset.name;
+}
+
+void experiment::from_json(dj::Json const& json, AssetSkeleton& out) {
+	assert(json["asset_type"].as_string() == "skeleton");
+	out.skeleton.name = json["name"].as_string();
+	for (auto const& in_ibm : json["inverse_bind_matrices"].array_view()) { out.skeleton.inverse_bind_matrices.push_back(glm_mat_from_json(in_ibm)); }
+	for (auto const& in_joint : json["joints"].array_view()) {
+		auto& out_joint = out.skeleton.joints.emplace_back();
+		out_joint.name = in_joint["name"].as_string();
+		out_joint.transform = from(glm_mat_from_json(in_joint["transform"]));
+		out_joint.self = in_joint["self"].as<std::size_t>();
+		if (auto const& parent = in_joint["parent"]; parent.is_number()) { out_joint.parent = parent.as<std::size_t>(); }
+		for (auto const& child : in_joint["children"].array_view()) { out_joint.children.push_back(child.as<std::size_t>()); }
+	}
+	for (auto const& in_clip : json["clips"].array_view()) {
+		auto& out_clip = out.skeleton.clips.emplace_back();
+		out_clip.name = in_clip["name"].as_string();
+		for (auto const& in_channel : in_clip["channels"].array_view()) {
+			auto& out_channel = out_clip.channels.emplace_back();
+			out_channel.target = in_channel["target"].as<std::size_t>();
+			out_channel.sampler = make_skeleton_sampler(in_channel["sampler"]);
+		}
+	}
+}
+
+void experiment::to_json(dj::Json& out, AssetSkeleton const& asset) {
+	out["asset_type"] = "skeleton";
+	out["name"] = asset.skeleton.name;
+	auto ibm = dj::Json{};
+	for (auto const& in_ibm : asset.skeleton.inverse_bind_matrices) { ibm.push_back(make_json(in_ibm)); }
+	out["inverse_bind_matrices"] = std::move(ibm);
+	auto joints = dj::Json{};
+	for (auto const& in_joint : asset.skeleton.joints) {
+		auto out_joint = dj::Json{};
+		out_joint["name"] = in_joint.name;
+		out_joint["transform"] = make_json(in_joint.transform.matrix());
+		out_joint["self"] = in_joint.self;
+		if (in_joint.parent) { out_joint["parent"] = *in_joint.parent; }
+		auto children = dj::Json{};
+		for (auto const child : in_joint.children) { children.push_back(child); }
+		out_joint["children"] = std::move(children);
+		joints.push_back(std::move(out_joint));
+	}
+	out["joints"] = std::move(joints);
+	auto clips = dj::Json{};
+	for (auto const& in_clip : asset.skeleton.clips) {
+		auto out_clip = dj::Json{};
+		out_clip["name"] = in_clip.name;
+		auto channels = dj::Json{};
+		for (auto const& in_channel : in_clip.channels) {
+			auto out_channel = dj::Json{};
+			out_channel["target"] = in_channel.target;
+			out_channel["sampler"] = make_json(in_channel.sampler);
+			channels.push_back(std::move(out_channel));
+		}
+		out_clip["channels"] = std::move(channels);
+		clips.push_back(std::move(out_clip));
+	}
+	out["clips"] = std::move(clips);
 }
 
 experiment::ImportedMeshes experiment::import_gltf_meshes(char const* gltf_path, char const* dest_dir) {

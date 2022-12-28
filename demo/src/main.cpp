@@ -191,6 +191,12 @@ void run(fs::path data_path) {
 	auto free_cam = FreeCam{&engine.window()};
 	auto inspect = Id<Node>{};
 
+	{
+		auto bg = experiment::BinGeometry{};
+		bg.read((data_path / "Suzanne/Suzanne_geometry0.bin").string().c_str());
+	}
+
+	auto ticking_entity = Id<Entity>{};
 	engine.show();
 	while (engine.is_running()) {
 		auto frame = engine.next_frame();
@@ -204,13 +210,47 @@ void run(fs::path data_path) {
 				// scene = std::make_unique<experiment::Scene>(engine, *mesh_resources);
 				// scene->import_gltf(drop.c_str(), data_path.c_str());
 				auto export_path = data_path / path.filename().stem();
-				experiment::import_gltf_meshes(drop.c_str(), export_path.c_str());
+				auto imported = experiment::import_gltf_meshes(drop.c_str(), export_path.c_str());
+				if (!imported.meshes.empty()) {
+					auto const& imported_mesh = imported.meshes.front();
+					auto mesh_path = (data_path / path.filename().stem() / imported_mesh.value()).string();
+					auto asset_loader = experiment::AssetLoader{engine.device(), *mesh_resources};
+					auto mesh_id = asset_loader.try_load_mesh(mesh_path.c_str());
+					if (std::holds_alternative<std::monostate>(mesh_id)) { continue; }
+					if (auto const* skinned_mesh_id = std::get_if<Id<SkinnedMesh>>(&mesh_id)) {
+						auto const& mesh = mesh_resources->skinned_meshes.get(*skinned_mesh_id);
+						auto& node = scene->tree.add({}, NodeCreateInfo{.name = "imported_mesh"});
+						auto& entity = scene->tree.entities.get(node.entity);
+						auto skin = experiment::SkinnedMeshRenderer::Skin{};
+						if (mesh.skeleton) {
+							auto const& skeleton = mesh_resources->skeletons.get(mesh.skeleton);
+							skin.skeleton = skeleton.instantiate(scene->tree.nodes, node.id());
+							if (!skin.skeleton.animations.empty()) { skin.enabled = 0; }
+						}
+						auto mesh_renderer = experiment::SkinnedMeshRenderer{
+							*skinned_mesh_id,
+							skin,
+						};
+						entity.attach(experiment::MeshRenderer{&engine.device(), mesh_resources.get(), std::move(mesh_renderer)});
+						ticking_entity = entity.id();
+					} else {
+						auto static_mesh_id = std::get<Id<StaticMesh>>(mesh_id);
+						auto& node = scene->tree.add({}, NodeCreateInfo{.name = "imported_mesh"});
+						auto& entity = scene->tree.entities.get(node.entity);
+						auto mesh_renderer = experiment::StaticMeshRenderer{
+							static_mesh_id,
+							node.id(),
+						};
+						entity.attach(experiment::MeshRenderer{&engine.device(), mesh_resources.get(), std::move(mesh_renderer)});
+					}
+				}
 				break;
 			}
 		}
 
 		// tick
 		scene->tick(frame.dt);
+		if (auto const* entity = scene->tree.entities.find(ticking_entity)) { entity->get<experiment::MeshRenderer>().tick(scene->tree.nodes, frame.dt); }
 		free_cam.tick(engine.camera.transform, frame.state.input, frame.dt);
 		if constexpr (debug_v) {
 			static bool show_demo{true};
