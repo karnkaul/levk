@@ -14,6 +14,7 @@
 #include <filesystem>
 
 #include <experiment/scene.hpp>
+#include <levk/import_asset.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -201,6 +202,19 @@ void run(fs::path data_path) {
 			if (path.extension() == ".gltf") {
 				auto export_path = data_path / path.filename().stem();
 				scene->import_gltf(drop.c_str(), export_path.string().c_str());
+				break;
+			}
+			if (path.extension() == ".json") {
+				auto json = dj::Json::from_file(drop.c_str());
+				if (json["asset_type"].as_string() == "mesh") {
+					auto loader = AssetLoader{engine.device(), *mesh_resources};
+					auto const res = loader.try_load_mesh(drop.c_str());
+					auto visitor = Visitor{
+						[&](auto id) { scene->add_mesh_to_tree(id); },
+						[](std::monostate) {},
+					};
+					std::visit(visitor, res);
+				}
 				break;
 			}
 		}

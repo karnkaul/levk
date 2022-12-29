@@ -1,5 +1,6 @@
 #pragma once
 #include <djson/json.hpp>
+#include <gltf2cpp/gltf2cpp.hpp>
 #include <levk/graphics_device.hpp>
 #include <levk/mesh_resources.hpp>
 #include <levk/util/logger.hpp>
@@ -73,7 +74,45 @@ struct ImportedMeshes {
 	std::vector<AssetUri<AssetSkeleton>> skeletons{};
 };
 
+struct GltfAssetView {
+	struct List;
+
+	std::string gltf_name{};
+	std::string asset_name{};
+	std::size_t index{};
+};
+
+struct GltfAssetView::List {
+	std::vector<GltfAssetView> static_meshes{};
+	std::vector<GltfAssetView> skinned_meshes{};
+	std::vector<GltfAssetView> skeletons{};
+};
+
 ImportedMeshes import_gltf_meshes(char const* gltf_path, char const* dest_dir, logger::Dispatch const& import_logger = {});
+
+struct GltfAssetImporter {
+	logger::Dispatch const& import_logger;
+	gltf2cpp::Root root{};
+	std::string src_dir{};
+	std::string dest_dir{};
+
+	struct List : GltfAssetView::List {
+		logger::Dispatch const& import_logger;
+		std::string gltf_path{};
+
+		List(logger::Dispatch const& import_logger) : import_logger(import_logger) {}
+
+		GltfAssetImporter importer(std::string dest_dir) const;
+
+		explicit operator bool() const { return !gltf_path.empty(); }
+	};
+
+	static List peek(logger::Dispatch const& import_logger, std::string gltf_path);
+
+	std::variant<AssetUri<StaticMesh>, AssetUri<SkinnedMesh>> import_mesh(GltfAssetView const& mesh) const;
+
+	explicit operator bool() const { return !dest_dir.empty() && root; }
+};
 
 struct AssetLoader {
 	GraphicsDevice& graphics_device;
