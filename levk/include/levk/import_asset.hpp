@@ -2,14 +2,9 @@
 #include <djson/json.hpp>
 #include <levk/graphics_device.hpp>
 #include <levk/mesh_resources.hpp>
+#include <levk/util/logger.hpp>
 
 namespace levk {
-struct TextureMetadata {
-	TextureSampler sampler{};
-	ColourSpace colour_space{ColourSpace::eSrgb};
-	std::string image_path{};
-};
-
 template <typename Type>
 using AssetUri = Id<Type, std::string>;
 
@@ -78,11 +73,12 @@ struct ImportedMeshes {
 	std::vector<AssetUri<AssetSkeleton>> skeletons{};
 };
 
-ImportedMeshes import_gltf_meshes(char const* gltf_path, char const* dest_dir);
+ImportedMeshes import_gltf_meshes(char const* gltf_path, char const* dest_dir, logger::Dispatch const& import_logger = {});
 
 struct AssetLoader {
 	GraphicsDevice& graphics_device;
 	MeshResources& mesh_resources;
+	logger::Dispatch import_logger{};
 
 	Id<Texture> load_texture(char const* path, ColourSpace colour_space) const;
 	Id<StaticMesh> try_load_static_mesh(char const* path) const;

@@ -195,6 +195,7 @@ struct MapGltfNodesToJoints {
 };
 
 struct ExportMeshes {
+	logger::Dispatch const& import_logger;
 	std::string_view json_name;
 	gltf2cpp::Root& in_root;
 	fs::path in_path;
@@ -244,7 +245,7 @@ struct ExportMeshes {
 		auto dst = out_path / uri;
 		fs::create_directories(dst.parent_path());
 		fs::copy_file(in_path / in.source_filename, out_path / uri);
-		logger::info("[Import] Image [{}] copied from [{}]", uri, in.source_filename);
+		import_logger.info("[Import] Image [{}] copied from [{}]", uri, in.source_filename);
 		exported.images.insert_or_assign(index, uri);
 		return uri;
 	}
@@ -269,7 +270,7 @@ struct ExportMeshes {
 		to_json(json, material);
 		json.to_file((out_path / uri).string().c_str());
 		auto ret = uri.generic_string();
-		logger::info("[Import] Material [{}] imported", ret);
+		import_logger.info("[Import] Material [{}] imported", ret);
 		exported.materials.insert_or_assign(index, ret);
 		return ret;
 	}
@@ -286,7 +287,7 @@ struct ExportMeshes {
 		[[maybe_unused]] bool const res = bin.write((out_path / uri).string().c_str());
 		assert(res);
 		auto ret = uri.generic_string();
-		logger::info("[Import] BinGeometry [{}] imported", ret);
+		import_logger.info("[Import] BinGeometry [{}] imported", ret);
 		exported.geometries.insert_or_assign(index, ret);
 		return ret;
 	}
@@ -311,7 +312,7 @@ struct ExportMeshes {
 			out_mesh.primitives.push_back(std::move(out_primitive));
 		}
 		if (out_mesh.primitives.empty()) {
-			logger::warn("[Import] Mesh has no primitives: [{}] (index {}), skipping", in_mesh.name, index);
+			import_logger.warn("[Import] Mesh has no primitives: [{}] (index {}), skipping", in_mesh.name, index);
 			return {};
 		}
 		if (!skeleton.value().empty()) { out_mesh.skeleton = std::move(skeleton); }
@@ -321,7 +322,7 @@ struct ExportMeshes {
 		to_json(json, out_mesh);
 		json.to_file((out_path / uri).string().c_str());
 		auto ret = uri.generic_string();
-		logger::info("[Import] Mesh [{}] imported", ret);
+		import_logger.info("[Import] Mesh [{}] imported", ret);
 		exported.meshes.insert_or_assign(index, ret);
 		result.meshes.push_back(uri.generic_string());
 		return ret;
@@ -410,7 +411,7 @@ struct ExportMeshes {
 		auto mesh_uri = export_mesh(in_root.meshes[*skin_node->mesh], *skin_node->mesh, uri.string());
 		json.to_file((out_path / uri).string().c_str());
 		auto ret = uri.generic_string();
-		logger::info("[Import] Skeleton [{}] imported", ret);
+		import_logger.info("[Import] Skeleton [{}] imported", ret);
 		exported.skeletons.insert_or_assign(index, ret);
 		result.skeletons.push_back(uri.generic_string());
 		return ret;
@@ -637,10 +638,7 @@ bool BinGeometry::read(char const* path) {
 		file.read(std::span{in.weights});
 	}
 
-	if (in.compute_hash() != header.hash) {
-		logger::error("[Import] Hash mismatch for BinGeometry. Corrupted file?");
-		return false;
-	}
+	if (in.compute_hash() != header.hash) { return false; }
 
 	*this = std::move(in);
 	return true;
@@ -649,7 +647,7 @@ bool BinGeometry::read(char const* path) {
 Id<Texture> AssetLoader::load_texture(char const* path, ColourSpace colour_space) const {
 	auto image = Image{path, fs::path{path}.filename().string()};
 	if (!image) {
-		logger::error("[Load] Failed to load image [{}]", path);
+		import_logger.error("[Load] Failed to load image [{}]", path);
 		return {};
 	}
 	auto const tci = TextureCreateInfo{
@@ -658,18 +656,18 @@ Id<Texture> AssetLoader::load_texture(char const* path, ColourSpace colour_space
 		.colour_space = colour_space,
 	};
 	auto texture = graphics_device.make_texture(image, std::move(tci));
-	logger::info("[Load] [{}] Texture loaded", texture.name());
+	import_logger.info("[Load] [{}] Texture loaded", texture.name());
 	return mesh_resources.textures.add(std::move(texture)).first;
 }
 
 Id<StaticMesh> AssetLoader::try_load_static_mesh(char const* path) const {
 	auto json = dj::Json::from_file(path);
 	if (!json) {
-		logger::error("[Load] Failed to open [{}]", path);
+		import_logger.error("[Load] Failed to open [{}]", path);
 		return {};
 	}
 	if (json["asset_type"].as_string() != "mesh") {
-		logger::error("[Load] JSON is not a Mesh [{}]", path);
+		import_logger.error("[Load] JSON is not a Mesh [{}]", path);
 		return {};
 	}
 	if (json["type"].as_string() != "static") { return {}; }
@@ -678,7 +676,7 @@ Id<StaticMesh> AssetLoader::try_load_static_mesh(char const* path) const {
 
 Id<StaticMesh> AssetLoader::load_static_mesh(char const* path, dj::Json const& json) const {
 	if (json["type"].as_string() != "static") {
-		logger::error("[Load] JSON is not a StaticMesh [{}]", path);
+		import_logger.error("[Load] JSON is not a StaticMesh [{}]", path);
 		return {};
 	}
 	auto dir = fs::path{path}.parent_path();
@@ -691,14 +689,14 @@ Id<StaticMesh> AssetLoader::load_static_mesh(char const* path, dj::Json const& j
 		assert(!in_geometry.empty());
 		auto bin_geometry = BinGeometry{};
 		if (!bin_geometry.read((dir / in_geometry).string().c_str())) {
-			logger::error("[Load] Failed to read bin geometry [{}]", in_geometry);
+			import_logger.error("[Load] Failed to read bin geometry [{}]", in_geometry);
 			continue;
 		}
 		auto asset_material = AssetMaterial{};
 		if (!in_material.empty()) {
 			auto json = dj::Json::from_file((dir / in_material).string().c_str());
 			if (!json) {
-				logger::error("[Load] Failed to open material JSON [{}]", in_material);
+				import_logger.error("[Load] Failed to open material JSON [{}]", in_material);
 			} else {
 				from_json(json, asset_material);
 			}
@@ -724,34 +722,34 @@ Id<StaticMesh> AssetLoader::load_static_mesh(char const* path, dj::Json const& j
 		auto geometry = graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
 		mesh.primitives.push_back(MeshPrimitive{std::move(geometry), material_id});
 	}
-	logger::info("[Load] [{}] StaticMesh loaded", mesh.name);
+	import_logger.info("[Load] [{}] StaticMesh loaded", mesh.name);
 	return mesh_resources.static_meshes.add(std::move(mesh)).first;
 }
 
 Id<Skeleton> AssetLoader::load_skeleton(char const* path) const {
 	auto json = dj::Json::from_file(path);
 	if (!json) {
-		logger::error("[Load] Failed to open [{}]", path);
+		import_logger.error("[Load] Failed to open [{}]", path);
 		return {};
 	}
 	if (json["asset_type"].as_string() != "skeleton") {
-		logger::error("[Load] JSON is not a Skeleton [{}]", path);
+		import_logger.error("[Load] JSON is not a Skeleton [{}]", path);
 		return {};
 	}
 	auto asset = AssetSkeleton{};
 	from_json(json, asset);
-	logger::info("[Load] [{}] Skeleton loaded", asset.skeleton.name);
+	import_logger.info("[Load] [{}] Skeleton loaded", asset.skeleton.name);
 	return mesh_resources.skeletons.add(std::move(asset.skeleton)).first;
 }
 
 Id<SkinnedMesh> AssetLoader::try_load_skinned_mesh(char const* path) const {
 	auto json = dj::Json::from_file(path);
 	if (!json) {
-		logger::error("[Load] Failed to open [{}]", path);
+		import_logger.error("[Load] Failed to open [{}]", path);
 		return {};
 	}
 	if (json["asset_type"].as_string() != "mesh") {
-		logger::error("[Load] JSON is not a Mesh [{}]", path);
+		import_logger.error("[Load] JSON is not a Mesh [{}]", path);
 		return {};
 	}
 	if (json["type"].as_string() != "skinned") { return {}; }
@@ -760,7 +758,7 @@ Id<SkinnedMesh> AssetLoader::try_load_skinned_mesh(char const* path) const {
 
 Id<SkinnedMesh> AssetLoader::load_skinned_mesh(char const* path, dj::Json const& json) const {
 	if (json["type"].as_string() != "skinned") {
-		logger::error("[Load] JSON is not a SkinnedMesh [{}]", path);
+		import_logger.error("[Load] JSON is not a SkinnedMesh [{}]", path);
 		return {};
 	}
 	auto dir = fs::path{path}.parent_path();
@@ -773,14 +771,14 @@ Id<SkinnedMesh> AssetLoader::load_skinned_mesh(char const* path, dj::Json const&
 		assert(!in_geometry.empty());
 		auto bin_geometry = BinGeometry{};
 		if (!bin_geometry.read((dir / in_geometry).string().c_str())) {
-			logger::error("[Load] Failed to read bin geometry [{}]", in_geometry);
+			import_logger.error("[Load] Failed to read bin geometry [{}]", in_geometry);
 			continue;
 		}
 		auto asset_material = AssetMaterial{};
 		if (!in_material.empty()) {
 			auto json = dj::Json::from_file((dir / in_material).string().c_str());
 			if (!json) {
-				logger::error("[Load] Failed to open material JSON [{}]", in_material);
+				import_logger.error("[Load] Failed to open material JSON [{}]", in_material);
 			} else {
 				from_json(json, asset_material);
 			}
@@ -811,14 +809,14 @@ Id<SkinnedMesh> AssetLoader::load_skinned_mesh(char const* path, dj::Json const&
 		auto const skeleton_uri = dir / skeleton.as_string();
 		mesh.skeleton = load_skeleton(skeleton_uri.c_str());
 	}
-	logger::info("[Load] [{}] SkinnedMesh loaded", mesh.name);
+	import_logger.info("[Load] [{}] SkinnedMesh loaded", mesh.name);
 	return mesh_resources.skinned_meshes.add(std::move(mesh)).first;
 }
 
 std::variant<std::monostate, Id<StaticMesh>, Id<SkinnedMesh>> AssetLoader::try_load_mesh(char const* path) const {
 	if (auto ret = try_load_skinned_mesh(path)) { return ret; }
 	if (auto ret = try_load_static_mesh(path)) { return ret; }
-	logger::error("[Load] Failed to load mesh [{}]", path);
+	import_logger.error("[Load] Failed to load mesh [{}]", path);
 	return std::monostate{};
 }
 } // namespace levk
@@ -940,26 +938,26 @@ void levk::to_json(dj::Json& out, AssetSkeleton const& asset) {
 	out["clips"] = std::move(clips);
 }
 
-levk::ImportedMeshes levk::import_gltf_meshes(char const* gltf_path, char const* dest_dir) {
+levk::ImportedMeshes levk::import_gltf_meshes(char const* gltf_path, char const* dest_dir, logger::Dispatch const& import_logger) {
 	if (!fs::is_regular_file(gltf_path)) {
-		logger::error("[Import] Invalid GLTF file path [{}]", gltf_path);
+		import_logger.error("[Import] Invalid GLTF file path [{}]", gltf_path);
 		return {};
 	}
 	if (fs::is_regular_file(dest_dir)) {
-		logger::error("[Import] Destination path [{}] occupied by a file", dest_dir);
+		import_logger.error("[Import] Destination path [{}] occupied by a file", dest_dir);
 		return {};
 	}
 	auto root = gltf2cpp::parse(gltf_path);
 	if (!root) {
-		logger::error("[Import] Failed to parse GLTF file [{}]", gltf_path);
+		import_logger.error("[Import] Failed to parse GLTF file [{}]", gltf_path);
 		return {};
 	}
 	if (fs::is_directory(dest_dir)) {
-		logger::info("[Import] Destination directory [{}] already exists", dest_dir);
+		import_logger.info("[Import] Destination directory [{}] already exists", dest_dir);
 	} else {
 		fs::create_directories(dest_dir);
 	}
 	auto in_path = fs::path{gltf_path}.parent_path();
 	auto json_name = fs::path{gltf_path}.filename().stem().string();
-	return ExportMeshes{json_name, root, std::move(in_path), dest_dir}();
+	return ExportMeshes{import_logger, json_name, root, std::move(in_path), dest_dir}();
 }
