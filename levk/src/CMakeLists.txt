@@ -1,5 +1,6 @@
 add_subdirectory(util)
 add_subdirectory(imcpp)
+add_subdirectory(asset)
 
 target_sources(levk PRIVATE
   impl/desktop_window.cpp
@@ -12,7 +13,6 @@ target_sources(levk PRIVATE
   geometry.cpp
   graphics_device.cpp
   image.cpp
-  import_asset.cpp
   material.cpp
   node.cpp
   rgba.cpp

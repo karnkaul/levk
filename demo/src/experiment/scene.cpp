@@ -1,5 +1,6 @@
 #include <experiment/scene.hpp>
-#include <levk/import_asset.hpp>
+#include <levk/asset/asset_loader.hpp>
+#include <levk/asset/gltf_importer.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/visitor.hpp>
 #include <filesystem>
@@ -13,7 +14,7 @@ bool Scene::import_gltf(char const* in_path, char const* out_path) {
 	auto src_filename = src.filename().stem();
 	auto export_path = dst / src_filename;
 	auto dispatch = logger::Dispatch{};
-	auto asset_list = GltfAssetImporter::peek(dispatch, src);
+	auto asset_list = asset::GltfAssetImporter::peek(dispatch, src);
 
 	if (!asset_list) { return {}; }
 
@@ -22,8 +23,8 @@ bool Scene::import_gltf(char const* in_path, char const* out_path) {
 		return {};
 	}
 
-	auto mesh_asset = [&]() -> Ptr<GltfAssetView const> {
-		auto const func = [](GltfAssetView const& asset) { return asset.index == 0; };
+	auto mesh_asset = [&]() -> Ptr<asset::GltfAssetView const> {
+		auto const func = [](asset::GltfAssetView const& asset) { return asset.index == 0; };
 		if (auto it = std::find_if(asset_list.static_meshes.begin(), asset_list.static_meshes.end(), func); it != asset_list.static_meshes.end()) {
 			return &*it;
 		}
@@ -37,14 +38,12 @@ bool Scene::import_gltf(char const* in_path, char const* out_path) {
 	if (!importer) { return {}; }
 
 	auto const mesh_uri = importer.import_mesh(*mesh_asset);
-	auto uri = std::string{};
-	std::visit([&uri](auto const& u) { uri = u; }, mesh_uri);
-	if (uri.empty()) {
+	if (mesh_uri.value().empty()) {
 		logger::error("Import failed! {}\n", mesh_asset->asset_name);
 		return {};
 	}
 
-	return load_mesh_into_tree((dst / uri).string().c_str());
+	return load_mesh_into_tree((dst / mesh_uri.value()).string().c_str());
 }
 
 bool Scene::load_mesh_into_tree(char const* path) {

@@ -43,10 +43,17 @@ set(imcpp_headers
   include/levk/imcpp/reflector.hpp
 )
 
+set(assets_headers
+  include/levk/asset/asset_loader.hpp
+  include/levk/asset/common.hpp
+  include/levk/asset/gltf_importer.hpp
+)
+
 set(levk_headers
   ${util_headers}
   ${impl_headers}
   ${imcpp_headers}
+  ${assets_headers}
 
   include/levk/animation.hpp
   include/levk/animator.hpp
@@ -58,7 +65,6 @@ set(levk_headers
   include/levk/graphics_common.hpp
   include/levk/graphics_device.hpp
   include/levk/image.hpp
-  include/levk/import_asset.hpp
   include/levk/input.hpp
   include/levk/interpolator.hpp
   include/levk/lights.hpp
@@ -66,6 +72,7 @@ set(levk_headers
   include/levk/mesh_geometry.hpp
   include/levk/mesh_primitive.hpp
   include/levk/mesh_resources.hpp
+  include/levk/mesh.hpp
   include/levk/node.hpp
   include/levk/pixel_map.hpp
   include/levk/rgba.hpp

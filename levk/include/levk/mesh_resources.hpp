@@ -1,8 +1,7 @@
 #pragma once
 #include <levk/material.hpp>
+#include <levk/mesh.hpp>
 #include <levk/skeleton.hpp>
-#include <levk/skinned_mesh.hpp>
-#include <levk/static_mesh.hpp>
 #include <levk/util/monotonic_map.hpp>
 
 namespace levk {

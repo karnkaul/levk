@@ -14,7 +14,7 @@
 #include <filesystem>
 
 #include <experiment/scene.hpp>
-#include <levk/import_asset.hpp>
+#include <levk/asset/asset_loader.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
