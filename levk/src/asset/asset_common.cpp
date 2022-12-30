@@ -231,9 +231,9 @@ void asset::to_json(dj::Json& out, asset::Material const& asset) {
 	out["emissive_factor"] = make_json(asset.emissive_factor);
 	out["metallic"] = asset.metallic;
 	out["roughness"] = asset.roughness;
-	if (!asset.base_colour.value().empty()) { out["base_colour"] = asset.base_colour.value(); }
-	if (!asset.roughness_metallic.value().empty()) { out["roughness_metallic"] = asset.roughness_metallic.value(); }
-	if (!asset.emissive.value().empty()) { out["emissive"] = asset.emissive.value(); }
+	if (!asset.base_colour.empty()) { out["base_colour"] = asset.base_colour; }
+	if (!asset.roughness_metallic.empty()) { out["roughness_metallic"] = asset.roughness_metallic; }
+	if (!asset.emissive.empty()) { out["emissive"] = asset.emissive; }
 	out["alpha_cutoff"] = asset.alpha_cutoff;
 	out["shader"] = asset.shader;
 	out["name"] = asset.name;

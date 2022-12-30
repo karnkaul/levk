@@ -72,7 +72,6 @@ set(levk_headers
   include/levk/mesh_geometry.hpp
   include/levk/mesh_primitive.hpp
   include/levk/mesh_resources.hpp
-  include/levk/mesh.hpp
   include/levk/node.hpp
   include/levk/pixel_map.hpp
   include/levk/rgba.hpp

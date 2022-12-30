@@ -3,9 +3,11 @@
 #include <levk/geometry.hpp>
 #include <levk/graphics_common.hpp>
 #include <levk/material.hpp>
-#include <levk/mesh.hpp>
 #include <levk/skeleton.hpp>
+#include <levk/skinned_mesh.hpp>
+#include <levk/static_mesh.hpp>
 #include <levk/texture.hpp>
+#include <variant>
 
 namespace levk::asset {
 template <typename Type>
@@ -16,9 +18,9 @@ struct Material {
 	glm::vec3 emissive_factor{0.0f};
 	float metallic{0.5f};
 	float roughness{0.5f};
-	Uri<Texture> base_colour{};
-	Uri<Texture> roughness_metallic{};
-	Uri<Texture> emissive{};
+	std::string base_colour{};
+	std::string roughness_metallic{};
+	std::string emissive{};
 	PipelineState state{};
 	float alpha_cutoff{};
 	AlphaMode alpha_mode{AlphaMode::eOpaque};

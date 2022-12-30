@@ -70,14 +70,10 @@ Id<StaticMesh> AssetLoader::load_static_mesh(char const* path, dj::Json const& j
 		material.alpha_cutoff = asset_material.alpha_cutoff;
 		material.alpha_mode = asset_material.alpha_mode;
 		material.shader = asset_material.shader;
-		if (!asset_material.base_colour.value().empty()) {
-			material.base_colour = load_texture(asset_path(asset_material.base_colour.value()).c_str(), ColourSpace::eSrgb);
-		}
-		if (!asset_material.emissive.value().empty()) {
-			material.emissive = load_texture(asset_path(asset_material.emissive.value()).c_str(), ColourSpace::eSrgb);
-		}
-		if (!asset_material.roughness_metallic.value().empty()) {
-			material.roughness_metallic = load_texture(asset_path(asset_material.roughness_metallic.value()).c_str(), ColourSpace::eLinear);
+		if (!asset_material.base_colour.empty()) { material.base_colour = load_texture(asset_path(asset_material.base_colour).c_str(), ColourSpace::eSrgb); }
+		if (!asset_material.emissive.empty()) { material.emissive = load_texture(asset_path(asset_material.emissive).c_str(), ColourSpace::eSrgb); }
+		if (!asset_material.roughness_metallic.empty()) {
+			material.roughness_metallic = load_texture(asset_path(asset_material.roughness_metallic).c_str(), ColourSpace::eLinear);
 		}
 		auto material_id = mesh_resources.materials.add(std::move(material)).first;
 		auto geometry = graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
@@ -152,14 +148,10 @@ Id<SkinnedMesh> AssetLoader::load_skinned_mesh(char const* path, dj::Json const&
 		material.alpha_cutoff = asset_material.alpha_cutoff;
 		material.alpha_mode = asset_material.alpha_mode;
 		material.shader = asset_material.shader;
-		if (!asset_material.base_colour.value().empty()) {
-			material.base_colour = load_texture(asset_path(asset_material.base_colour.value()).c_str(), ColourSpace::eSrgb);
-		}
-		if (!asset_material.emissive.value().empty()) {
-			material.emissive = load_texture(asset_path(asset_material.emissive.value()).c_str(), ColourSpace::eSrgb);
-		}
-		if (!asset_material.roughness_metallic.value().empty()) {
-			material.roughness_metallic = load_texture(asset_path(asset_material.roughness_metallic.value()).c_str(), ColourSpace::eLinear);
+		if (!asset_material.base_colour.empty()) { material.base_colour = load_texture(asset_path(asset_material.base_colour).c_str(), ColourSpace::eSrgb); }
+		if (!asset_material.emissive.empty()) { material.emissive = load_texture(asset_path(asset_material.emissive).c_str(), ColourSpace::eSrgb); }
+		if (!asset_material.roughness_metallic.empty()) {
+			material.roughness_metallic = load_texture(asset_path(asset_material.roughness_metallic).c_str(), ColourSpace::eLinear);
 		}
 		auto material_id = mesh_resources.materials.add(std::move(material)).first;
 		auto geometry = graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
