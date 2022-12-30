@@ -44,6 +44,8 @@ class GraphicsDevice {
 		return {};
 	}
 
+	RenderMode default_render_mode{};
+
   private:
 	struct Base {
 		virtual ~Base() = default;

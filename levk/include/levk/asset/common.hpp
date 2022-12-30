@@ -21,7 +21,7 @@ struct Material {
 	std::string base_colour{};
 	std::string roughness_metallic{};
 	std::string emissive{};
-	PipelineState state{};
+	RenderMode render_mode{};
 	float alpha_cutoff{};
 	AlphaMode alpha_mode{AlphaMode::eOpaque};
 	std::string shader{"shaders/lit.frag"};

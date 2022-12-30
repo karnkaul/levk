@@ -18,6 +18,36 @@ constexpr std::string_view from(Interpolation const i) {
 	}
 }
 
+constexpr RenderMode::Type to_render_mode(std::string_view const str) {
+	if (str == "fill") { return RenderMode::Type::eFill; }
+	if (str == "line") { return RenderMode::Type::eLine; }
+	if (str == "point") { return RenderMode::Type::ePoint; }
+	return RenderMode::Type::eDefault;
+}
+
+constexpr std::string_view from(RenderMode::Type const type) {
+	switch (type) {
+	case RenderMode::Type::eFill: return "fill";
+	case RenderMode::Type::eLine: return "line";
+	case RenderMode::Type::ePoint: return "point";
+	default: return "default";
+	}
+}
+
+constexpr AlphaMode to_alpha_mode(std::string_view const str) {
+	if (str == "blend") { return AlphaMode::eBlend; }
+	if (str == "mask") { return AlphaMode::eMask; }
+	return AlphaMode::eOpaque;
+}
+
+constexpr std::string_view from(AlphaMode const mode) {
+	switch (mode) {
+	case AlphaMode::eBlend: return "blend";
+	case AlphaMode::eMask: return "mask";
+	default: return "opaque";
+	}
+}
+
 Transform from(glm::mat4 const& mat) {
 	auto ret = Transform{};
 	glm::vec3 scale{1.0f}, pos{}, skew{};
@@ -69,6 +99,22 @@ dj::Json make_json(Rgba const& rgba) {
 }
 
 Rgba make_rgba(dj::Json const& json) { return to_rgba(json["hex"].as_string(), json["intensity"].as<float>(1.0f)); }
+
+RenderMode make_render_mode(dj::Json const& json) {
+	auto ret = RenderMode{};
+	ret.line_width = json["line_width"].as<float>(ret.line_width);
+	ret.type = to_render_mode(json["type"].as_string());
+	ret.depth_test = json["depth_test"].as<bool>();
+	return ret;
+}
+
+dj::Json make_json(RenderMode const& render_mode) {
+	auto ret = dj::Json{};
+	ret["line_width"] = render_mode.line_width;
+	ret["type"] = from(render_mode.type);
+	ret["depth_test"] = dj::Boolean{render_mode.depth_test};
+	return ret;
+}
 
 template <glm::length_t Dim>
 void add_to(dj::Json& out, glm::vec<Dim, float> const& vec) {
@@ -220,7 +266,9 @@ void asset::from_json(dj::Json const& json, asset::Material& out) {
 	out.base_colour = std::string{json["base_colour"].as_string()};
 	out.roughness_metallic = std::string{json["roughness_metallic"].as_string()};
 	out.emissive = std::string{json["emissive"].as_string()};
+	out.render_mode = make_render_mode(json["render_mode"]);
 	out.alpha_cutoff = json["alpha_cutoff"].as<float>(out.alpha_cutoff);
+	out.alpha_mode = to_alpha_mode(json["alpha_mode"].as_string());
 	out.shader = json["shader"].as_string(out.shader);
 	out.name = json["name"].as_string();
 }
@@ -234,7 +282,9 @@ void asset::to_json(dj::Json& out, asset::Material const& asset) {
 	if (!asset.base_colour.empty()) { out["base_colour"] = asset.base_colour; }
 	if (!asset.roughness_metallic.empty()) { out["roughness_metallic"] = asset.roughness_metallic; }
 	if (!asset.emissive.empty()) { out["emissive"] = asset.emissive; }
+	out["render_mode"] = make_json(asset.render_mode);
 	out["alpha_cutoff"] = asset.alpha_cutoff;
+	out["alpha_mode"] = from(asset.alpha_mode);
 	out["shader"] = asset.shader;
 	out["name"] = asset.name;
 }

@@ -709,6 +709,14 @@ class BufferVec {
 	std::size_t m_index{};
 };
 
+struct PipelineState {
+	vk::PolygonMode mode{vk::PolygonMode::eFill};
+	vk::PrimitiveTopology topology{vk::PrimitiveTopology::eTriangleList};
+	bool depth_test{true};
+
+	bool operator==(PipelineState const&) const = default;
+};
+
 template <std::size_t Buffering = buffering_v>
 struct PipelineStorage {
 	struct Program {
@@ -728,7 +736,7 @@ struct PipelineStorage {
 
 		struct Hasher {
 			std::size_t operator()(Key const& key) const {
-				return make_combined_hash(key.state.depth_test, key.state.polygon_mode, key.state.topology, key.spirv_hash, key.vertex_input_hash);
+				return make_combined_hash(key.state.depth_test, key.state.mode, key.state.topology, key.spirv_hash, key.vertex_input_hash);
 			}
 		};
 	};
@@ -1020,6 +1028,7 @@ struct VulkanDevice::Impl {
 	std::optional<Texture> black_texture{};
 
 	GraphicsDeviceInfo info{};
+	RenderMode default_render_mode{};
 };
 
 namespace {
@@ -1288,10 +1297,10 @@ constexpr vk::PresentModeKHR from(Vsync::Type const type) {
 	}
 }
 
-constexpr vk::PolygonMode from(PolygonMode const mode) {
+constexpr vk::PolygonMode from(RenderMode::Type const mode) {
 	switch (mode) {
-	case PolygonMode::ePoint: return vk::PolygonMode::ePoint;
-	case PolygonMode::eLine: return vk::PolygonMode::eLine;
+	case RenderMode::Type::ePoint: return vk::PolygonMode::ePoint;
+	case RenderMode::Type::eLine: return vk::PolygonMode::eLine;
 	default: return vk::PolygonMode::eFill;
 	}
 }
@@ -1773,11 +1782,11 @@ vk::UniquePipeline make_pipeline(vk::Device device, PipeInfo const& info) {
 	gpci.stageCount = static_cast<std::uint32_t>(psscis.size());
 	gpci.pStages = psscis.data();
 
-	auto piasci = vk::PipelineInputAssemblyStateCreateInfo({}, from(info.state.topology));
+	auto piasci = vk::PipelineInputAssemblyStateCreateInfo({}, info.state.topology);
 	gpci.pInputAssemblyState = &piasci;
 
 	auto prsci = vk::PipelineRasterizationStateCreateInfo();
-	prsci.polygonMode = from(info.state.polygon_mode);
+	prsci.polygonMode = info.state.mode;
 	prsci.cullMode = vk::CullModeFlagBits::eNone;
 	gpci.pRasterizationState = &prsci;
 
@@ -2285,55 +2294,33 @@ void update_view(VulkanDevice const& device, VulkanShader<Buffering>& shader) {
 	shader.update(0, 1, buffer);
 }
 
-void render_mesh(VulkanDevice const& device, StaticMeshRenderInfo const& info, RenderCmd cmd, RenderPassView rp) {
-	static Material const s_default_mat{UnlitMaterial{}};
-	auto const& limits = device.impl->gpu.properties.limits;
-	auto const texture_fallback = TextureFallback{info.resources.textures, *device.impl->white_texture, *device.impl->black_texture};
-	for (auto const& primitive : info.mesh.primitives) {
-		auto const* vmg = primitive.geometry.as<VulkanMeshGeometry>();
-		assert(vmg);
-		auto const& material = info.resources.materials.get_or(primitive.material, s_default_mat);
-		auto const state = PipelineState{
-			.polygon_mode = primitive.polygon_mode,
-			.topology = primitive.topology,
-			.depth_test = material.pipeline_state().depth_test,
-		};
-		auto cb = cmd.cb;
-		auto const& vlayout = vmg->impl->vertex_layout();
-		auto const i = device.impl->buffered_index;
-		auto vert = device.impl->shaders.get(*device.impl->reader, vlayout.shader_uri);
-		auto frag = device.impl->shaders.get(*device.impl->reader, material.shader_id());
-		auto pipe = device.impl->pipelines.get(device.impl->vma, state, vlayout.input, rp, {vert, frag}, i);
-		auto shader = VulkanShader{pipe, device.impl->samplers};
-		auto const line_width = std::clamp(material.pipeline_state().line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
-		pipe.bind(cb, cmd.extent, line_width);
-		update_view(device, shader);
-		material.write_sets(shader, texture_fallback);
-		shader.bind(pipe.layout, cb);
-		auto write_instances = [&](glm::mat4& out, std::size_t index) { out = info.parent * info.instances[index].matrix(); };
-		auto instance_buffer = device.impl->instance_vec.write(device.impl->vma, info.instances.size(), device.impl->buffered_index, write_instances);
-		assert(!primitive.geometry.has_joints());
-		cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
-		vmg->impl->draw(cb, static_cast<std::uint32_t>(info.instances.size()));
+constexpr RenderMode combine(RenderMode const in, RenderMode def) {
+	if (in.type != RenderMode::Type::eDefault) {
+		def.type = in.type;
+		def.line_width = in.line_width;
 	}
+	def.depth_test = in.depth_test;
+	return def;
 }
 
-void render_mesh(VulkanDevice const& device, SkinnedMeshRenderInfo const& info, RenderCmd cmd, RenderPassView rp) {
+template <typename RenderInfoT>
+void render_mesh(VulkanDevice const& device, RenderInfoT const& info, RenderCmd cmd, RenderPassView rp, RenderMode drm) {
 	static Material const s_default_mat{UnlitMaterial{}};
 	auto const& limits = device.impl->gpu.properties.limits;
 	auto const texture_fallback = TextureFallback{info.resources.textures, *device.impl->white_texture, *device.impl->black_texture};
 	for (auto const& primitive : info.mesh.primitives) {
-		auto const* vmg = primitive.geometry.as<VulkanMeshGeometry>();
+		auto const* vmg = primitive.geometry.template as<VulkanMeshGeometry>();
 		assert(vmg);
 		if (!cmd.cb) {
 			logger::error("[GraphicsDevice] Attempt to call draw outside active render pass");
 			return;
 		}
 		auto const& material = info.resources.materials.get_or(primitive.material, s_default_mat);
+		drm = combine(material.render_mode(), drm);
 		auto const state = PipelineState{
-			.polygon_mode = primitive.polygon_mode,
-			.topology = primitive.topology,
-			.depth_test = material.pipeline_state().depth_test,
+			.mode = from(drm.type),
+			.topology = from(primitive.topology),
+			.depth_test = drm.depth_test,
 		};
 		auto cb = cmd.cb;
 		auto const& vlayout = vmg->impl->vertex_layout();
@@ -2342,22 +2329,31 @@ void render_mesh(VulkanDevice const& device, SkinnedMeshRenderInfo const& info, 
 		auto frag = device.impl->shaders.get(*device.impl->reader, material.shader_id());
 		auto pipe = device.impl->pipelines.get(device.impl->vma, state, vlayout.input, rp, {vert, frag}, i);
 		auto shader = VulkanShader{pipe, device.impl->samplers};
-		auto const line_width = std::clamp(material.pipeline_state().line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
+		auto const line_width = std::clamp(drm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
 		pipe.bind(cb, cmd.extent, line_width);
 		update_view(device, shader);
 		material.write_sets(shader, texture_fallback);
-		assert(primitive.geometry.has_joints());
-		auto joints_set = vmg->impl->joints_set();
-		assert(joints_set);
-		auto rewrite = [&](glm::mat4& out, std::size_t index) {
-			out = info.tree.global_transform(info.tree.get(info.skeleton.joints[index])) * info.skeleton.inverse_bind_matrices[index];
-		};
-		auto const joint_mats = [&] {
-			return device.impl->joints_vec.write(device.impl->vma, info.skeleton.joints.size(), device.impl->buffered_index, rewrite);
-		}();
-		shader.update(*joints_set, 0, joint_mats);
-		shader.bind(pipe.layout, cb);
-		vmg->impl->draw(cb);
+		if constexpr (std::same_as<RenderInfoT, SkinnedMeshRenderInfo>) {
+			assert(primitive.geometry.has_joints());
+			auto joints_set = vmg->impl->joints_set();
+			assert(joints_set);
+			auto rewrite = [&](glm::mat4& out, std::size_t index) {
+				out = info.tree.global_transform(info.tree.get(info.skeleton.joints[index])) * info.skeleton.inverse_bind_matrices[index];
+			};
+			auto const joint_mats = [&] {
+				return device.impl->joints_vec.write(device.impl->vma, info.skeleton.joints.size(), device.impl->buffered_index, rewrite);
+			}();
+			shader.update(*joints_set, 0, joint_mats);
+			shader.bind(pipe.layout, cb);
+			vmg->impl->draw(cb);
+		} else {
+			shader.bind(pipe.layout, cb);
+			assert(!primitive.geometry.has_joints());
+			auto write_instances = [&](glm::mat4& out, std::size_t index) { out = info.parent * info.instances[index].matrix(); };
+			auto instance_buffer = device.impl->instance_vec.write(device.impl->vma, info.instances.size(), device.impl->buffered_index, write_instances);
+			cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
+			vmg->impl->draw(cb, static_cast<std::uint32_t>(info.instances.size()));
+		}
 	}
 }
 } // namespace
@@ -2514,6 +2510,7 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	cbii = {*out.impl->fs_quad.rp, 0, *fs_quad_fb.framebuffer};
 	cmd_ui.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
 
+	out.impl->default_render_mode = info.default_render_mode;
 	// dispatch 3D render
 	out.impl->cmd_3d = cmd_3d;
 	info.renderer.render_3d();
@@ -2611,7 +2608,7 @@ void levk::gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info) {
 		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
 		return;
 	}
-	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view());
+	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
 	// TODO update stats
 }
 
@@ -2620,6 +2617,6 @@ void levk::gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info) {
 		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
 		return;
 	}
-	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view());
+	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
 	// TODO update stats
 }
