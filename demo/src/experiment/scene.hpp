@@ -39,21 +39,13 @@ struct MeshRenderer {
 	void render(Node::Tree const& tree) const;
 };
 
-struct ImportResult {
-	std::vector<Id<Texture>> added_textures{};
-	std::vector<Id<Material>> added_materials{};
-	std::vector<Id<Skeleton>> added_skeletons{};
-	std::vector<Id<StaticMesh>> added_static_meshes{};
-	std::vector<Id<SkinnedMesh>> added_skinned_meshes{};
-};
-
 class Scene {
   public:
 	struct Renderer;
 
 	Scene(Engine& engine, MeshResources& resources) : engine(&engine), mesh_resources(&resources) {}
 
-	ImportResult import_gltf(char const* in_path, char const* out_path);
+	bool import_gltf(char const* in_path, char const* out_path);
 	bool load_mesh_into_tree(char const* path);
 	bool add_mesh_to_tree(Id<SkinnedMesh> id);
 	bool add_mesh_to_tree(Id<StaticMesh> id);

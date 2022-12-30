@@ -7,18 +7,44 @@
 namespace levk::experiment {
 namespace fs = std::filesystem;
 
-ImportResult Scene::import_gltf(char const* in_path, char const* out_path) {
+bool Scene::import_gltf(char const* in_path, char const* out_path) {
 	auto src = fs::path{in_path};
 	auto dst = fs::path{out_path};
 	auto src_filename = src.filename().stem();
 	auto export_path = dst / src_filename;
-	auto imported = import_gltf_meshes(in_path, export_path.c_str());
-	if (!imported.meshes.empty()) {
-		auto const& imported_mesh = imported.meshes.front();
-		auto mesh_path = (dst / src_filename / imported_mesh.value()).string();
-		load_mesh_into_tree(mesh_path.c_str());
+	auto dispatch = logger::Dispatch{};
+	auto asset_list = GltfAssetImporter::peek(dispatch, src);
+
+	if (!asset_list) { return {}; }
+
+	if (asset_list.static_meshes.empty() && asset_list.skinned_meshes.empty()) {
+		logger::error("No meshes found in {}\n", in_path);
+		return {};
 	}
-	return {};
+
+	auto mesh_asset = [&]() -> Ptr<GltfAssetView const> {
+		auto const func = [](GltfAssetView const& asset) { return asset.index == 0; };
+		if (auto it = std::find_if(asset_list.static_meshes.begin(), asset_list.static_meshes.end(), func); it != asset_list.static_meshes.end()) {
+			return &*it;
+		}
+		if (auto it = std::find_if(asset_list.skinned_meshes.begin(), asset_list.skinned_meshes.end(), func); it != asset_list.static_meshes.end()) {
+			return &*it;
+		}
+		return nullptr;
+	}();
+
+	auto importer = asset_list.importer(dst.string());
+	if (!importer) { return {}; }
+
+	auto const mesh_uri = importer.import_mesh(*mesh_asset);
+	auto uri = std::string{};
+	std::visit([&uri](auto const& u) { uri = u; }, mesh_uri);
+	if (uri.empty()) {
+		logger::error("Import failed! {}\n", mesh_asset->asset_name);
+		return {};
+	}
+
+	return load_mesh_into_tree((dst / uri).string().c_str());
 }
 
 bool Scene::load_mesh_into_tree(char const* path) {

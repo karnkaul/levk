@@ -69,11 +69,6 @@ struct AssetSkeleton {
 void from_json(dj::Json const& json, AssetSkeleton& out);
 void to_json(dj::Json& out, AssetSkeleton const& asset);
 
-struct ImportedMeshes {
-	std::vector<AssetUri<AssetMesh>> meshes{};
-	std::vector<AssetUri<AssetSkeleton>> skeletons{};
-};
-
 struct GltfAssetView {
 	struct List;
 
@@ -87,8 +82,6 @@ struct GltfAssetView::List {
 	std::vector<GltfAssetView> skinned_meshes{};
 	std::vector<GltfAssetView> skeletons{};
 };
-
-ImportedMeshes import_gltf_meshes(char const* gltf_path, char const* dest_dir, logger::Dispatch const& import_logger = {});
 
 struct GltfAssetImporter {
 	logger::Dispatch const& import_logger;
