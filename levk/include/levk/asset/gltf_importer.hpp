@@ -21,23 +21,21 @@ struct GltfAssetView::List {
 };
 
 struct GltfAssetImporter {
-	logger::Dispatch const& import_logger;
+	logger::Dispatch import_logger{};
 	gltf2cpp::Root root{};
 	std::string src_dir{};
 	std::string dest_dir{};
 
 	struct List : GltfAssetView::List {
-		logger::Dispatch const& import_logger;
+		logger::Dispatch import_logger{};
 		std::string gltf_path{};
-
-		List(logger::Dispatch const& import_logger) : import_logger(import_logger) {}
 
 		GltfAssetImporter importer(std::string dest_dir) const;
 
 		explicit operator bool() const { return !gltf_path.empty(); }
 	};
 
-	static List peek(logger::Dispatch const& import_logger, std::string gltf_path);
+	static List peek(std::string gltf_path, logger::Dispatch const& import_logger = {});
 
 	Uri<Mesh> import_mesh(GltfAssetView const& mesh) const;
 

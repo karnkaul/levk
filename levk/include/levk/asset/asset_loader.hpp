@@ -2,14 +2,12 @@
 #include <djson/json.hpp>
 #include <levk/graphics_device.hpp>
 #include <levk/mesh_resources.hpp>
-#include <levk/util/logger.hpp>
 #include <variant>
 
 namespace levk {
 struct AssetLoader {
 	GraphicsDevice& graphics_device;
 	MeshResources& mesh_resources;
-	logger::Dispatch import_logger{};
 
 	Id<Texture> load_texture(char const* path, ColourSpace colour_space) const;
 	Id<StaticMesh> try_load_static_mesh(char const* path) const;

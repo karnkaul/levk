@@ -13,8 +13,7 @@ bool Scene::import_gltf(char const* in_path, char const* out_path) {
 	auto dst = fs::path{out_path};
 	auto src_filename = src.filename().stem();
 	auto export_path = dst / src_filename;
-	auto dispatch = logger::Dispatch{};
-	auto asset_list = asset::GltfAssetImporter::peek(dispatch, src);
+	auto asset_list = asset::GltfAssetImporter::peek(src);
 
 	if (!asset_list) { return {}; }
 

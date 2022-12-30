@@ -308,7 +308,7 @@ struct GltfExporter {
 			out_mesh.skeleton = export_skeleton(make_gltf_asset_view(in_skin.name, *skin, "skeleton"));
 		}
 		auto uri = fmt::format("{}.json", av_mesh.asset_name);
-		out_mesh.name = fs::path{uri}.stem().string();
+		out_mesh.name = fs::path{av_mesh.asset_name}.stem().string();
 		auto json = dj::Json{};
 		to_json(json, out_mesh);
 		auto dst = out_dir / uri;
@@ -480,8 +480,9 @@ bool BinGeometry::read(char const* path) {
 	return true;
 }
 
-GltfAssetImporter::List GltfAssetImporter::peek(logger::Dispatch const& import_logger, std::string gltf_path) {
-	auto ret = GltfAssetImporter::List{import_logger};
+GltfAssetImporter::List GltfAssetImporter::peek(std::string gltf_path, logger::Dispatch const& import_logger) {
+	auto ret = GltfAssetImporter::List{};
+	ret.import_logger = import_logger;
 	if (!fs::is_regular_file(gltf_path)) {
 		import_logger.error("[Import] Invalid GLTF file path [{}]", gltf_path);
 		return ret;
