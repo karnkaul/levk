@@ -17,8 +17,19 @@ struct MeshResources;
 using Extent2D = glm::uvec2;
 
 enum class ColourSpace : std::uint8_t { eSrgb, eLinear };
-enum class PolygonMode : std::uint8_t { eFill, eLine, ePoint };
 enum class Topology : std::uint8_t { ePointList, eLineList, eLineStrip, eTriangleList, eTriangleStrip, eTriangleFan };
+
+struct RenderMode {
+	enum class Type : std::uint8_t { eDefault, eFill, eLine, ePoint };
+
+	float line_width{1.0f};
+	Type type{Type::eDefault};
+	bool depth_test{true};
+
+	static constexpr RenderMode wireframe(float line_width = 1.0f, bool depth_test = true) { return {line_width, Type::eLine, depth_test}; }
+
+	bool operator==(RenderMode const&) const = default;
+};
 
 inline constexpr std::size_t max_sets_v{16};
 inline constexpr std::size_t max_bindings_v{16};
@@ -68,15 +79,6 @@ struct GraphicsDeviceCreateInfo {
 	AntiAliasing::Type anti_aliasing{AntiAliasing::e2x};
 };
 
-struct PipelineState {
-	PolygonMode polygon_mode{PolygonMode::eFill};
-	Topology topology{Topology::eTriangleList};
-	float line_width{1.0f};
-	bool depth_test{true};
-
-	bool operator==(PipelineState const&) const = default;
-};
-
 class GraphicsDevice;
 
 struct GraphicsRenderer {
@@ -92,6 +94,7 @@ struct RenderInfo {
 	Lights const& lights;
 	Extent2D extent;
 	Rgba clear;
+	RenderMode default_render_mode;
 };
 
 struct StaticMeshRenderInfo {

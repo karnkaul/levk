@@ -1,5 +1,6 @@
 set(util_headers
   include/levk/util/async_queue.hpp
+  include/levk/util/binary_file.hpp
   include/levk/util/bool.hpp
   include/levk/util/cli_opts.hpp
   include/levk/util/contiguous_storage.hpp
@@ -37,19 +38,22 @@ set(impl_headers
   include/levk/impl/vulkan_surface.hpp
 )
 
-set(editor_headers
-  include/levk/editor/import_asset.hpp
-  include/levk/editor/import_result.hpp
-)
-
 set(imcpp_headers
   include/levk/imcpp/common.hpp
   include/levk/imcpp/reflector.hpp
 )
 
+set(assets_headers
+  include/levk/asset/asset_loader.hpp
+  include/levk/asset/common.hpp
+  include/levk/asset/gltf_importer.hpp
+)
+
 set(levk_headers
   ${util_headers}
-  ${editor_headers}
+  ${impl_headers}
+  ${imcpp_headers}
+  ${assets_headers}
 
   include/levk/animation.hpp
   include/levk/animator.hpp
@@ -77,6 +81,7 @@ set(levk_headers
   include/levk/skinned_mesh.hpp
   include/levk/static_mesh.hpp
   include/levk/surface.hpp
+  include/levk/texture_sampler.hpp
   include/levk/texture.hpp
   include/levk/transform_controller.hpp
   include/levk/transform.hpp

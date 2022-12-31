@@ -19,6 +19,17 @@ Image::Image(std::span<std::byte const> compressed, std::string name) : m_name{s
 	m_extent = glm::uvec2{glm::ivec2{x, y}};
 }
 
+Image::Image(char const* file_path, std::string name) : m_name{std::move(name)} {
+	int x, y, channels;
+	auto ptr = stbi_load(file_path, &x, &y, &channels, 4);
+	if (!ptr) {
+		logger::error("[Image] Failed to decompress [{}]", m_name);
+		return;
+	}
+	m_storage = Storage{static_cast<std::size_t>(x * y * 4), reinterpret_cast<std::byte const*>(ptr)};
+	m_extent = glm::uvec2{glm::ivec2{x, y}};
+}
+
 auto Image::view() const -> View { return View{.bytes = m_storage.get().bytes(), .extent = m_extent}; }
 
 Image::operator bool() const {

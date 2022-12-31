@@ -1,6 +1,6 @@
 add_subdirectory(util)
-add_subdirectory(editor)
 add_subdirectory(imcpp)
+add_subdirectory(asset)
 
 target_sources(levk PRIVATE
   impl/desktop_window.cpp

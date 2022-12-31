@@ -1,27 +1,16 @@
 #pragma once
 #include <levk/graphics_common.hpp>
 #include <levk/image.hpp>
+#include <levk/texture_sampler.hpp>
 #include <levk/util/ptr.hpp>
 #include <memory>
 
 namespace levk {
-struct Sampler {
-	enum class Wrap : std::uint8_t { eRepeat, eClampEdge, eClampBorder };
-	enum class Filter : std::uint8_t { eLinear, eNearest };
-
-	Wrap wrap_s{Wrap::eRepeat};
-	Wrap wrap_t{Wrap::eRepeat};
-	Filter min{Filter::eLinear};
-	Filter mag{Filter::eLinear};
-
-	bool operator==(Sampler const&) const = default;
-};
-
 struct TextureCreateInfo {
 	std::string name{"(Unnamed)"};
 	bool mip_mapped{true};
 	ColourSpace colour_space{ColourSpace::eSrgb};
-	Sampler sampler{};
+	TextureSampler sampler{};
 };
 
 class Texture {
@@ -31,7 +20,7 @@ class Texture {
 	template <typename T>
 	Texture(T t, std::string name = "(Unnamed)") : m_model(std::make_unique<Model<T>>(std::move(t))), m_name(std::move(name)) {}
 
-	Sampler const& sampler() const { return m_model->sampler(); }
+	TextureSampler const& sampler() const { return m_model->sampler(); }
 	ColourSpace colour_space() const { return m_model->colour_space(); }
 	std::uint32_t mip_levels() const { return m_model->mip_levels(); }
 	std::string_view name() const { return m_name; }
@@ -46,7 +35,7 @@ class Texture {
 	struct Base {
 		virtual ~Base() = default;
 
-		virtual Sampler const& sampler() const = 0;
+		virtual TextureSampler const& sampler() const = 0;
 		virtual ColourSpace colour_space() const = 0;
 		virtual std::uint32_t mip_levels() const = 0;
 	};
@@ -56,7 +45,7 @@ class Texture {
 		T impl;
 		Model(T&& t) : impl(std::move(t)) {}
 
-		Sampler const& sampler() const final { return gfx_tex_sampler(impl); }
+		TextureSampler const& sampler() const final { return gfx_tex_sampler(impl); }
 		ColourSpace colour_space() const final { return gfx_tex_colour_space(impl); }
 		std::uint32_t mip_levels() const final { return gfx_tex_mip_levels(impl); }
 	};

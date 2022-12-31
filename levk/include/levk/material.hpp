@@ -20,7 +20,7 @@ template <typename Type>
 concept MaterialT = requires(Type& t, Type const& ct, Shader& s, TextureFallback const& tf) {
 						std::is_copy_constructible_v<Type>;
 						{ t.write_sets(s, tf) };
-						{ ct.pipeline_state() } -> std::convertible_to<PipelineState>;
+						{ ct.render_mode() } -> std::convertible_to<RenderMode>;
 						{ ct.shader_id() } -> std::same_as<std::string const&>;
 					};
 
@@ -37,7 +37,7 @@ class Material {
 	Material(T&& t) : m_model(std::make_unique<Model<T>>(std::move(t))) {}
 
 	void write_sets(Shader& shader, TextureFallback const& fallback) const { m_model->write_sets(shader, fallback); }
-	PipelineState const& pipeline_state() const { return m_model->pipeline_state(); }
+	RenderMode const& render_mode() const { return m_model->render_mode(); }
 	std::string const& shader_id() const { return m_model->shader_id(); }
 
 	template <typename T>
@@ -51,7 +51,7 @@ class Material {
 		virtual ~Base() = default;
 
 		virtual void write_sets(Shader& shader, TextureFallback const& texture_fallback) = 0;
-		virtual PipelineState const& pipeline_state() const = 0;
+		virtual RenderMode const& render_mode() const = 0;
 		virtual std::string const& shader_id() const = 0;
 		virtual std::unique_ptr<Base> clone() const = 0;
 	};
@@ -61,7 +61,7 @@ class Material {
 		T t;
 		Model(T&& t) : t(std::move(t)) {}
 		void write_sets(Shader& shader, TextureFallback const& fallback) final { t.write_sets(shader, fallback); }
-		PipelineState const& pipeline_state() const final { return t.pipeline_state(); }
+		RenderMode const& render_mode() const final { return t.render_mode(); }
 		std::string const& shader_id() const final { return t.shader_id(); }
 		std::unique_ptr<Base> clone() const final { return std::make_unique<Model<T>>(*this); }
 	};
@@ -77,11 +77,11 @@ class Material {
 struct UnlitMaterial {
 	Rgba tint{white_v};
 	Id<Texture> texture{};
-	PipelineState state{};
+	RenderMode mode{};
 	std::string shader{"shaders/unlit.frag"};
 
 	void write_sets(Shader& shader, TextureFallback const& fallback) const;
-	PipelineState const& pipeline_state() const { return state; }
+	RenderMode const& render_mode() const { return mode; }
 	std::string const& shader_id() const { return shader; }
 };
 
@@ -93,13 +93,13 @@ struct LitMaterial {
 	Id<Texture> base_colour{};
 	Id<Texture> roughness_metallic{};
 	Id<Texture> emissive{};
-	PipelineState state{};
+	RenderMode mode{};
 	float alpha_cutoff{};
 	AlphaMode alpha_mode{AlphaMode::eOpaque};
 	std::string shader{"shaders/lit.frag"};
 
 	void write_sets(Shader& pipeline, TextureFallback const& fallback) const;
-	PipelineState const& pipeline_state() const { return state; }
+	RenderMode const& render_mode() const { return mode; }
 	std::string const& shader_id() const { return shader; }
 };
 

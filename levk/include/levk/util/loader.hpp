@@ -35,11 +35,16 @@ class FileLoader : public Loader {
 	FileLoader(std::string_view directory);
 
 	///
+	/// \brief Create an absolute path for the given uri.
+	/// \param uri URI to create the path for
+	///
+	std::string make_absolute_path(std::string_view const uri) const;
+	///
 	/// \brief Obtain the absolute path to the file given its URI.
 	/// \param uri URI to get the path for
 	/// \returns Empty string if not found
 	///
-	std::string absolute_path(std::string_view const uri) const;
+	std::string absolute_path_for(std::string_view const uri) const;
 
 	ByteArray load(std::string_view uri) const override;
 

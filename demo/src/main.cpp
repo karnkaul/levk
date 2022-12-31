@@ -6,6 +6,7 @@
 #include <levk/impl/vulkan_device.hpp>
 #include <levk/transform_controller.hpp>
 #include <levk/util/error.hpp>
+#include <levk/util/fixed_string.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/resource_map.hpp>
@@ -13,7 +14,7 @@
 #include <filesystem>
 
 #include <experiment/scene.hpp>
-#include <levk/util/fixed_string.hpp>
+#include <levk/asset/asset_loader.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -84,7 +85,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 	auto* entity = scene.tree.entities.find(node->entity);
 	if (!entity) { return; }
 	auto inspect_skin = [&](experiment::SkinnedMeshRenderer::Skin& skin) {
-		auto const& skeleton = scene.resources->skeletons.get(skin.skeleton.source);
+		auto const& skeleton = scene.mesh_resources->skeletons.get(skin.skeleton.source);
 		imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
 		if (skin.skeleton.animations.empty()) { return; }
 		if (auto tn = imcpp::TreeNode("Animation")) {
@@ -114,10 +115,10 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
 				[&](experiment::StaticMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.resources->static_meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.mesh_resources->static_meshes.get(smr.mesh).name}.c_str());
 				},
 				[&](experiment::SkinnedMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.resources->skinned_meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.mesh_resources->skinned_meshes.get(smr.mesh).name}.c_str());
 					inspect_skin(smr.skin);
 				},
 			};
@@ -197,10 +198,23 @@ void run(fs::path data_path) {
 		if (frame.state.input.chord(Key::eW, Key::eLeftControl) || frame.state.input.chord(Key::eW, Key::eRightControl)) { engine.shutdown(); }
 
 		for (auto const& drop : frame.state.drops) {
-			if (fs::path{drop}.extension() == ".gltf") {
-				mesh_resources = std::make_unique<MeshResources>();
-				scene = std::make_unique<experiment::Scene>(engine, *mesh_resources);
-				scene->import_gltf(drop.c_str());
+			auto path = fs::path{drop};
+			if (path.extension() == ".gltf") {
+				auto export_path = data_path / path.filename().stem();
+				scene->import_gltf(drop.c_str(), export_path.string().c_str());
+				break;
+			}
+			if (path.extension() == ".json") {
+				auto json = dj::Json::from_file(drop.c_str());
+				if (json["asset_type"].as_string() == "mesh") {
+					auto loader = AssetLoader{engine.device(), *mesh_resources};
+					auto const res = loader.try_load_mesh(drop.c_str());
+					auto visitor = Visitor{
+						[&](auto id) { scene->add_mesh_to_tree(id); },
+						[](std::monostate) {},
+					};
+					std::visit(visitor, res);
+				}
 				break;
 			}
 		}

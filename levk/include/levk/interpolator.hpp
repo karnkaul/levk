@@ -19,6 +19,8 @@ enum class Interpolation {
 
 template <typename T>
 struct Interpolator {
+	using value_type = T;
+
 	struct Keyframe {
 		T value{};
 		float timestamp{};

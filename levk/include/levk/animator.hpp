@@ -18,8 +18,9 @@ struct TransformAnimator {
 	struct Translate : Interpolator<glm::vec3> {};
 	struct Rotate : Interpolator<glm::quat> {};
 	struct Scale : Interpolator<glm::vec3> {};
+	using Sampler = std::variant<Translate, Rotate, Scale>;
 
-	std::variant<Translate, Rotate, Scale> channel{};
+	Sampler sampler{};
 	Id<Node> target{};
 
 	float duration() const;

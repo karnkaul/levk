@@ -35,7 +35,7 @@ class FileReader : public Reader {
 	~FileReader();
 
 	bool mount(std::string_view directory);
-	std::string absolute_path(std::string_view const uri) const;
+	std::string absolute_path_for(std::string_view const uri) const;
 
 	Data load(std::string const& uri, std::uint8_t flags = {}) override;
 	std::uint32_t reload_out_of_date(bool silent = false);

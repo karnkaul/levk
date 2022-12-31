@@ -9,6 +9,5 @@ struct MeshPrimitive {
 	MeshGeometry geometry;
 	Id<Material> material{};
 	Topology topology{Topology::eTriangleList};
-	PolygonMode polygon_mode{PolygonMode::eFill};
 };
 } // namespace levk

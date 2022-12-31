@@ -35,9 +35,9 @@ FileReader::FileReader(FileReader&&) noexcept = default;
 FileReader& FileReader::operator=(FileReader&&) noexcept = default;
 FileReader::~FileReader() = default;
 
-std::string FileReader::absolute_path(std::string_view const uri) const {
-	for (auto const& provider : m_impl->mounted) {
-		if (auto ret = provider.absolute_path(uri); !ret.empty()) { return ret; }
+std::string FileReader::absolute_path_for(std::string_view const uri) const {
+	for (auto const& loader : m_impl->mounted) {
+		if (auto ret = loader.absolute_path_for(uri); !ret.empty()) { return ret; }
 	}
 	return {};
 }
@@ -61,7 +61,7 @@ FileReader::Data FileReader::load(std::string const& uri, std::uint8_t flags) {
 		if ((flags & eReload)) {
 			entry.data = loader.load(uri);
 			if (!entry.data) { return reload(uri, flags); }
-			entry.lwt = fs::last_write_time(loader.absolute_path(uri));
+			entry.lwt = fs::last_write_time(loader.absolute_path_for(uri));
 			if (flags & eComputeHash) { entry.hash = compute_hash(entry.data.span()); }
 			if (!(flags & eSilent)) { logger::info("[FileReader] (Re)loaded URI: [{}]", uri); }
 		}
@@ -77,7 +77,7 @@ FileReader::Data FileReader::reload(std::string const& uri, std::uint8_t flags) 
 	for (auto const& [loader, index] : enumerate(m_impl->mounted)) {
 		auto data = loader.load(uri);
 		if (data) {
-			auto const lwt = fs::last_write_time(loader.absolute_path(uri));
+			auto const lwt = fs::last_write_time(loader.absolute_path_for(uri));
 			auto const hash = (flags & eComputeHash) ? compute_hash(data.span()) : 0;
 			auto [it, _] = m_impl->loaded.insert_or_assign(uri, Impl::Entry{std::move(data), index, hash, lwt});
 			if (!(flags & eSilent)) { logger::info("[FileReader] Loaded URI: [{}]", uri); }
@@ -93,7 +93,7 @@ std::uint32_t FileReader::reload_out_of_date(bool silent) {
 	auto lock = std::scoped_lock{m_impl->mutex};
 	for (auto& [uri, entry] : m_impl->loaded) {
 		auto const& loader = m_impl->mounted[entry.loader];
-		if (entry.lwt < fs::last_write_time(loader.absolute_path(uri))) {
+		if (entry.lwt < fs::last_write_time(loader.absolute_path_for(uri))) {
 			entry.data = loader.load(uri);
 			if (entry.hash) { entry.hash = compute_hash(entry.data.span()); }
 			if (!silent) { logger::info("[FileReader] Reloaded out of date URI: [{}]", uri); }

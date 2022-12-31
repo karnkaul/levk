@@ -23,7 +23,9 @@ FileLoader::FileLoader(std::string_view directory) {
 
 FileLoader FileLoader::mount_parent_dir(std::string_view filename) { return FileLoader{fs::path{filename}.parent_path().generic_string()}; }
 
-std::string FileLoader::absolute_path(std::string_view uri) const {
+std::string FileLoader::make_absolute_path(std::string_view uri) const { return get_absolute_path(m_directory, uri).generic_string(); }
+
+std::string FileLoader::absolute_path_for(std::string_view uri) const {
 	auto const path = get_absolute_path(m_directory, uri);
 	if (fs::exists(path)) { return path.generic_string(); }
 	return {};

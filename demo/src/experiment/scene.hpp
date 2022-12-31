@@ -1,5 +1,4 @@
 #pragma once
-#include <levk/editor/import_result.hpp>
 #include <levk/engine.hpp>
 #include <levk/mesh_resources.hpp>
 #include <levk/scene_tree.hpp>
@@ -44,15 +43,18 @@ class Scene {
   public:
 	struct Renderer;
 
-	Scene(Engine& engine, MeshResources& resources) : engine(&engine), resources(&resources) {}
+	Scene(Engine& engine, MeshResources& resources) : engine(&engine), mesh_resources(&resources) {}
 
-	editor::ImportResult import_gltf(char const* path);
+	bool import_gltf(char const* in_path, char const* out_path);
+	bool load_mesh_into_tree(char const* path);
+	bool add_mesh_to_tree(Id<SkinnedMesh> id);
+	bool add_mesh_to_tree(Id<StaticMesh> id);
 
 	void tick(Time dt);
 
 	SceneTree tree{};
 	Ptr<Engine> engine;
-	Ptr<MeshResources> resources;
+	Ptr<MeshResources> mesh_resources;
 
 	Id<Node> test_node{};
 };
