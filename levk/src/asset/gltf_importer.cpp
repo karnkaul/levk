@@ -72,7 +72,7 @@ template <typename T>
 Interpolator<T> make_interpolator(std::span<float const> times, std::span<T const> values, gltf2cpp::Interpolation interpolation) {
 	assert(times.size() == values.size());
 	auto ret = Interpolator<T>{};
-	for (auto [t, v] : zip_ranges(times, values)) { ret.keyframes.push_back({v, t}); }
+	for (auto [t, v] : zip_ranges(times, values)) { ret.keyframes.push_back({v, Time{t}}); }
 	ret.interpolation = static_cast<Interpolation>(interpolation);
 	return ret;
 }

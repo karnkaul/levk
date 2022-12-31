@@ -17,7 +17,7 @@ class MonotonicMap {
 
 	std::pair<Id<Type>, Type&> add(Type t = Type{}) {
 		auto lock = std::scoped_lock{m_mutex};
-		auto const id = ++m_next_id;
+		auto const id = ++m_prev_id;
 		if constexpr (IdSettableT<Type>) { t.set_id(id); }
 		auto& ret = *m_map.insert_or_assign(id, std::move(t)).first;
 		return {ret.first, ret.second};
@@ -84,6 +84,6 @@ class MonotonicMap {
   private:
 	std::unordered_map<IdType, Type> m_map{};
 	mutable std::mutex m_mutex{};
-	IdType m_next_id{};
+	IdType m_prev_id{};
 };
 } // namespace levk

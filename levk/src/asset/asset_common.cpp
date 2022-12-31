@@ -191,7 +191,7 @@ dj::Json make_json(std::vector<typename Interpolator<T>::Keyframe> const& keyfra
 	auto ret = dj::Json{};
 	for (auto const& in_kf : keyframes) {
 		auto out_kf = dj::Json{};
-		out_kf["timestamp"] = in_kf.timestamp;
+		out_kf["timestamp"] = in_kf.timestamp.count();
 		out_kf["value"] = make_json(in_kf.value);
 		ret.push_back(std::move(out_kf));
 	}
@@ -203,7 +203,7 @@ std::vector<typename Interpolator<T>::Keyframe> make_keyframes(dj::Json const& j
 	auto ret = std::vector<typename Interpolator<T>::Keyframe>{};
 	for (auto const& in_kf : json.array_view()) {
 		auto out_kf = typename Interpolator<T>::Keyframe{};
-		out_kf.timestamp = in_kf["timestamp"].as<float>();
+		out_kf.timestamp = Time{in_kf["timestamp"].as<float>()};
 		out_kf.value = glm_from_json<T>(in_kf["value"]);
 		ret.push_back(std::move(out_kf));
 	}

@@ -7,7 +7,7 @@
 namespace levk {
 Node& Node::Tree::add(CreateInfo const& create_info) {
 	auto node = Node{};
-	node.m_id = ++m_next_id;
+	node.m_id = ++m_prev_id;
 	node.transform = create_info.transform;
 	node.entity = create_info.entity;
 	assert(node.m_id != create_info.parent);

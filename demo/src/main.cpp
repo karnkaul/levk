@@ -105,7 +105,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 			}
 			if (skin.enabled) {
 				auto& animation = skin.skeleton.animations[*skin.enabled];
-				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", animation.duration()}.c_str());
+				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", animation.duration().count()}.c_str());
 				float const progress = animation.elapsed / animation.duration();
 				ImGui::ProgressBar(progress);
 			}

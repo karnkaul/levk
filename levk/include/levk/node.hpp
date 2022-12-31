@@ -64,6 +64,6 @@ class Node::Tree {
 
 	Map m_nodes{};
 	std::vector<Id<Node>> m_roots{};
-	Id<Node>::id_type m_next_id{};
+	Id<Node>::id_type m_prev_id{};
 };
 } // namespace levk

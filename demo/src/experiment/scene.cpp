@@ -117,7 +117,7 @@ void SkinnedMeshRenderer::Skin::change_animation(std::optional<Id<Animation>> in
 
 void SkinnedMeshRenderer::tick(Node::Tree& tree, Time dt) {
 	if (!skin.enabled || *skin.enabled >= skin.skeleton.animations.size()) { return; }
-	skin.skeleton.animations[*skin.enabled].update(tree, dt.count());
+	skin.skeleton.animations[*skin.enabled].update(tree, dt);
 }
 
 void SkinnedMeshRenderer::render(GraphicsDevice& device, MeshResources const& resources, Node::Tree const& tree) const {

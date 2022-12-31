@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/transform.hpp>
+#include <levk/util/time.hpp>
 #include <algorithm>
 #include <cassert>
 #include <optional>
@@ -23,23 +24,23 @@ struct Interpolator {
 
 	struct Keyframe {
 		T value{};
-		float timestamp{};
+		Time timestamp{};
 	};
 
 	std::vector<Keyframe> keyframes{};
 	Interpolation interpolation{};
 
-	float duration() const { return keyframes.empty() ? 0.0f : keyframes.back().timestamp; }
+	Time duration() const { return keyframes.empty() ? Time{} : keyframes.back().timestamp; }
 
-	std::optional<std::size_t> index_for(float time) const {
+	std::optional<std::size_t> index_for(Time time) const {
 		if (keyframes.empty()) { return {}; }
 
-		auto const it = std::lower_bound(keyframes.begin(), keyframes.end(), time, [](Keyframe const& k, float time) { return k.timestamp < time; });
+		auto const it = std::lower_bound(keyframes.begin(), keyframes.end(), time, [](Keyframe const& k, Time time) { return k.timestamp < time; });
 		if (it == keyframes.end()) { return {}; }
 		return static_cast<std::size_t>(it - keyframes.begin());
 	}
 
-	std::optional<T> operator()(float elapsed) const {
+	std::optional<T> operator()(Time elapsed) const {
 		if (keyframes.empty()) { return {}; }
 
 		auto const i_next = index_for(elapsed);
