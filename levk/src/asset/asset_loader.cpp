@@ -130,7 +130,7 @@ Id<SkinnedMesh> AssetLoader::load_skinned_mesh(char const* path, dj::Json const&
 	auto mesh = make_mesh<SkinnedMesh>(json, *this, dir);
 	if (auto const& skeleton = json["skeleton"]) {
 		auto const skeleton_uri = dir / skeleton.as_string();
-		mesh.skeleton = load_skeleton(skeleton_uri.c_str());
+		mesh.skeleton = load_skeleton(skeleton_uri.string().c_str());
 	}
 	logger::info("[Load] [{}] SkinnedMesh loaded", mesh.name);
 	return mesh_resources.skinned_meshes.add(std::move(mesh)).first;

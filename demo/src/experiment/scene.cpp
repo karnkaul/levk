@@ -13,7 +13,7 @@ bool Scene::import_gltf(char const* in_path, char const* out_path) {
 	auto dst = fs::path{out_path};
 	auto src_filename = src.filename().stem();
 	auto export_path = dst / src_filename;
-	auto asset_list = asset::GltfAssetImporter::peek(src);
+	auto asset_list = asset::GltfImporter::peek(in_path);
 
 	if (!asset_list) { return {}; }
 
@@ -22,8 +22,8 @@ bool Scene::import_gltf(char const* in_path, char const* out_path) {
 		return {};
 	}
 
-	auto mesh_asset = [&]() -> Ptr<asset::GltfAssetView const> {
-		auto const func = [](asset::GltfAssetView const& asset) { return asset.index == 0; };
+	auto mesh_asset = [&]() -> Ptr<asset::GltfAsset const> {
+		auto const func = [](asset::GltfAsset const& asset) { return asset.index == 0; };
 		if (auto it = std::find_if(asset_list.static_meshes.begin(), asset_list.static_meshes.end(), func); it != asset_list.static_meshes.end()) {
 			return &*it;
 		}

@@ -152,17 +152,17 @@ struct MapGltfNodesToJoints {
 	}
 };
 
-GltfAssetView make_gltf_asset_view(std::string_view gltf_name, std::size_t index, std::string_view asset_type, Bool index_suffix = {true}) {
+GltfAsset make_gltf_asset_view(std::string_view gltf_name, std::size_t index, std::string_view asset_type, Bool index_suffix = {true}) {
 	assert(!asset_type.empty());
-	auto ret = GltfAssetView{.gltf_name = std::string{gltf_name}, .index = index};
+	auto ret = GltfAsset{.gltf_name = std::string{gltf_name}, .index = index};
 	ret.asset_name = gltf_name.empty() ? asset_type : ret.gltf_name;
 	if (index_suffix) { fmt::format_to(std::back_inserter(ret.asset_name), "_{}", index); }
 	if (!gltf_name.empty()) { fmt::format_to(std::back_inserter(ret.asset_name), ".{}", asset_type); }
 	return ret;
 }
 
-GltfAssetView::List make_gltf_asset_view_list(dj::Json const& json) {
-	auto ret = GltfAssetView::List{};
+GltfAsset::List make_gltf_asset_view_list(dj::Json const& json) {
+	auto ret = GltfAsset::List{};
 	for (auto const [mesh, index] : enumerate(json["meshes"].array_view())) {
 		auto const& primitives = mesh["primitives"];
 		if (!primitives || primitives.array_view().empty()) { continue; }
@@ -195,7 +195,7 @@ struct GltfExporter {
 		std::unordered_map<Index<gltf2cpp::Skin>, std::string> skeletons{};
 	} exported{};
 
-	std::optional<Index<gltf2cpp::Skin>> find_skin(GltfAssetView const& av_mesh) const {
+	std::optional<Index<gltf2cpp::Skin>> find_skin(GltfAsset const& av_mesh) const {
 		for (auto const [node, index] : enumerate(in_root.nodes)) {
 			if (node.mesh && *node.mesh == av_mesh.index) {
 				if (!node.skin) {
@@ -227,7 +227,7 @@ struct GltfExporter {
 
 	std::string copy_image(gltf2cpp::Texture const& in, std::size_t index) { return copy_image(in_root.images[in.source], index); }
 
-	Uri<Material> export_material(GltfAssetView const& av_material) {
+	Uri<Material> export_material(GltfAsset const& av_material) {
 		if (auto it = exported.materials.find(av_material.index); it != exported.materials.end()) { return it->second; }
 		auto const& in = in_root.materials[av_material.index];
 		auto material = asset::Material{};
@@ -269,7 +269,7 @@ struct GltfExporter {
 		return uri;
 	}
 
-	Uri<Mesh> export_mesh(GltfAssetView const& av_mesh) {
+	Uri<Mesh> export_mesh(GltfAsset const& av_mesh) {
 		auto out_mesh = Mesh{.type = Mesh::Type::eStatic};
 		auto const& in_mesh = in_root.meshes[av_mesh.index];
 		for (auto const& [in_primitive, primitive_index] : enumerate(in_mesh.primitives)) {
@@ -321,7 +321,7 @@ struct GltfExporter {
 		return uri;
 	}
 
-	Uri<Skeleton> export_skeleton(GltfAssetView const& av_skin) {
+	Uri<Skeleton> export_skeleton(GltfAsset const& av_skin) {
 		auto skin_node = Ptr<gltf2cpp::Node const>{};
 		for (auto& node : in_root.nodes) {
 			if (node.skin && *node.skin == av_skin.index) { skin_node = &node; }
@@ -480,20 +480,20 @@ bool BinGeometry::read(char const* path) {
 	return true;
 }
 
-GltfAssetImporter::List GltfAssetImporter::peek(std::string gltf_path, logger::Dispatch const& import_logger) {
-	auto ret = GltfAssetImporter::List{};
+GltfImporter::List GltfImporter::peek(std::string gltf_path, logger::Dispatch const& import_logger) {
+	auto ret = GltfImporter::List{};
 	ret.import_logger = import_logger;
 	if (!fs::is_regular_file(gltf_path)) {
 		import_logger.error("[Import] Invalid GLTF file path [{}]", gltf_path);
 		return ret;
 	}
-	static_cast<GltfAssetView::List&>(ret) = make_gltf_asset_view_list(dj::Json::from_file(gltf_path.c_str()));
+	static_cast<GltfAsset::List&>(ret) = make_gltf_asset_view_list(dj::Json::from_file(gltf_path.c_str()));
 	ret.gltf_path = std::move(gltf_path);
 	return ret;
 }
 
-GltfAssetImporter GltfAssetImporter::List::importer(std::string dest_dir) const {
-	auto ret = GltfAssetImporter{import_logger};
+GltfImporter GltfImporter::List::importer(std::string dest_dir) const {
+	auto ret = GltfImporter{import_logger};
 	if (gltf_path.empty()) {
 		import_logger.error("[Import] Empty GLTF file path");
 		return ret;
@@ -517,5 +517,5 @@ GltfAssetImporter GltfAssetImporter::List::importer(std::string dest_dir) const 
 	return ret;
 }
 
-Uri<Mesh> GltfAssetImporter::import_mesh(GltfAssetView const& mesh) const { return GltfExporter{import_logger, root, src_dir, dest_dir}.export_mesh(mesh); }
+Uri<Mesh> GltfImporter::import_mesh(GltfAsset const& mesh) const { return GltfExporter{import_logger, root, src_dir, dest_dir}.export_mesh(mesh); }
 } // namespace levk::asset

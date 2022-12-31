@@ -6,7 +6,7 @@
 #include <levk/util/logger.hpp>
 
 namespace levk::asset {
-struct GltfAssetView {
+struct GltfAsset {
 	struct List;
 
 	std::string gltf_name{};
@@ -14,30 +14,30 @@ struct GltfAssetView {
 	std::size_t index{};
 };
 
-struct GltfAssetView::List {
-	std::vector<GltfAssetView> static_meshes{};
-	std::vector<GltfAssetView> skinned_meshes{};
-	std::vector<GltfAssetView> skeletons{};
+struct GltfAsset::List {
+	std::vector<GltfAsset> static_meshes{};
+	std::vector<GltfAsset> skinned_meshes{};
+	std::vector<GltfAsset> skeletons{};
 };
 
-struct GltfAssetImporter {
+struct GltfImporter {
 	logger::Dispatch import_logger{};
 	gltf2cpp::Root root{};
 	std::string src_dir{};
 	std::string dest_dir{};
 
-	struct List : GltfAssetView::List {
+	struct List : GltfAsset::List {
 		logger::Dispatch import_logger{};
 		std::string gltf_path{};
 
-		GltfAssetImporter importer(std::string dest_dir) const;
+		GltfImporter importer(std::string dest_dir) const;
 
 		explicit operator bool() const { return !gltf_path.empty(); }
 	};
 
 	static List peek(std::string gltf_path, logger::Dispatch const& import_logger = {});
 
-	Uri<Mesh> import_mesh(GltfAssetView const& mesh) const;
+	Uri<Mesh> import_mesh(GltfAsset const& mesh) const;
 
 	explicit operator bool() const { return !dest_dir.empty() && root; }
 };
