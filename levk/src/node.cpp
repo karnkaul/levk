@@ -28,8 +28,8 @@ Node& Node::Tree::add(CreateInfo const& create_info) {
 
 void Node::Tree::remove(Id<Node> id) {
 	if (auto it = m_nodes.find(id); it != m_nodes.end()) {
-		set_parent_on_children(it->second, {});
 		remove_child_from_parent(it->second);
+		destroy_children(it->second);
 		m_nodes.erase(it);
 		std::erase(m_roots, id);
 	}
@@ -39,7 +39,6 @@ void Node::Tree::reparent(Node& out, Id<Node> new_parent) {
 	assert(out.m_id != new_parent);
 	if (!out.m_parent && new_parent) { std::erase(m_roots, out.m_id); }
 	if (out.m_parent && !new_parent) { m_roots.push_back(out.m_id); }
-	set_parent_on_children(out, new_parent);
 	remove_child_from_parent(out);
 	if (auto* parent = find(new_parent)) { parent->m_children.push_back(out.m_id); }
 	out.m_parent = new_parent;
@@ -51,14 +50,21 @@ glm::mat4 Node::Tree::global_transform(Node const& node) const {
 	return ret;
 }
 
-void Node::Tree::set_parent_on_children(Node& out, Id<Node> parent) {
-	for (auto& child : out.m_children) {
-		if (auto* entity = find(child)) { entity->m_parent = parent; }
+void Node::Tree::remove_child_from_parent(Node& out) {
+	if (auto* parent = find(out.m_parent)) {
+		std::erase(parent->m_children, out.m_id);
+		out.m_parent = {};
 	}
 }
 
-void Node::Tree::remove_child_from_parent(Node& out) {
-	if (auto* parent = find(out.m_parent)) { std::erase(parent->m_children, out.m_id); }
+void Node::Tree::destroy_children(Node& out) {
+	for (auto const id : out.m_children) {
+		if (auto it = m_nodes.find(id); it != m_nodes.end()) {
+			destroy_children(it->second);
+			m_nodes.erase(it);
+		}
+	}
+	out.m_children.clear();
 }
 
 Ptr<Node const> Node::Tree::find(Id<Node> id) const {

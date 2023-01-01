@@ -63,7 +63,7 @@ bool Scene::add_mesh_to_tree(Id<SkinnedMesh> id) {
 		logger::warn("[Scene] Failed to find SkinnedMesh [{}]", id.value());
 		return false;
 	}
-	auto& node = tree.add({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
+	auto& node = tree.spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
 	auto& entity = tree.entities.get(node.entity);
 	auto skin = experiment::SkinnedMeshRenderer::Skin{};
 	if (mesh->skeleton) {
@@ -86,7 +86,7 @@ bool Scene::add_mesh_to_tree(Id<StaticMesh> id) {
 		logger::warn("[Scene] Failed to find StaticMesh [{}]", id.value());
 		return false;
 	}
-	auto& node = tree.add({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
+	auto& node = tree.spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
 	auto& entity = tree.entities.get(node.entity);
 	auto mesh_renderer = experiment::StaticMeshRenderer{
 		id,

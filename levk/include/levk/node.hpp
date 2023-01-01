@@ -59,8 +59,8 @@ class Node::Tree {
 	Map const& map() const { return m_nodes; }
 
   private:
-	void set_parent_on_children(Node& out, Id<Node> parent);
 	void remove_child_from_parent(Node& out);
+	void destroy_children(Node& out);
 
 	Map m_nodes{};
 	std::vector<Id<Node>> m_roots{};

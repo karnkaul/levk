@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/util/id.hpp>
+#include <levk/util/monotonic_map.hpp>
 #include <levk/util/ptr.hpp>
 #include <levk/util/type_id.hpp>
 #include <memory>
@@ -8,9 +9,6 @@
 namespace levk {
 template <typename T>
 concept AttachmentT = std::is_move_constructible_v<T>;
-
-template <typename Type, typename IdType>
-class MonotonicMap;
 
 class Entity {
   public:

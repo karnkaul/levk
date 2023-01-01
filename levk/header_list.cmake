@@ -75,7 +75,6 @@ set(levk_headers
   include/levk/node.hpp
   include/levk/pixel_map.hpp
   include/levk/rgba.hpp
-  include/levk/scene_tree.hpp
   include/levk/service.hpp
   include/levk/shader.hpp
   include/levk/skeleton.hpp
