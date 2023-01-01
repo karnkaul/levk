@@ -43,8 +43,6 @@ class Scene {
   public:
 	struct Renderer;
 
-	Scene(Engine& engine, MeshResources& resources) : engine(&engine), mesh_resources(&resources) {}
-
 	bool import_gltf(char const* in_path, char const* out_path);
 	bool load_mesh_into_tree(char const* path);
 	bool add_mesh_to_tree(Id<SkinnedMesh> id);
@@ -53,8 +51,6 @@ class Scene {
 	void tick(Time dt);
 
 	SceneTree tree{};
-	Ptr<Engine> engine;
-	Ptr<MeshResources> mesh_resources;
 
 	Id<Node> test_node{};
 };

@@ -15,6 +15,7 @@
 
 #include <experiment/scene.hpp>
 #include <levk/asset/asset_loader.hpp>
+#include <levk/service.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -85,7 +86,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 	auto* entity = scene.tree.entities.find(node->entity);
 	if (!entity) { return; }
 	auto inspect_skin = [&](experiment::SkinnedMeshRenderer::Skin& skin) {
-		auto const& skeleton = scene.mesh_resources->skeletons.get(skin.skeleton.source);
+		auto const& skeleton = Service<MeshResources>::get().skeletons.get(skin.skeleton.source);
 		imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
 		if (skin.skeleton.animations.empty()) { return; }
 		if (auto tn = imcpp::TreeNode("Animation")) {
@@ -115,10 +116,10 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
 				[&](experiment::StaticMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.mesh_resources->static_meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<MeshResources>::get().static_meshes.get(smr.mesh).name}.c_str());
 				},
 				[&](experiment::SkinnedMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.mesh_resources->skinned_meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<MeshResources>::get().skinned_meshes.get(smr.mesh).name}.c_str());
 					inspect_skin(smr.skin);
 				},
 			};
@@ -182,12 +183,19 @@ struct FreeCam {
 	}
 };
 
+struct Services {
+	std::optional<Service<Engine>::Instance> engine{};
+	Service<MeshResources>::Instance mesh_resources{};
+};
+
 void run(fs::path data_path) {
 	auto reader = FileReader{};
 	reader.mount(data_path.generic_string());
-	auto engine = make_engine(reader);
-	auto mesh_resources = std::make_unique<MeshResources>();
-	auto scene = std::make_unique<experiment::Scene>(engine, *mesh_resources);
+	auto services = Services{};
+	services.engine.emplace(make_engine(reader));
+	auto& engine = Service<Engine>::locate();
+	auto& mesh_resources = Service<MeshResources>::locate();
+	auto scene = std::make_unique<experiment::Scene>();
 	auto free_cam = FreeCam{&engine.window()};
 	auto inspect = Id<Node>{};
 
@@ -207,7 +215,7 @@ void run(fs::path data_path) {
 			if (path.extension() == ".json") {
 				auto json = dj::Json::from_file(drop.c_str());
 				if (json["asset_type"].as_string() == "mesh") {
-					auto loader = AssetLoader{engine.device(), *mesh_resources};
+					auto loader = AssetLoader{engine.device(), mesh_resources};
 					auto const res = loader.try_load_mesh(drop.c_str());
 					auto visitor = Visitor{
 						[&](auto id) { scene->add_mesh_to_tree(id); },

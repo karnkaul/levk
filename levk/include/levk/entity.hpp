@@ -14,7 +14,7 @@ class MonotonicMap;
 
 class Entity {
   public:
-	using Map = MonotonicMap<Entity, std::size_t>;
+	using Map = MonotonicMap<Entity, Id<Entity>>;
 
 	template <AttachmentT T>
 	T& attach(T t) {
