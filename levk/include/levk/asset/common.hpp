@@ -62,6 +62,7 @@ struct Mesh {
 	};
 
 	std::vector<Primitive> primitives{};
+	std::vector<glm::mat4> inverse_bind_matrices{};
 	Uri<Skeleton> skeleton{};
 	std::string name{};
 	Type type{};

@@ -2337,8 +2337,9 @@ void render_mesh(VulkanDevice const& device, RenderInfoT const& info, RenderCmd 
 			assert(primitive.geometry.has_joints());
 			auto joints_set = vmg->impl->joints_set();
 			assert(joints_set);
+			assert(info.mesh.inverse_bind_matrices.size() >= info.skeleton.joints.size());
 			auto rewrite = [&](glm::mat4& out, std::size_t index) {
-				out = info.tree.global_transform(info.tree.get(info.skeleton.joints[index])) * info.skeleton.inverse_bind_matrices[index];
+				out = info.tree.global_transform(info.tree.get(info.skeleton.joints[index])) * info.mesh.inverse_bind_matrices[index];
 			};
 			auto const joint_mats = [&] {
 				return device.impl->joints_vec.write(device.impl->vma, info.skeleton.joints.size(), device.impl->buffered_index, rewrite);

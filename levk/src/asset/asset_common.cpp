@@ -299,6 +299,7 @@ void asset::from_json(dj::Json const& json, Mesh& out) {
 		out.primitives.push_back(std::move(primitive));
 	}
 	out.skeleton = std::string{json["skeleton"].as_string()};
+	for (auto const& in_ibm : json["inverse_bind_matrices"].array_view()) { out.inverse_bind_matrices.push_back(glm_mat_from_json(in_ibm)); }
 	out.name = json["name"].as_string();
 }
 
@@ -315,14 +316,19 @@ void asset::to_json(dj::Json& out, Mesh const& asset) {
 		}
 		out["primitives"] = std::move(primitives);
 	}
-	if (!asset.skeleton.value().empty()) { out["skeleton"] = asset.skeleton.value(); }
+	if (!asset.skeleton.value().empty()) {
+		out["skeleton"] = asset.skeleton.value();
+		assert(!asset.inverse_bind_matrices.empty());
+		auto ibm = dj::Json{};
+		for (auto const& in_ibm : asset.inverse_bind_matrices) { ibm.push_back(make_json(in_ibm)); }
+		out["inverse_bind_matrices"] = std::move(ibm);
+	}
 	out["name"] = asset.name;
 }
 
 void asset::from_json(dj::Json const& json, Skeleton& out) {
 	assert(json["asset_type"].as_string() == "skeleton");
 	out.skeleton.name = json["name"].as_string();
-	for (auto const& in_ibm : json["inverse_bind_matrices"].array_view()) { out.skeleton.inverse_bind_matrices.push_back(glm_mat_from_json(in_ibm)); }
 	for (auto const& in_joint : json["joints"].array_view()) {
 		auto& out_joint = out.skeleton.joints.emplace_back();
 		out_joint.name = in_joint["name"].as_string();
@@ -345,9 +351,6 @@ void asset::from_json(dj::Json const& json, Skeleton& out) {
 void asset::to_json(dj::Json& out, Skeleton const& asset) {
 	out["asset_type"] = "skeleton";
 	out["name"] = asset.skeleton.name;
-	auto ibm = dj::Json{};
-	for (auto const& in_ibm : asset.skeleton.inverse_bind_matrices) { ibm.push_back(make_json(in_ibm)); }
-	out["inverse_bind_matrices"] = std::move(ibm);
 	auto joints = dj::Json{};
 	for (auto const& in_joint : asset.skeleton.joints) {
 		auto out_joint = dj::Json{};

@@ -8,7 +8,6 @@ struct SkeletonInstance {
 	Id<Node> root{};
 	std::vector<Id<Node>> joints{};
 	std::vector<Animation> animations{};
-	std::vector<glm::mat4> inverse_bind_matrices{};
 	Id<Skeleton> source{};
 };
 
@@ -37,7 +36,6 @@ struct Skeleton {
 		std::vector<Channel> channels{};
 	};
 
-	std::vector<glm::mat4> inverse_bind_matrices{};
 	std::vector<Joint> joints{};
 	std::vector<Clip> clips{};
 	std::string name{};

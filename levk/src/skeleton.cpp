@@ -24,7 +24,7 @@ Skeleton::Instance Skeleton::instantiate(Node::Tree& out, Id<Node> root) const {
 		logger::warn("[SkeletonInstance] [{}] Invalid root node provided, creating one instead", name);
 		root = out.add({.name = name}).id();
 	}
-	auto ret = Instance{.root = root, .inverse_bind_matrices = inverse_bind_matrices, .source = self};
+	auto ret = Instance{.root = root, .source = self};
 	auto map = JointToNode{};
 	for (std::size_t i = 0; i < joints.size(); ++i) { add_to(ret, out, map, joints, i, root); }
 	for (auto const& joint : joints) {

@@ -50,6 +50,7 @@ T make_mesh(dj::Json const& json, AssetLoader const& loader, fs::path const& dir
 		auto geometry = loader.graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
 		ret.primitives.push_back(MeshPrimitive{std::move(geometry), material_id});
 	}
+	if constexpr (std::same_as<T, SkinnedMesh>) { ret.inverse_bind_matrices = asset.inverse_bind_matrices; }
 	return ret;
 }
 

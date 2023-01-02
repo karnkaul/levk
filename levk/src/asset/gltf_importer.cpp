@@ -155,9 +155,10 @@ struct MapGltfNodesToJoints {
 GltfAsset make_gltf_asset_view(std::string_view gltf_name, std::size_t index, std::string_view asset_type, Bool index_suffix = {true}) {
 	assert(!asset_type.empty());
 	auto ret = GltfAsset{.gltf_name = std::string{gltf_name}, .index = index};
-	ret.asset_name = gltf_name.empty() ? asset_type : ret.gltf_name;
+	bool const has_name = !gltf_name.empty() && gltf_name != "(Unnamed)";
+	ret.asset_name = has_name ? ret.gltf_name : asset_type;
 	if (index_suffix) { fmt::format_to(std::back_inserter(ret.asset_name), "_{}", index); }
-	if (!gltf_name.empty()) { fmt::format_to(std::back_inserter(ret.asset_name), ".{}", asset_type); }
+	if (has_name) { fmt::format_to(std::back_inserter(ret.asset_name), ".{}", asset_type); }
 	return ret;
 }
 
@@ -176,7 +177,7 @@ GltfAsset::List make_gltf_asset_view_list(dj::Json const& json) {
 		}
 	}
 	for (auto const [skin, index] : enumerate(json["skins"].array_view())) {
-		ret.skeletons.push_back(make_gltf_asset_view(skin["name"].as_string(), index, "skeleton", {true}));
+		ret.skeletons.push_back(make_gltf_asset_view(skin["name"].as_string(), index, "skeleton", {false}));
 	}
 	return ret;
 }
@@ -305,7 +306,15 @@ struct GltfExporter {
 				return {};
 			}
 			auto const& in_skin = in_root.skins[*skin];
-			out_mesh.skeleton = export_skeleton(make_gltf_asset_view(in_skin.name, *skin, "skeleton"));
+			if (in_skin.inverse_bind_matrices) {
+				auto const ibm = in_root.accessors[*in_skin.inverse_bind_matrices].to_mat4();
+				assert(ibm.size() >= in_skin.joints.size());
+				out_mesh.inverse_bind_matrices.reserve(ibm.size());
+				for (auto const& mat : ibm) { out_mesh.inverse_bind_matrices.push_back(from(mat)); }
+			} else {
+				out_mesh.inverse_bind_matrices = std::vector<glm::mat4>(in_skin.joints.size(), glm::identity<glm::mat4x4>());
+			}
+			out_mesh.skeleton = export_skeleton(make_gltf_asset_view(in_skin.name, *skin, "skeleton", {false}));
 		}
 		auto uri = fmt::format("{}.json", av_mesh.asset_name);
 		out_mesh.name = fs::path{av_mesh.asset_name}.stem().string();
@@ -381,15 +390,6 @@ struct GltfExporter {
 				clip.channels.push_back(std::move(channel));
 			}
 			if (!clip.channels.empty()) { skeleton.clips.push_back(std::move(clip)); }
-		}
-
-		if (in.inverse_bind_matrices) {
-			auto const ibm = in_root.accessors[*in.inverse_bind_matrices].to_mat4();
-			assert(ibm.size() >= in.joints.size());
-			skeleton.inverse_bind_matrices.reserve(ibm.size());
-			for (auto const& mat : ibm) { skeleton.inverse_bind_matrices.push_back(from(mat)); }
-		} else {
-			skeleton.inverse_bind_matrices = std::vector<glm::mat4x4>(skeleton.joints.size(), glm::identity<glm::mat4x4>());
 		}
 
 		auto asset = Skeleton{std::move(skeleton)};
