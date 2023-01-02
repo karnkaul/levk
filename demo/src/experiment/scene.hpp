@@ -1,5 +1,6 @@
 #pragma once
-#include <experiment/scene_tree.hpp>
+#include <experiment/component.hpp>
+#include <experiment/entity.hpp>
 #include <levk/engine.hpp>
 #include <levk/mesh_resources.hpp>
 #include <levk/util/reader.hpp>
@@ -9,34 +10,31 @@
 namespace levk::experiment {
 struct StaticMeshRenderer {
 	Id<StaticMesh> mesh{};
-	Id<Node> node{};
 	std::vector<Transform> instances{};
 
-	void render(GraphicsDevice& device, MeshResources const& resources, Node::Tree const& tree) const;
+	void render(Entity const& entity) const;
+};
+
+struct SkeletonController : TickComponent {
+	std::optional<Id<Animation>> enabled{};
+
+	void change_animation(std::optional<Id<Animation>> index);
+	void tick(Time dt) override;
 };
 
 struct SkinnedMeshRenderer {
-	struct Skin {
-		std::optional<Id<Animation>> enabled{};
-		Skeleton::Instance skeleton{};
-
-		void change_animation(std::optional<Id<Animation>> index);
-	};
-
+	Skeleton::Instance skeleton{};
 	Id<SkinnedMesh> mesh{};
-	Skin skin{};
 
-	void tick(Node::Tree& tree, Time dt);
-	void render(GraphicsDevice& device, MeshResources const& resources, Node::Tree const& tree) const;
+	void render(Entity const& entity) const;
 };
 
-struct MeshRenderer {
-	Ptr<GraphicsDevice> device;
-	Ptr<MeshResources const> resources;
+struct MeshRenderer : Entity::Renderer {
 	std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer{};
 
-	void tick(Node::Tree& tree, Time dt);
-	void render(Node::Tree const& tree) const;
+	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer) : renderer(std::move(renderer)) {}
+
+	void render(Entity const& entity) const override;
 };
 
 class Scene {
@@ -48,11 +46,14 @@ class Scene {
 	bool add_mesh_to_tree(Id<SkinnedMesh> id);
 	bool add_mesh_to_tree(Id<StaticMesh> id);
 
+	Node& spawn(Entity entity, Node::CreateInfo const& node_create_info = {});
 	void tick(Time dt);
 
-	SceneTree tree{};
+	MonotonicMap<Entity> entities{};
+	Node::Tree nodes{};
 
 	Id<Node> test_node{};
+	std::vector<Ptr<Entity>> sorted{};
 };
 
 struct Scene::Renderer : GraphicsRenderer {

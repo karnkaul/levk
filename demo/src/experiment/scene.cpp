@@ -1,6 +1,7 @@
 #include <experiment/scene.hpp>
 #include <levk/asset/asset_loader.hpp>
 #include <levk/asset/gltf_importer.hpp>
+#include <levk/engine.hpp>
 #include <levk/service.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/visitor.hpp>
@@ -63,19 +64,21 @@ bool Scene::add_mesh_to_tree(Id<SkinnedMesh> id) {
 		logger::warn("[Scene] Failed to find SkinnedMesh [{}]", id.value());
 		return false;
 	}
-	auto& node = tree.spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
-	auto& entity = tree.entities.get(node.entity);
-	auto skin = experiment::SkinnedMeshRenderer::Skin{};
+	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
+	auto& entity = entities.get({node.entity});
+	auto skeleton = Skeleton::Instance{};
+	auto enabled = std::optional<Id<Animation>>{};
 	if (mesh->skeleton) {
-		auto const& skeleton = mesh_resources.skeletons.get(mesh->skeleton);
-		skin.skeleton = skeleton.instantiate(tree.nodes, node.id());
-		if (!skin.skeleton.animations.empty()) { skin.enabled = 0; }
+		auto const& source_skeleton = mesh_resources.skeletons.get(mesh->skeleton);
+		skeleton = source_skeleton.instantiate(nodes, node.id());
+		if (!skeleton.animations.empty()) { enabled = 0; }
 	}
-	auto mesh_renderer = experiment::SkinnedMeshRenderer{
+	auto mesh_renderer = SkinnedMeshRenderer{
+		skeleton,
 		id,
-		skin,
 	};
-	entity.attach(experiment::MeshRenderer{&Service<Engine>::get().device(), &mesh_resources, std::move(mesh_renderer)});
+	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
+	entity.attach(std::make_unique<SkeletonController>()).enabled = enabled;
 	return true;
 }
 
@@ -86,73 +89,88 @@ bool Scene::add_mesh_to_tree(Id<StaticMesh> id) {
 		logger::warn("[Scene] Failed to find StaticMesh [{}]", id.value());
 		return false;
 	}
-	auto& node = tree.spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
-	auto& entity = tree.entities.get(node.entity);
-	auto mesh_renderer = experiment::StaticMeshRenderer{
-		id,
-		node.id(),
-	};
-	entity.attach(experiment::MeshRenderer{&Service<Engine>().get().device(), &mesh_resources, std::move(mesh_renderer)});
+	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
+	auto& entity = entities.get({node.entity});
+	auto mesh_renderer = StaticMeshRenderer{id};
+	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
 	return true;
 }
 
-void StaticMeshRenderer::render(GraphicsDevice& device, MeshResources const& resources, Node::Tree const& tree) const {
-	auto const& m = resources.static_meshes.get(mesh);
-	if (m.primitives.empty()) { return; }
-	if (instances.empty()) {
-		static auto const s_instance = Transform{};
-		device.render(m, resources, {&s_instance, 1u}, tree.global_transform(tree.get(node)));
-	} else {
-		device.render(m, resources, instances, tree.global_transform(tree.get(node)));
-	}
-}
-
-void SkinnedMeshRenderer::Skin::change_animation(std::optional<Id<Animation>> index) {
+void SkeletonController::change_animation(std::optional<Id<Animation>> index) {
 	if (index != enabled) {
-		if (index && *index >= skeleton.animations.size()) {
+		auto* mesh_renderer = dynamic_cast<MeshRenderer*>(entity().renderer());
+		if (!mesh_renderer) { return; }
+		auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
+		if (index && *index >= skinned_mesh_renderer->skeleton.animations.size()) {
 			enabled.reset();
 			return;
 		}
-		if (enabled) { skeleton.animations[*enabled].elapsed = {}; }
+		if (enabled) { skinned_mesh_renderer->skeleton.animations[*enabled].elapsed = {}; }
 		enabled = index;
 	}
 }
 
-void SkinnedMeshRenderer::tick(Node::Tree& tree, Time dt) {
-	if (!skin.enabled || *skin.enabled >= skin.skeleton.animations.size()) { return; }
-	skin.skeleton.animations[*skin.enabled].update(tree, dt);
+void SkeletonController::tick(Time dt) {
+	if (!enabled) { return; }
+	auto* mesh_renderer = dynamic_cast<MeshRenderer*>(entity().renderer());
+	if (!mesh_renderer) { return; }
+	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
+	if (!skinned_mesh_renderer) { return; }
+	assert(*enabled < skinned_mesh_renderer->skeleton.animations.size());
+	skinned_mesh_renderer->skeleton.animations[*enabled].update(scene().nodes, dt);
 }
 
-void SkinnedMeshRenderer::render(GraphicsDevice& device, MeshResources const& resources, Node::Tree const& tree) const {
+void StaticMeshRenderer::render(Entity const& entity) const {
+	auto const& tree = entity.scene().nodes;
+	auto const& resources = Service<MeshResources>::locate();
+	auto const& m = resources.static_meshes.get(mesh);
+	if (m.primitives.empty()) { return; }
+	auto& device = Service<Engine>::locate().device();
+	if (instances.empty()) {
+		static auto const s_instance = Transform{};
+		device.render(m, resources, {&s_instance, 1u}, tree.global_transform(tree.get(entity.node_id())));
+	} else {
+		device.render(m, resources, instances, tree.global_transform(tree.get(entity.node_id())));
+	}
+}
+
+void SkinnedMeshRenderer::render(Entity const& entity) const {
+	auto const& tree = entity.scene().nodes;
+	auto const& resources = Service<MeshResources>::locate();
 	auto const& m = resources.skinned_meshes.get(mesh);
 	if (m.primitives.empty()) { return; }
 	assert(m.primitives[0].geometry.has_joints());
-	device.render(m, resources, skin.skeleton, tree);
+	Service<Engine>::locate().device().render(m, resources, skeleton, tree);
 }
 
-void MeshRenderer::tick(Node::Tree& tree, Time dt) {
-	if (auto* smr = std::get_if<SkinnedMeshRenderer>(&renderer)) { smr->tick(tree, dt); }
+void MeshRenderer::render(Entity const& entity) const {
+	std::visit([&](auto const& smr) { smr.render(entity); }, renderer);
 }
 
-void MeshRenderer::render(Node::Tree const& tree) const {
-	if (!device || !resources) { return; }
-	std::visit([&](auto const& smr) { smr.render(*device, *resources, tree); }, renderer);
+Node& Scene::spawn(Entity entity, Node::CreateInfo const& node_create_info) {
+	entity.m_scene = this;
+	auto& ret = nodes.add(node_create_info);
+	auto [i, e] = entities.add(std::move(entity));
+	e.m_id = i;
+	e.m_node = ret.id();
+	ret.entity = {e.m_id};
+	return ret;
 }
 
 void Scene::tick(Time dt) {
-	auto const func = [&](Id<Entity>, Entity const& e) {
-		if (auto* mesh = e.find<MeshRenderer>()) { mesh->tick(tree.nodes, dt); }
-	};
-	tree.entities.for_each(func);
+	sorted.clear();
+	sorted.reserve(entities.size());
+	auto populate = [&](Id<Entity>, Entity& value) { sorted.push_back(&value); };
+	entities.for_each(populate);
+	std::sort(sorted.begin(), sorted.end(), [](Ptr<Entity> a, Ptr<Entity> b) { return a->id() < b->id(); });
+	for (auto* entity : sorted) { entity->tick(dt); }
 }
 
 void Scene::Renderer::render_3d() {
 	if (!scene) { return; }
-	for (auto const& [_, node] : scene->tree.nodes.map()) {
-		if (!node.entity) { continue; }
-		auto const* entity = scene->tree.entities.find(node.entity);
-		if (!entity) { continue; }
-		if (auto const* mesh_renderer = entity->find<experiment::MeshRenderer>()) { mesh_renderer->render(scene->tree.nodes); }
-	}
+	auto const func = [](Id<Entity>, Entity const& entity) {
+		if (entity.m_renderer) { entity.m_renderer->render(entity); }
+	};
+	scene->entities.for_each(func);
 }
 } // namespace levk::experiment

@@ -13,6 +13,7 @@
 #include <levk/util/visitor.hpp>
 #include <filesystem>
 
+#include <experiment/entity.hpp>
 #include <experiment/scene.hpp>
 #include <levk/asset/asset_loader.hpp>
 #include <levk/service.hpp>
@@ -55,47 +56,47 @@ bool walk_node(experiment::Scene& scene, Node& node, Id<Node>& inspect) {
 	if (ImGui::BeginDragDropTarget()) {
 		if (auto const* payload = ImGui::AcceptDragDropPayload("entity")) {
 			auto const child = *static_cast<std::size_t const*>(payload->Data);
-			scene.tree.nodes.reparent(scene.tree.nodes.get(child), id);
+			scene.nodes.reparent(scene.nodes.get(child), id);
 			return false;
 		}
 		ImGui::EndDragDropTarget();
 	}
 	if (tn) {
 		for (auto& id : node.children()) {
-			if (!walk_node(scene, scene.tree.nodes.get(id), inspect)) { return false; }
+			if (!walk_node(scene, scene.nodes.get(id), inspect)) { return false; }
 		}
 	}
 	return true;
 }
 
 void draw_scene_tree(imcpp::NotClosed<imcpp::Window>, experiment::Scene& scene, Id<Node>& inspect) {
-	for (auto const& e : scene.tree.nodes.roots()) {
-		if (!walk_node(scene, scene.tree.nodes.get(e), inspect)) { return; }
+	for (auto const& e : scene.nodes.roots()) {
+		if (!walk_node(scene, scene.nodes.get(e), inspect)) { return; }
 	}
 }
 
 void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene, Id<Node> id) {
 	if (!id) { return; }
-	auto* node = scene.tree.nodes.find(id);
+	auto* node = scene.nodes.find(id);
 	if (!node) { return; }
 	imcpp::TreeNode::leaf(node->name.c_str());
 	if (auto tn = imcpp::TreeNode("Transform", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
 		auto unified_scaling = Bool{true};
 		imcpp::Reflector{w}(node->transform, unified_scaling, {true});
 	}
-	auto* entity = scene.tree.entities.find(node->entity);
+	auto* entity = scene.entities.find({node->entity});
 	if (!entity) { return; }
-	auto inspect_skin = [&](experiment::SkinnedMeshRenderer::Skin& skin) {
-		auto const& skeleton = Service<MeshResources>::get().skeletons.get(skin.skeleton.source);
+	auto inspect_skin = [&](experiment::SkeletonController& skin, experiment::SkinnedMeshRenderer const& renderer) {
+		auto const& skeleton = Service<MeshResources>::get().skeletons.get(renderer.skeleton.source);
 		imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
-		if (skin.skeleton.animations.empty()) { return; }
+		if (renderer.skeleton.animations.empty()) { return; }
 		if (auto tn = imcpp::TreeNode("Animation")) {
 			auto const preview = skin.enabled ? FixedString{"{}", skin.enabled->value()} : FixedString{"[None]"};
 			if (ImGui::BeginCombo("Active", preview.c_str())) {
 				if (ImGui::Selectable("[None]")) {
 					skin.change_animation({});
 				} else {
-					for (std::size_t i = 0; i < skin.skeleton.animations.size(); ++i) {
+					for (std::size_t i = 0; i < renderer.skeleton.animations.size(); ++i) {
 						if (ImGui::Selectable(FixedString{"{}", i}.c_str(), skin.enabled && i == skin.enabled->value())) {
 							skin.change_animation(i);
 							break;
@@ -105,14 +106,14 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 				ImGui::EndCombo();
 			}
 			if (skin.enabled) {
-				auto& animation = skin.skeleton.animations[*skin.enabled];
+				auto& animation = renderer.skeleton.animations[*skin.enabled];
 				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", animation.duration().count()}.c_str());
 				float const progress = animation.elapsed / animation.duration();
 				ImGui::ProgressBar(progress);
 			}
 		}
 	};
-	if (auto* mesh_renderer = entity->find<experiment::MeshRenderer>()) {
+	if (auto* mesh_renderer = dynamic_cast<experiment::MeshRenderer*>(entity->renderer())) {
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
 				[&](experiment::StaticMeshRenderer& smr) {
@@ -120,7 +121,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 				},
 				[&](experiment::SkinnedMeshRenderer& smr) {
 					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<MeshResources>::get().skinned_meshes.get(smr.mesh).name}.c_str());
-					inspect_skin(smr.skin);
+					inspect_skin(entity->get<experiment::SkeletonController>(), smr);
 				},
 			};
 			std::visit(visitor, mesh_renderer->renderer);
