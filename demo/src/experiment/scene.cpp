@@ -3,6 +3,7 @@
 #include <levk/asset/gltf_importer.hpp>
 #include <levk/engine.hpp>
 #include <levk/service.hpp>
+#include <levk/util/enumerate.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/visitor.hpp>
 #include <filesystem>
@@ -73,10 +74,8 @@ bool Scene::add_mesh_to_tree(Id<SkinnedMesh> id) {
 		skeleton = source_skeleton.instantiate(nodes, node.id());
 		if (!skeleton.animations.empty()) { enabled = 0; }
 	}
-	auto mesh_renderer = SkinnedMeshRenderer{
-		skeleton,
-		id,
-	};
+	auto mesh_renderer = SkinnedMeshRenderer{};
+	mesh_renderer.set_mesh(id, std::move(skeleton));
 	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
 	entity.attach(std::make_unique<SkeletonController>()).enabled = enabled;
 	return true;
@@ -126,12 +125,15 @@ void StaticMeshRenderer::render(Entity const& entity) const {
 	auto const& m = resources.static_meshes.get(mesh);
 	if (m.primitives.empty()) { return; }
 	auto& device = Service<Engine>::locate().device();
-	if (instances.empty()) {
-		static auto const s_instance = Transform{};
-		device.render(m, resources, {&s_instance, 1u}, tree.global_transform(tree.get(entity.node_id())));
-	} else {
-		device.render(m, resources, instances, tree.global_transform(tree.get(entity.node_id())));
-	}
+	static auto const s_instance = Transform{};
+	auto const is = instances.empty() ? std::span{&s_instance, 1u} : std::span{instances};
+	device.render(m, resources, is, tree.global_transform(tree.get(entity.node_id())));
+}
+
+void SkinnedMeshRenderer::set_mesh(Id<SkinnedMesh> id, Skeleton::Instance instance) {
+	mesh = id;
+	skeleton = std::move(instance);
+	joint_matrices = DynArray<glm::mat4>{skeleton.joints.size()};
 }
 
 void SkinnedMeshRenderer::render(Entity const& entity) const {
@@ -139,8 +141,9 @@ void SkinnedMeshRenderer::render(Entity const& entity) const {
 	auto const& resources = Service<MeshResources>::locate();
 	auto const& m = resources.skinned_meshes.get(mesh);
 	if (m.primitives.empty()) { return; }
-	assert(m.primitives[0].geometry.has_joints());
-	Service<Engine>::locate().device().render(m, resources, skeleton, tree);
+	assert(m.primitives[0].geometry.has_joints() && joint_matrices.size() == skeleton.joints.size());
+	for (auto const [id, index] : enumerate(skeleton.joints)) { joint_matrices[index] = tree.global_transform(tree.get(id)); }
+	Service<Engine>::locate().device().render(m, resources, joint_matrices.span());
 }
 
 void MeshRenderer::render(Entity const& entity) const {

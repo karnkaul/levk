@@ -26,6 +26,9 @@ struct SkinnedMeshRenderer {
 	Skeleton::Instance skeleton{};
 	Id<SkinnedMesh> mesh{};
 
+	DynArray<glm::mat4> joint_matrices{};
+
+	void set_mesh(Id<SkinnedMesh> id, Skeleton::Instance instance);
 	void render(Entity const& entity) const;
 };
 

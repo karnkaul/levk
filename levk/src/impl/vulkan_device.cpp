@@ -11,7 +11,6 @@
 #include <levk/impl/vulkan_surface.hpp>
 #include <levk/material.hpp>
 #include <levk/mesh_resources.hpp>
-#include <levk/skeleton.hpp>
 #include <levk/skinned_mesh.hpp>
 #include <levk/static_mesh.hpp>
 #include <levk/surface.hpp>
@@ -2337,13 +2336,9 @@ void render_mesh(VulkanDevice const& device, RenderInfoT const& info, RenderCmd 
 			assert(primitive.geometry.has_joints());
 			auto joints_set = vmg->impl->joints_set();
 			assert(joints_set);
-			assert(info.mesh.inverse_bind_matrices.size() >= info.skeleton.joints.size());
-			auto rewrite = [&](glm::mat4& out, std::size_t index) {
-				out = info.tree.global_transform(info.tree.get(info.skeleton.joints[index])) * info.mesh.inverse_bind_matrices[index];
-			};
-			auto const joint_mats = [&] {
-				return device.impl->joints_vec.write(device.impl->vma, info.skeleton.joints.size(), device.impl->buffered_index, rewrite);
-			}();
+			assert(info.mesh.inverse_bind_matrices.size() >= info.joints.size());
+			auto rewrite = [&](glm::mat4& out, std::size_t index) { out = info.joints[index] * info.mesh.inverse_bind_matrices[index]; };
+			auto const joint_mats = [&] { return device.impl->joints_vec.write(device.impl->vma, info.joints.size(), device.impl->buffered_index, rewrite); }();
 			shader.update(*joints_set, 0, joint_mats);
 			shader.bind(pipe.layout, cb);
 			vmg->impl->draw(cb);

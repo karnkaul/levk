@@ -2,7 +2,6 @@
 #include <glm/vec2.hpp>
 #include <levk/camera.hpp>
 #include <levk/lights.hpp>
-#include <levk/node.hpp>
 #include <levk/rgba.hpp>
 #include <cstdint>
 #include <span>
@@ -11,7 +10,6 @@ namespace levk {
 class Window;
 struct StaticMesh;
 struct SkinnedMesh;
-struct SkeletonInstance;
 struct MeshResources;
 
 using Extent2D = glm::uvec2;
@@ -107,7 +105,6 @@ struct StaticMeshRenderInfo {
 struct SkinnedMeshRenderInfo {
 	MeshResources const& resources;
 	SkinnedMesh const& mesh;
-	SkeletonInstance const& skeleton;
-	Node::Tree const& tree;
+	std::span<glm::mat4 const> joints;
 };
 } // namespace levk
