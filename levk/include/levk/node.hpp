@@ -16,6 +16,7 @@ class Node {
   public:
 	using CreateInfo = NodeCreateInfo;
 	class Tree;
+	class Locator;
 
 	Id<Node> id() const { return m_id; }
 	Id<Node> parent() const { return m_parent; }
@@ -65,5 +66,26 @@ class Node::Tree {
 	Map m_nodes{};
 	std::vector<Id<Node>> m_roots{};
 	Id<Node>::id_type m_prev_id{};
+};
+
+///
+/// \brief Enables updating nodes but not adding/removing nodes to/from the tree.
+///
+/// Animations / editors / etc use Node::Locators to affect nodes safely without
+/// any possibility of adding/removing nodes to/from the tree.
+///
+class Node::Locator {
+  public:
+	Locator(Tree& out_tree) : m_out(out_tree) {}
+
+	Ptr<Node> find(Id<Node> id) const { return m_out.find(id); }
+	Node& get(Id<Node> id) const { return m_out.get(id); }
+	void reparent(Node& out, Id<Node> new_parent) const { return m_out.reparent(out, new_parent); }
+	glm::mat4 global_transform(Node const& node) const { return m_out.global_transform(node); }
+	std::span<Id<Node> const> roots() const { return m_out.roots(); }
+	Tree::Map const& map() const { return m_out.map(); }
+
+  private:
+	Tree& m_out;
 };
 } // namespace levk

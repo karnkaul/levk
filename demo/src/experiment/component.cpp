@@ -5,7 +5,7 @@
 namespace levk::experiment {
 Entity& Component::entity() const {
 	assert(m_entity);
-	return scene().entities.get(m_entity);
+	return scene().get(m_entity);
 }
 
 Scene& Component::scene() const {

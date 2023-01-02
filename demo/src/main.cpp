@@ -41,7 +41,7 @@ fs::path find_data(fs::path exe) {
 	return {};
 }
 
-bool walk_node(experiment::Scene& scene, Node& node, Id<Node>& inspect) {
+bool walk_node(Node::Locator& node_locator, Node& node, Id<Node>& inspect) {
 	auto flags = int{};
 	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
 	if (inspect == node.id()) { flags |= ImGuiTreeNodeFlags_Selected; }
@@ -56,35 +56,35 @@ bool walk_node(experiment::Scene& scene, Node& node, Id<Node>& inspect) {
 	if (ImGui::BeginDragDropTarget()) {
 		if (auto const* payload = ImGui::AcceptDragDropPayload("entity")) {
 			auto const child = *static_cast<std::size_t const*>(payload->Data);
-			scene.nodes.reparent(scene.nodes.get(child), id);
+			node_locator.reparent(node_locator.get(Id<Node>{child}), id);
 			return false;
 		}
 		ImGui::EndDragDropTarget();
 	}
 	if (tn) {
 		for (auto& id : node.children()) {
-			if (!walk_node(scene, scene.nodes.get(id), inspect)) { return false; }
+			if (!walk_node(node_locator, node_locator.get(id), inspect)) { return false; }
 		}
 	}
 	return true;
 }
 
-void draw_scene_tree(imcpp::NotClosed<imcpp::Window>, experiment::Scene& scene, Id<Node>& inspect) {
-	for (auto const& e : scene.nodes.roots()) {
-		if (!walk_node(scene, scene.nodes.get(e), inspect)) { return; }
+void draw_scene_tree(imcpp::NotClosed<imcpp::Window>, Node::Locator node_locator, Id<Node>& inspect) {
+	for (auto const& node : node_locator.roots()) {
+		if (!walk_node(node_locator, node_locator.get(node), inspect)) { return; }
 	}
 }
 
 void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene, Id<Node> id) {
 	if (!id) { return; }
-	auto* node = scene.nodes.find(id);
+	auto* node = scene.node_locator().find(id);
 	if (!node) { return; }
 	imcpp::TreeNode::leaf(node->name.c_str());
 	if (auto tn = imcpp::TreeNode("Transform", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
 		auto unified_scaling = Bool{true};
 		imcpp::Reflector{w}(node->transform, unified_scaling, {true});
 	}
-	auto* entity = scene.entities.find({node->entity});
+	auto* entity = scene.find(Id<experiment::Entity>{node->entity});
 	if (!entity) { return; }
 	auto inspect_skin = [&](experiment::SkeletonController& skin, experiment::SkinnedMeshRenderer const& renderer) {
 		auto const& skeleton = Service<MeshResources>::get().skeletons.get(renderer.skeleton.source);
@@ -241,7 +241,7 @@ void run(fs::path data_path) {
 			float scale = engine.device().info().render_scale;
 			if (ImGui::DragFloat("Render Scale", &scale, 0.05f, render_scale_limit_v[0], render_scale_limit_v[1])) { engine.device().set_render_scale(scale); }
 			ImGui::Separator();
-			draw_scene_tree(w, *scene, inspect);
+			draw_scene_tree(w, scene->node_locator(), inspect);
 		}
 		if (bool show_inspector = inspect) {
 			ImGui::SetNextWindowPos({ImGui::GetIO().DisplaySize.x - 500.0f, 0.0f});

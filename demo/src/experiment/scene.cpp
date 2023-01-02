@@ -66,12 +66,12 @@ bool Scene::add_mesh_to_tree(Id<SkinnedMesh> id) {
 		return false;
 	}
 	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
-	auto& entity = entities.get({node.entity});
+	auto& entity = m_entities.get({node.entity});
 	auto skeleton = Skeleton::Instance{};
 	auto enabled = std::optional<Id<Animation>>{};
 	if (mesh->skeleton) {
 		auto const& source_skeleton = mesh_resources.skeletons.get(mesh->skeleton);
-		skeleton = source_skeleton.instantiate(nodes, node.id());
+		skeleton = source_skeleton.instantiate(m_nodes, node.id());
 		if (!skeleton.animations.empty()) { enabled = 0; }
 	}
 	auto mesh_renderer = SkinnedMeshRenderer{};
@@ -89,7 +89,7 @@ bool Scene::add_mesh_to_tree(Id<StaticMesh> id) {
 		return false;
 	}
 	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
-	auto& entity = entities.get({node.entity});
+	auto& entity = m_entities.get({node.entity});
 	auto mesh_renderer = StaticMeshRenderer{id};
 	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
 	return true;
@@ -100,6 +100,7 @@ void SkeletonController::change_animation(std::optional<Id<Animation>> index) {
 		auto* mesh_renderer = dynamic_cast<MeshRenderer*>(entity().renderer());
 		if (!mesh_renderer) { return; }
 		auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
+		if (!skinned_mesh_renderer) { return; }
 		if (index && *index >= skinned_mesh_renderer->skeleton.animations.size()) {
 			enabled.reset();
 			return;
@@ -116,11 +117,11 @@ void SkeletonController::tick(Time dt) {
 	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 	if (!skinned_mesh_renderer) { return; }
 	assert(*enabled < skinned_mesh_renderer->skeleton.animations.size());
-	skinned_mesh_renderer->skeleton.animations[*enabled].update(scene().nodes, dt);
+	skinned_mesh_renderer->skeleton.animations[*enabled].update(scene().node_locator(), dt);
 }
 
 void StaticMeshRenderer::render(Entity const& entity) const {
-	auto const& tree = entity.scene().nodes;
+	auto const& tree = entity.scene().nodes();
 	auto const& resources = Service<MeshResources>::locate();
 	auto const& m = resources.static_meshes.get(mesh);
 	if (m.primitives.empty()) { return; }
@@ -137,7 +138,7 @@ void SkinnedMeshRenderer::set_mesh(Id<SkinnedMesh> id, Skeleton::Instance instan
 }
 
 void SkinnedMeshRenderer::render(Entity const& entity) const {
-	auto const& tree = entity.scene().nodes;
+	auto const& tree = entity.scene().nodes();
 	auto const& resources = Service<MeshResources>::locate();
 	auto const& m = resources.skinned_meshes.get(mesh);
 	if (m.primitives.empty()) { return; }
@@ -152,8 +153,8 @@ void MeshRenderer::render(Entity const& entity) const {
 
 Node& Scene::spawn(Entity entity, Node::CreateInfo const& node_create_info) {
 	entity.m_scene = this;
-	auto& ret = nodes.add(node_create_info);
-	auto [i, e] = entities.add(std::move(entity));
+	auto& ret = m_nodes.add(node_create_info);
+	auto [i, e] = m_entities.add(std::move(entity));
 	e.m_id = i;
 	e.m_node = ret.id();
 	ret.entity = {e.m_id};
@@ -161,12 +162,12 @@ Node& Scene::spawn(Entity entity, Node::CreateInfo const& node_create_info) {
 }
 
 void Scene::tick(Time dt) {
-	sorted.clear();
-	sorted.reserve(entities.size());
-	auto populate = [&](Id<Entity>, Entity& value) { sorted.push_back(&value); };
-	entities.for_each(populate);
-	std::sort(sorted.begin(), sorted.end(), [](Ptr<Entity> a, Ptr<Entity> b) { return a->id() < b->id(); });
-	for (auto* entity : sorted) { entity->tick(dt); }
+	m_sorted.clear();
+	m_sorted.reserve(m_entities.size());
+	auto populate = [&](Id<Entity>, Entity& value) { m_sorted.push_back(&value); };
+	m_entities.for_each(populate);
+	std::sort(m_sorted.begin(), m_sorted.end(), [](Ptr<Entity> a, Ptr<Entity> b) { return a->id() < b->id(); });
+	for (auto* entity : m_sorted) { entity->tick(dt); }
 }
 
 void Scene::Renderer::render_3d() {
@@ -174,6 +175,6 @@ void Scene::Renderer::render_3d() {
 	auto const func = [](Id<Entity>, Entity const& entity) {
 		if (entity.m_renderer) { entity.m_renderer->render(entity); }
 	};
-	scene->entities.for_each(func);
+	scene->m_entities.for_each(func);
 }
 } // namespace levk::experiment

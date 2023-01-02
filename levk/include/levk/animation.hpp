@@ -6,7 +6,7 @@ namespace levk {
 class Animation {
   public:
 	void add(Animator animator);
-	void update(Node::Tree& tree, Time dt);
+	void update(Node::Locator node_locator, Time dt);
 
 	Time duration() const { return m_duration; }
 	std::span<Animator const> animators() const { return m_animators; }

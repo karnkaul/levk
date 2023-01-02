@@ -52,11 +52,18 @@ class Scene {
 	Node& spawn(Entity entity, Node::CreateInfo const& node_create_info = {});
 	void tick(Time dt);
 
-	MonotonicMap<Entity> entities{};
-	Node::Tree nodes{};
+	Ptr<Entity const> find(Id<Entity> id) const { return m_entities.find(id); }
+	Ptr<Entity> find(Id<Entity> id) { return m_entities.find(id); }
+	Entity const& get(Id<Entity> id) const { return m_entities.get(id); }
+	Entity& get(Id<Entity> id) { return m_entities.get(id); }
 
-	Id<Node> test_node{};
-	std::vector<Ptr<Entity>> sorted{};
+	Node::Tree const& nodes() const { return m_nodes; }
+	Node::Locator node_locator() { return m_nodes; }
+
+  private:
+	Node::Tree m_nodes{};
+	MonotonicMap<Entity> m_entities{};
+	std::vector<Ptr<Entity>> m_sorted{};
 };
 
 struct Scene::Renderer : GraphicsRenderer {

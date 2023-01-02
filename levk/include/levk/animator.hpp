@@ -41,7 +41,7 @@ class Animator {
 
 	Id<Node> target() const { return m_model->target(); }
 	Time duration() const { return m_model->duration(); }
-	void update(Node::Tree& tree, Time time) const { m_model->update(tree, time); }
+	void update(Node::Locator node_locator, Time time) const { m_model->update(node_locator, time); }
 
 	template <typename T>
 	Ptr<T> as() const {
@@ -55,7 +55,7 @@ class Animator {
 
 		virtual Id<Node> target() const = 0;
 		virtual Time duration() const = 0;
-		virtual void update(Node::Tree&, Time) const = 0;
+		virtual void update(Node::Locator, Time) const = 0;
 		virtual std::unique_ptr<Base> clone() const = 0;
 	};
 
@@ -66,8 +66,8 @@ class Animator {
 
 		Id<Node> target() const final { return impl.target; }
 		Time duration() const final { return impl.duration(); }
-		void update(Node::Tree& tree, Time time) const final {
-			if (auto* node = tree.find(target())) { impl.update(*node, time); }
+		void update(Node::Locator locator, Time time) const final {
+			if (auto* node = locator.find(target())) { impl.update(*node, time); }
 		}
 		std::unique_ptr<Base> clone() const final { return std::make_unique<Model<T>>(*this); }
 	};
