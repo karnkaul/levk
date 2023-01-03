@@ -13,6 +13,9 @@ namespace levk::asset {
 template <typename Type>
 using Uri = Id<Type, std::string>;
 
+void from_json(dj::Json const& json, Transform& out);
+void to_json(dj::Json& out, Transform const& transform);
+
 struct Material {
 	Rgba albedo{white_v};
 	glm::vec3 emissive_factor{0.0f};

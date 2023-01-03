@@ -48,18 +48,6 @@ constexpr std::string_view from(AlphaMode const mode) {
 	}
 }
 
-Transform from(glm::mat4 const& mat) {
-	auto ret = Transform{};
-	glm::vec3 scale{1.0f}, pos{}, skew{};
-	glm::vec4 persp{};
-	glm::quat orn{quat_identity_v};
-	glm::decompose(mat, scale, orn, pos, skew, persp);
-	ret.set_position(pos);
-	ret.set_orientation(orn);
-	ret.set_scale(scale);
-	return ret;
-}
-
 std::string to_hex(Rgba const& rgba) {
 	auto ret = std::string{"#"};
 	fmt::format_to(std::back_inserter(ret), "{:02x}", rgba.channels.x);
@@ -153,12 +141,6 @@ dj::Json make_json(glm::quat const& quat) {
 	auto ret = dj::Json{};
 	auto vec4 = glm::vec4{quat.x, quat.y, quat.z, quat.w};
 	add_to(ret, vec4);
-	return ret;
-}
-
-dj::Json make_json(glm::mat4 const& mat) {
-	auto ret = dj::Json{};
-	for (glm::length_t i = 0; i < 4; ++i) { add_to(ret, mat[i]); }
 	return ret;
 }
 
@@ -257,6 +239,22 @@ dj::Json make_json(Skeleton::Sampler const& asset) {
 }
 } // namespace
 
+void asset::from_json(dj::Json const& json, Transform& out) {
+	auto const mat = glm_mat_from_json(json);
+	glm::vec3 scale{1.0f}, pos{}, skew{};
+	glm::vec4 persp{};
+	glm::quat orn{quat_identity_v};
+	glm::decompose(mat, scale, orn, pos, skew, persp);
+	out.set_position(pos);
+	out.set_orientation(orn);
+	out.set_scale(scale);
+}
+
+void asset::to_json(dj::Json& out, Transform const& transform) {
+	auto const mat = transform.matrix();
+	for (glm::length_t i = 0; i < 4; ++i) { add_to(out, mat[i]); }
+}
+
 void asset::from_json(dj::Json const& json, asset::Material& out) {
 	assert(json["asset_type"].as_string() == "material");
 	out.albedo = make_rgba(json["albedo"]);
@@ -332,7 +330,7 @@ void asset::from_json(dj::Json const& json, Skeleton& out) {
 	for (auto const& in_joint : json["joints"].array_view()) {
 		auto& out_joint = out.skeleton.joints.emplace_back();
 		out_joint.name = in_joint["name"].as_string();
-		out_joint.transform = from(glm_mat_from_json(in_joint["transform"]));
+		from_json(in_joint["transform"], out_joint.transform);
 		out_joint.self = in_joint["self"].as<std::size_t>();
 		if (auto const& parent = in_joint["parent"]; parent.is_number()) { out_joint.parent = parent.as<std::size_t>(); }
 		for (auto const& child : in_joint["children"].array_view()) { out_joint.children.push_back(child.as<std::size_t>()); }
@@ -355,7 +353,7 @@ void asset::to_json(dj::Json& out, Skeleton const& asset) {
 	for (auto const& in_joint : asset.skeleton.joints) {
 		auto out_joint = dj::Json{};
 		out_joint["name"] = in_joint.name;
-		out_joint["transform"] = make_json(in_joint.transform.matrix());
+		to_json(out_joint["transform"], in_joint.transform);
 		out_joint["self"] = in_joint.self;
 		if (in_joint.parent) { out_joint["parent"] = *in_joint.parent; }
 		auto children = dj::Json{};
