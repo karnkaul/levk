@@ -37,7 +37,7 @@ struct Skeleton {
 		Index<Source> source{};
 		std::vector<Id<Node>> target_nodes{};
 
-		void update(Node::Locator node_locator, Time time, Source const& source) const;
+		void update_nodes(Node::Locator node_locator, Time time, Source const& source) const;
 	};
 
 	std::vector<Joint> joints{};

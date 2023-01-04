@@ -108,7 +108,7 @@ void SkeletonController::change_animation(std::optional<Id<Skeleton::Animation>>
 }
 
 void SkeletonController::tick(Time dt) {
-	if (!enabled) { return; }
+	if (!enabled || dt == Time{}) { return; }
 	auto* mesh_renderer = dynamic_cast<MeshRenderer*>(entity().renderer());
 	if (!mesh_renderer) { return; }
 	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
@@ -119,7 +119,7 @@ void SkeletonController::tick(Time dt) {
 	auto const& skeleton = Service<MeshResources>::get().skeletons.get(animation.skeleton);
 	assert(animation.source < skeleton.animation_sources.size());
 	auto const& source = skeleton.animation_sources[animation.source];
-	animation.update(scene().node_locator(), elapsed, source);
+	animation.update_nodes(scene().node_locator(), elapsed, source);
 	if (elapsed > source.animation.duration()) { elapsed = {}; }
 }
 

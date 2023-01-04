@@ -18,7 +18,7 @@ void add_to(Node::Tree& out_tree, JointToNode& out_map, std::span<Joint const> j
 }
 } // namespace
 
-void Skeleton::Animation::update(Node::Locator node_locator, Time time, Source const& source) const {
+void Skeleton::Animation::update_nodes(Node::Locator node_locator, Time time, Source const& source) const {
 	assert(target_nodes.size() == source.animation.samplers.size());
 	for (auto const [target_id, sampler] : zip_ranges(target_nodes, source.animation.samplers)) {
 		auto& joint = node_locator.get(target_id);

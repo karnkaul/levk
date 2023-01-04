@@ -6,8 +6,6 @@ target_sources(levk PRIVATE
   impl/desktop_window.cpp
   impl/vulkan_device.cpp
 
-  animation.cpp
-  animator.cpp
   camera.cpp
   engine.cpp
   geometry.cpp
