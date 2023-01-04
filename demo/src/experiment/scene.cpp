@@ -66,7 +66,8 @@ bool Scene::add_mesh_to_tree(Id<SkinnedMesh> id) {
 		return false;
 	}
 	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
-	auto& entity = m_entities.get({node.entity});
+	// TODO: fix
+	auto& entity = m_entities.get({node.entity.value()});
 	auto skeleton = Skeleton::Instance{};
 	auto enabled = std::optional<Id<Skeleton::Animation>>{};
 	if (mesh->skeleton) {
@@ -89,7 +90,8 @@ bool Scene::add_mesh_to_tree(Id<StaticMesh> id) {
 		return false;
 	}
 	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
-	auto& entity = m_entities.get({node.entity});
+	// TODO: fix
+	auto& entity = m_entities.get({node.entity.value()});
 	auto mesh_renderer = StaticMeshRenderer{id};
 	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
 	return true;
@@ -160,7 +162,8 @@ Node& Scene::spawn(Entity entity, Node::CreateInfo const& node_create_info) {
 	auto [i, e] = m_entities.add(std::move(entity));
 	e.m_id = i;
 	e.m_node = ret.id();
-	ret.entity = {e.m_id};
+	// TODO: fix
+	ret.entity = {e.m_id.value()};
 	return ret;
 }
 
