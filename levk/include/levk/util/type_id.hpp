@@ -8,6 +8,8 @@ namespace levk {
 ///
 class TypeId {
   public:
+	using value_type = std::size_t;
+
 	///
 	/// \brief Obtain (or create) a unique TypeId instance for Type.
 	/// \param Type The type to instantiate the unique Id for
@@ -32,11 +34,11 @@ class TypeId {
 
 	template <typename T>
 	static std::size_t get_id() {
-		static auto const ret{++s_next_id};
+		static auto const ret{++s_prev_id};
 		return ret;
 	}
 
-	inline static std::atomic<std::size_t> s_next_id{};
+	inline static std::atomic<std::size_t> s_prev_id{};
 	std::size_t m_id{};
 };
 } // namespace levk

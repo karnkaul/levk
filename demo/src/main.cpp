@@ -13,8 +13,10 @@
 #include <levk/util/visitor.hpp>
 #include <filesystem>
 
+#include <experiment/entity.hpp>
 #include <experiment/scene.hpp>
 #include <levk/asset/asset_loader.hpp>
+#include <levk/service.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -39,7 +41,7 @@ fs::path find_data(fs::path exe) {
 	return {};
 }
 
-bool walk_node(experiment::Scene& scene, Node& node, Id<Node>& inspect) {
+bool walk_node(Node::Locator& node_locator, Node& node, Id<Node>& inspect) {
 	auto flags = int{};
 	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
 	if (inspect == node.id()) { flags |= ImGuiTreeNodeFlags_Selected; }
@@ -54,76 +56,84 @@ bool walk_node(experiment::Scene& scene, Node& node, Id<Node>& inspect) {
 	if (ImGui::BeginDragDropTarget()) {
 		if (auto const* payload = ImGui::AcceptDragDropPayload("entity")) {
 			auto const child = *static_cast<std::size_t const*>(payload->Data);
-			scene.tree.nodes.reparent(scene.tree.nodes.get(child), id);
+			node_locator.reparent(node_locator.get(Id<Node>{child}), id);
 			return false;
 		}
 		ImGui::EndDragDropTarget();
 	}
 	if (tn) {
 		for (auto& id : node.children()) {
-			if (!walk_node(scene, scene.tree.nodes.get(id), inspect)) { return false; }
+			if (!walk_node(node_locator, node_locator.get(id), inspect)) { return false; }
 		}
 	}
 	return true;
 }
 
-void draw_scene_tree(imcpp::NotClosed<imcpp::Window>, experiment::Scene& scene, Id<Node>& inspect) {
-	for (auto const& e : scene.tree.nodes.roots()) {
-		if (!walk_node(scene, scene.tree.nodes.get(e), inspect)) { return; }
+void draw_scene_tree(imcpp::NotClosed<imcpp::Window>, Node::Locator node_locator, Id<Node>& inspect) {
+	for (auto const& node : node_locator.roots()) {
+		if (!walk_node(node_locator, node_locator.get(node), inspect)) { return; }
 	}
 }
 
 void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene, Id<Node> id) {
 	if (!id) { return; }
-	auto* node = scene.tree.nodes.find(id);
+	auto* node = scene.node_locator().find(id);
 	if (!node) { return; }
 	imcpp::TreeNode::leaf(node->name.c_str());
 	if (auto tn = imcpp::TreeNode("Transform", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
 		auto unified_scaling = Bool{true};
 		imcpp::Reflector{w}(node->transform, unified_scaling, {true});
 	}
-	auto* entity = scene.tree.entities.find(node->entity);
+	auto* entity = scene.find(Id<experiment::Entity>{node->entity});
 	if (!entity) { return; }
-	auto inspect_skin = [&](experiment::SkinnedMeshRenderer::Skin& skin) {
-		auto const& skeleton = scene.mesh_resources->skeletons.get(skin.skeleton.source);
-		imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
-		if (skin.skeleton.animations.empty()) { return; }
-		if (auto tn = imcpp::TreeNode("Animation")) {
-			auto const preview = skin.enabled ? FixedString{"{}", skin.enabled->value()} : FixedString{"[None]"};
+	auto inspect_skeleton_controller = [&](experiment::SkeletonController& controller, experiment::SkinnedMeshRenderer const& renderer) {
+		if (renderer.skeleton.animations.empty()) { return; }
+		if (auto tn = imcpp::TreeNode("Animation", ImGuiTreeNodeFlags_Framed)) {
+			auto const preview = controller.enabled ? FixedString{"{}", controller.enabled->value()} : FixedString{"[None]"};
 			if (ImGui::BeginCombo("Active", preview.c_str())) {
 				if (ImGui::Selectable("[None]")) {
-					skin.change_animation({});
+					controller.change_animation({});
 				} else {
-					for (std::size_t i = 0; i < skin.skeleton.animations.size(); ++i) {
-						if (ImGui::Selectable(FixedString{"{}", i}.c_str(), skin.enabled && i == skin.enabled->value())) {
-							skin.change_animation(i);
+					for (std::size_t i = 0; i < renderer.skeleton.animations.size(); ++i) {
+						if (ImGui::Selectable(FixedString{"{}", i}.c_str(), controller.enabled && i == controller.enabled->value())) {
+							controller.change_animation(i);
 							break;
 						}
 					}
 				}
 				ImGui::EndCombo();
 			}
-			if (skin.enabled) {
-				auto& animation = skin.skeleton.animations[*skin.enabled];
-				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", animation.duration()}.c_str());
-				float const progress = animation.elapsed / animation.duration();
+			if (controller.enabled) {
+				auto& animation = renderer.skeleton.animations[*controller.enabled];
+				auto const& skeleton = Service<MeshResources>::get().skeletons.get(animation.skeleton);
+				auto const& source = skeleton.animation_sources[animation.source];
+				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", source.animation.duration().count()}.c_str());
+				float const progress = controller.elapsed / source.animation.duration();
 				ImGui::ProgressBar(progress);
 			}
 		}
 	};
-	if (auto* mesh_renderer = entity->find<experiment::MeshRenderer>()) {
+	auto* mesh_renderer = dynamic_cast<experiment::MeshRenderer*>(entity->renderer());
+	if (mesh_renderer) {
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
 				[&](experiment::StaticMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.mesh_resources->static_meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<MeshResources>::get().static_meshes.get(smr.mesh).name}.c_str());
 				},
 				[&](experiment::SkinnedMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", scene.mesh_resources->skinned_meshes.get(smr.mesh).name}.c_str());
-					inspect_skin(smr.skin);
+					auto const& mesh = Service<MeshResources>::get().skinned_meshes.get(smr.mesh);
+					auto const& skeleton = Service<MeshResources>::get().skeletons.get(mesh.skeleton);
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
 				},
 			};
 			std::visit(visitor, mesh_renderer->renderer);
 		}
+	}
+	if (auto* skinned_mesh_renderer = std::get_if<experiment::SkinnedMeshRenderer>(&mesh_renderer->renderer)) {
+		if (auto* skeleton_controller = entity->find<experiment::SkeletonController>()) {
+			inspect_skeleton_controller(*skeleton_controller, *skinned_mesh_renderer);
+}
 	}
 }
 
@@ -182,12 +192,19 @@ struct FreeCam {
 	}
 };
 
+struct Services {
+	std::optional<Service<Engine>::Instance> engine{};
+	Service<MeshResources>::Instance mesh_resources{};
+};
+
 void run(fs::path data_path) {
 	auto reader = FileReader{};
 	reader.mount(data_path.generic_string());
-	auto engine = make_engine(reader);
-	auto mesh_resources = std::make_unique<MeshResources>();
-	auto scene = std::make_unique<experiment::Scene>(engine, *mesh_resources);
+	auto services = Services{};
+	services.engine.emplace(make_engine(reader));
+	auto& engine = Service<Engine>::locate();
+	auto& mesh_resources = Service<MeshResources>::locate();
+	auto scene = std::make_unique<experiment::Scene>();
 	auto free_cam = FreeCam{&engine.window()};
 	auto inspect = Id<Node>{};
 
@@ -207,7 +224,7 @@ void run(fs::path data_path) {
 			if (path.extension() == ".json") {
 				auto json = dj::Json::from_file(drop.c_str());
 				if (json["asset_type"].as_string() == "mesh") {
-					auto loader = AssetLoader{engine.device(), *mesh_resources};
+					auto loader = AssetLoader{engine.device(), mesh_resources};
 					auto const res = loader.try_load_mesh(drop.c_str());
 					auto visitor = Visitor{
 						[&](auto id) { scene->add_mesh_to_tree(id); },
@@ -232,7 +249,7 @@ void run(fs::path data_path) {
 			float scale = engine.device().info().render_scale;
 			if (ImGui::DragFloat("Render Scale", &scale, 0.05f, render_scale_limit_v[0], render_scale_limit_v[1])) { engine.device().set_render_scale(scale); }
 			ImGui::Separator();
-			draw_scene_tree(w, *scene, inspect);
+			draw_scene_tree(w, scene->node_locator(), inspect);
 		}
 		if (bool show_inspector = inspect) {
 			ImGui::SetNextWindowPos({ImGui::GetIO().DisplaySize.x - 500.0f, 0.0f});

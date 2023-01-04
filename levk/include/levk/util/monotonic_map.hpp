@@ -10,14 +10,14 @@ namespace levk {
 template <typename Type>
 concept IdSettableT = requires(Type& t, Id<Type> id) { t.set_id(id); };
 
-template <typename Type, typename IdType = std::size_t>
+template <typename Type, typename IdType = Id<Type>>
 class MonotonicMap {
   public:
-	using id_type = Id<Type, IdType>;
+	using id_type = IdType;
 
 	std::pair<Id<Type>, Type&> add(Type t = Type{}) {
 		auto lock = std::scoped_lock{m_mutex};
-		auto const id = ++m_next_id;
+		auto const id = ++m_prev_id;
 		if constexpr (IdSettableT<Type>) { t.set_id(id); }
 		auto& ret = *m_map.insert_or_assign(id, std::move(t)).first;
 		return {ret.first, ret.second};
@@ -82,8 +82,9 @@ class MonotonicMap {
 	}
 
   private:
-	std::unordered_map<IdType, Type> m_map{};
+	using id_underlying_t = typename IdType::id_type;
+	std::unordered_map<id_underlying_t, Type> m_map{};
 	mutable std::mutex m_mutex{};
-	IdType m_next_id{};
+	id_underlying_t m_prev_id{};
 };
 } // namespace levk

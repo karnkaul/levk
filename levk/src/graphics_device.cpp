@@ -11,12 +11,11 @@ void GraphicsDevice::render(StaticMesh const& mesh, MeshResources const& resourc
 	m_model->render(smri);
 }
 
-void GraphicsDevice::render(SkinnedMesh const& mesh, MeshResources const& resources, Skeleton::Instance const& skeleton, Node::Tree const& tree) {
+void GraphicsDevice::render(SkinnedMesh const& mesh, MeshResources const& resources, std::span<glm::mat4 const> joints) {
 	auto const skri = SkinnedMeshRenderInfo{
 		resources,
 		mesh,
-		skeleton,
-		tree,
+		joints,
 	};
 	m_model->render(skri);
 }

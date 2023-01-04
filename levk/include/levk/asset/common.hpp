@@ -13,6 +13,9 @@ namespace levk::asset {
 template <typename Type>
 using Uri = Id<Type, std::string>;
 
+void from_json(dj::Json const& json, Transform& out);
+void to_json(dj::Json& out, Transform const& transform);
+
 struct Material {
 	Rgba albedo{white_v};
 	glm::vec3 emissive_factor{0.0f};
@@ -49,9 +52,42 @@ struct BinGeometry {
 	bool read(char const* path);
 };
 
-struct Skeleton {
-	levk::Skeleton skeleton{};
+struct BinSkeletalAnimation {
+	enum class Type : std::uint8_t { eTranslate, eRotate, eScale };
+	using Sampler = std::variant<TransformAnimation::Translate, TransformAnimation::Rotate, TransformAnimation::Scale>;
+
+	struct Header {
+		struct Sampler {
+			Type type{};
+			Interpolation interpolation{};
+			std::uint64_t keyframes{};
+		};
+
+		std::uint64_t hash{};
+		std::uint64_t samplers{};
+		std::uint64_t target_joints{};
+		std::uint64_t name_length{};
+	};
+
+	std::vector<Sampler> samplers{};
+	std::vector<std::size_t> target_joints{};
+	std::string name{};
+
+	std::uint64_t compute_hash() const;
+	bool write(char const* path) const;
+	bool read(char const* path);
 };
+
+struct Skeleton {
+	using Joint = levk::Skeleton::Joint;
+
+	std::vector<Joint> joints{};
+	std::vector<Uri<BinSkeletalAnimation>> animations{};
+	std::string name{};
+};
+
+void from_json(dj::Json const& json, Skeleton& out);
+void to_json(dj::Json& out, Skeleton const& asset);
 
 struct Mesh {
 	enum class Type { eStatic, eSkinned };
@@ -62,6 +98,7 @@ struct Mesh {
 	};
 
 	std::vector<Primitive> primitives{};
+	std::vector<glm::mat4> inverse_bind_matrices{};
 	Uri<Skeleton> skeleton{};
 	std::string name{};
 	Type type{};
@@ -69,7 +106,4 @@ struct Mesh {
 
 void from_json(dj::Json const& json, Mesh& out);
 void to_json(dj::Json& out, Mesh const& asset);
-
-void from_json(dj::Json const& json, Skeleton& out);
-void to_json(dj::Json& out, Skeleton const& asset);
 } // namespace levk::asset

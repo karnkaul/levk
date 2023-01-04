@@ -50,6 +50,7 @@ T make_mesh(dj::Json const& json, AssetLoader const& loader, fs::path const& dir
 		auto geometry = loader.graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
 		ret.primitives.push_back(MeshPrimitive{std::move(geometry), material_id});
 	}
+	if constexpr (std::same_as<T, SkinnedMesh>) { ret.inverse_bind_matrices = asset.inverse_bind_matrices; }
 	return ret;
 }
 
@@ -106,8 +107,30 @@ Id<levk::Skeleton> AssetLoader::load_skeleton(char const* path) const {
 	}
 	auto asset = asset::Skeleton{};
 	asset::from_json(json, asset);
-	logger::info("[Load] [{}] Skeleton loaded", asset.skeleton.name);
-	return mesh_resources.skeletons.add(std::move(asset.skeleton)).first;
+	auto const parent_dir = fs::path{path}.parent_path();
+	auto skeleton = Skeleton{};
+	skeleton.name = std::string{json["name"].as_string()};
+	skeleton.joints = std::move(asset.joints);
+	for (auto const& in_animation : asset.animations) {
+		auto const in_animation_asset = open_json((parent_dir / in_animation.value()).generic_string().c_str());
+		if (!in_animation_asset) {
+			logger::warn("[Load] Failed to load Skeletal animation JSON [{}]", in_animation.value());
+			continue;
+		}
+		auto out_animation_asset = asset::BinSkeletalAnimation{};
+		if (!out_animation_asset.read((parent_dir / in_animation.value()).string().c_str())) {
+			logger::warn("[Load] Failed to load SkeletalAnimation at: [{}]", in_animation.value());
+			continue;
+		}
+		auto source = Skeleton::Animation::Source{
+			.target_joints = std::move(out_animation_asset.target_joints),
+			.name = std::move(out_animation_asset.name),
+		};
+		for (auto const& in_sampler : out_animation_asset.samplers) { source.animation.samplers.push_back({in_sampler}); }
+		skeleton.animation_sources.push_back(std::move(source));
+	}
+	logger::info("[Load] [{}] Skeleton loaded", asset.name);
+	return mesh_resources.skeletons.add(std::move(skeleton)).first;
 }
 
 Id<SkinnedMesh> AssetLoader::try_load_skinned_mesh(char const* path) const {

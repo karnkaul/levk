@@ -1,11 +1,9 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <gltf2cpp/gltf2cpp.hpp>
 #include <levk/asset/gltf_importer.hpp>
-#include <levk/util/binary_file.hpp>
 #include <levk/util/bool.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
-#include <levk/util/hash_combine.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/visitor.hpp>
 #include <levk/util/zip_ranges.hpp>
@@ -72,7 +70,7 @@ template <typename T>
 Interpolator<T> make_interpolator(std::span<float const> times, std::span<T const> values, gltf2cpp::Interpolation interpolation) {
 	assert(times.size() == values.size());
 	auto ret = Interpolator<T>{};
-	for (auto [t, v] : zip_ranges(times, values)) { ret.keyframes.push_back({v, t}); }
+	for (auto [t, v] : zip_ranges(times, values)) { ret.keyframes.push_back({v, Time{t}}); }
 	ret.interpolation = static_cast<Interpolation>(interpolation);
 	return ret;
 }
@@ -155,9 +153,10 @@ struct MapGltfNodesToJoints {
 GltfAsset make_gltf_asset_view(std::string_view gltf_name, std::size_t index, std::string_view asset_type, Bool index_suffix = {true}) {
 	assert(!asset_type.empty());
 	auto ret = GltfAsset{.gltf_name = std::string{gltf_name}, .index = index};
-	ret.asset_name = gltf_name.empty() ? asset_type : ret.gltf_name;
+	bool const has_name = !gltf_name.empty() && gltf_name != "(Unnamed)";
+	ret.asset_name = has_name ? ret.gltf_name : asset_type;
 	if (index_suffix) { fmt::format_to(std::back_inserter(ret.asset_name), "_{}", index); }
-	if (!gltf_name.empty()) { fmt::format_to(std::back_inserter(ret.asset_name), ".{}", asset_type); }
+	if (has_name) { fmt::format_to(std::back_inserter(ret.asset_name), ".{}", asset_type); }
 	return ret;
 }
 
@@ -176,7 +175,7 @@ GltfAsset::List make_gltf_asset_view_list(dj::Json const& json) {
 		}
 	}
 	for (auto const [skin, index] : enumerate(json["skins"].array_view())) {
-		ret.skeletons.push_back(make_gltf_asset_view(skin["name"].as_string(), index, "skeleton", {true}));
+		ret.skeletons.push_back(make_gltf_asset_view(skin["name"].as_string(), index, "skeleton", {false}));
 	}
 	return ret;
 }
@@ -305,7 +304,15 @@ struct GltfExporter {
 				return {};
 			}
 			auto const& in_skin = in_root.skins[*skin];
-			out_mesh.skeleton = export_skeleton(make_gltf_asset_view(in_skin.name, *skin, "skeleton"));
+			if (in_skin.inverse_bind_matrices) {
+				auto const ibm = in_root.accessors[*in_skin.inverse_bind_matrices].to_mat4();
+				assert(ibm.size() >= in_skin.joints.size());
+				out_mesh.inverse_bind_matrices.reserve(ibm.size());
+				for (auto const& mat : ibm) { out_mesh.inverse_bind_matrices.push_back(from(mat)); }
+			} else {
+				out_mesh.inverse_bind_matrices = std::vector<glm::mat4>(in_skin.joints.size(), glm::identity<glm::mat4x4>());
+			}
+			out_mesh.skeleton = export_skeleton(make_gltf_asset_view(in_skin.name, *skin, "skeleton", {false}));
 		}
 		auto uri = fmt::format("{}.json", av_mesh.asset_name);
 		out_mesh.name = fs::path{av_mesh.asset_name}.stem().string();
@@ -321,6 +328,17 @@ struct GltfExporter {
 		return uri;
 	}
 
+	Uri<asset::BinSkeletalAnimation> export_skeletal_animation(GltfAsset const& asset, asset::BinSkeletalAnimation const& animation) {
+		auto uri = fmt::format("{}.bin", asset.asset_name);
+		auto dst = out_dir / uri;
+		if (!animation.write(dst.generic_string().c_str())) {
+			import_logger.error("[Import] Failed to import Skeletal Animation: [{}]", uri);
+			return {};
+		}
+		import_logger.info("[Import] Skeleton Animation [{}] imported", uri);
+		return uri;
+	}
+
 	Uri<Skeleton> export_skeleton(GltfAsset const& av_skin) {
 		auto skin_node = Ptr<gltf2cpp::Node const>{};
 		for (auto& node : in_root.nodes) {
@@ -333,25 +351,25 @@ struct GltfExporter {
 
 		auto const& in = in_root.skins[av_skin.index];
 		auto [joints, map] = MapGltfNodesToJoints{}(in, in_root.nodes);
-		auto skeleton = levk::Skeleton{.joints = std::move(joints)};
+
+		auto animations = std::vector<BinSkeletalAnimation>{};
 		for (auto const& in_animation : in_root.animations) {
-			auto clip = levk::Skeleton::Clip{};
-			clip.name = in_animation.name;
+			auto out_animation = BinSkeletalAnimation{};
+			out_animation.name = in_animation.name;
 			for (auto const& in_channel : in_animation.channels) {
 				if (!in_channel.target.node) { continue; }
 				auto joint_it = map.find(*in_channel.target.node);
 				if (joint_it == map.end()) { continue; }
 				using Path = gltf2cpp::Animation::Path;
-				auto channel = levk::Skeleton::Channel{};
-				auto const& sampler = in_animation.samplers[in_channel.sampler];
-				if (sampler.interpolation == gltf2cpp::Interpolation::eCubicSpline) { continue; } // facade constraint
-				auto const& input = in_root.accessors[sampler.input];
+				auto out_sampler = BinSkeletalAnimation::Sampler{};
+				auto const& in_sampler = in_animation.samplers[in_channel.sampler];
+				if (in_sampler.interpolation == gltf2cpp::Interpolation::eCubicSpline) { continue; } // facade constraint
+				auto const& input = in_root.accessors[in_sampler.input];
 				assert(input.type == gltf2cpp::Accessor::Type::eScalar && input.component_type == gltf2cpp::ComponentType::eFloat);
 				auto times = std::get<gltf2cpp::Accessor::Float>(input.data).span();
-				auto const& output = in_root.accessors[sampler.output];
+				auto const& output = in_root.accessors[in_sampler.output];
 				assert(output.component_type == gltf2cpp::ComponentType::eFloat);
 				auto const values = std::get<gltf2cpp::Accessor::Float>(output.data).span();
-				channel.target = joint_it->second;
 				switch (in_channel.target.path) {
 				case Path::eTranslation:
 				case Path::eScale: {
@@ -360,9 +378,9 @@ struct GltfExporter {
 					vec.resize(values.size() / 3);
 					std::memcpy(vec.data(), values.data(), values.size_bytes());
 					if (in_channel.target.path == Path::eScale) {
-						channel.sampler = TransformAnimator::Scale{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
+						out_sampler = TransformAnimation::Scale{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
 					} else {
-						channel.sampler = TransformAnimator::Translate{make_interpolator<glm::vec3>(times, vec, sampler.interpolation)};
+						out_sampler = TransformAnimation::Translate{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
 					}
 					break;
 				}
@@ -371,30 +389,31 @@ struct GltfExporter {
 					auto vec = std::vector<glm::quat>{};
 					vec.resize(values.size() / 4);
 					std::memcpy(vec.data(), values.data(), values.size_bytes());
-					channel.sampler = TransformAnimator::Rotate{make_interpolator<glm::quat>(times, vec, sampler.interpolation)};
+					out_sampler = TransformAnimation::Rotate{make_interpolator<glm::quat>(times, vec, in_sampler.interpolation)};
 					break;
 				}
 				default:
 					// TODO not implemented
-					break;
+					continue;
 				}
-				clip.channels.push_back(std::move(channel));
+
+				out_animation.samplers.push_back(std::move(out_sampler));
+				out_animation.target_joints.push_back(joint_it->second);
 			}
-			if (!clip.channels.empty()) { skeleton.clips.push_back(std::move(clip)); }
+			if (!out_animation.samplers.empty()) {
+				assert(out_animation.samplers.size() == out_animation.target_joints.size());
+				animations.push_back(std::move(out_animation));
+			}
 		}
 
-		if (in.inverse_bind_matrices) {
-			auto const ibm = in_root.accessors[*in.inverse_bind_matrices].to_mat4();
-			assert(ibm.size() >= in.joints.size());
-			skeleton.inverse_bind_matrices.reserve(ibm.size());
-			for (auto const& mat : ibm) { skeleton.inverse_bind_matrices.push_back(from(mat)); }
-		} else {
-			skeleton.inverse_bind_matrices = std::vector<glm::mat4x4>(skeleton.joints.size(), glm::identity<glm::mat4x4>());
+		auto asset = Skeleton{.joints = std::move(joints)};
+		for (auto const [in_animation, index] : enumerate(animations)) {
+			auto const animation_prefix = make_gltf_asset_view(in_animation.name, index, "animation");
+			asset.animations.push_back(export_skeletal_animation(animation_prefix, in_animation));
 		}
 
-		auto asset = Skeleton{std::move(skeleton)};
 		auto uri = fmt::format("{}.json", av_skin.asset_name);
-		asset.skeleton.name = fs::path{av_skin.asset_name}.stem().string();
+		asset.name = fs::path{av_skin.asset_name}.stem().string();
 		auto json = dj::Json{};
 		to_json(json, asset);
 		auto dst = out_dir / uri;
@@ -409,76 +428,6 @@ struct GltfExporter {
 	}
 };
 } // namespace
-
-std::uint64_t BinGeometry::compute_hash() const {
-	auto ret = std::size_t{};
-	for (auto const& position : geometry.positions) { hash_combine(ret, position.x, position.y, position.z); }
-	hash_combine(ret, geometry.rgbs.size(), geometry.normals.size(), geometry.uvs.size(), geometry.indices.size(), joints.size());
-	return static_cast<std::uint64_t>(ret);
-}
-
-bool BinGeometry::write(char const* path) const {
-	auto file = BinaryOutFile{path};
-	if (!file) { return false; }
-	auto const header = Header{
-		.hash = compute_hash(),
-		.positions = geometry.positions.size(),
-		.indices = geometry.indices.size(),
-		.joints = joints.size(),
-		.weights = weights.size(),
-	};
-	file.write(std::span{&header, 1});
-	file.write(std::span{geometry.positions});
-	file.write(std::span{geometry.rgbs});
-	file.write(std::span{geometry.normals});
-	file.write(std::span{geometry.uvs});
-	file.write(std::span{geometry.indices});
-	if (!joints.empty()) {
-		file.write(std::span{joints});
-		file.write(std::span{weights});
-	}
-	return true;
-}
-
-bool BinGeometry::read(char const* path) {
-	auto file = BinaryInFile{path};
-	if (!file) { return false; }
-
-	auto in = BinGeometry{};
-	auto header = Header{};
-	file.read(header);
-
-	in.geometry.positions.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.positions});
-
-	in.geometry.rgbs.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.rgbs});
-
-	in.geometry.normals.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.normals});
-
-	in.geometry.uvs.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.uvs});
-
-	if (header.indices) {
-		in.geometry.indices.resize(static_cast<std::size_t>(header.indices));
-		file.read(std::span{in.geometry.indices});
-	}
-
-	if (header.joints) {
-		in.joints.resize(static_cast<std::size_t>(header.joints));
-		file.read(std::span{in.joints});
-
-		assert(header.weights == header.joints);
-		in.weights.resize(static_cast<std::size_t>(header.weights));
-		file.read(std::span{in.weights});
-	}
-
-	if (in.compute_hash() != header.hash) { return false; }
-
-	*this = std::move(in);
-	return true;
-}
 
 GltfImporter::List GltfImporter::peek(std::string gltf_path, logger::Dispatch const& import_logger) {
 	auto ret = GltfImporter::List{};

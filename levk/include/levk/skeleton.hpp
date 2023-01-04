@@ -1,23 +1,20 @@
 #pragma once
-#include <levk/animation.hpp>
+#include <levk/node.hpp>
+#include <levk/transform_animation.hpp>
 
 namespace levk {
-struct Skeleton;
-
-struct SkeletonInstance {
-	Id<Node> root{};
-	std::vector<Id<Node>> joints{};
-	std::vector<Animation> animations{};
-	std::vector<glm::mat4> inverse_bind_matrices{};
-	Id<Skeleton> source{};
-};
-
 struct Skeleton {
-	using Instance = SkeletonInstance;
-	using Sampler = TransformAnimator::Sampler;
-
 	template <typename T>
 	using Index = std::size_t;
+
+	struct Animation;
+
+	struct Instance {
+		Id<Node> root{};
+		std::vector<Id<Node>> joints{};
+		std::vector<Animation> animations{};
+		Id<Skeleton> source{};
+	};
 
 	struct Joint {
 		Transform transform{};
@@ -27,19 +24,25 @@ struct Skeleton {
 		std::string name{};
 	};
 
-	struct Channel {
-		Sampler sampler{};
-		Index<Joint> target{};
+	struct Animation {
+		template <typename T>
+		using Index = std::size_t;
+
+		struct Source {
+			TransformAnimation animation{};
+			std::vector<Index<Joint>> target_joints{};
+			std::string name{};
+		};
+
+		Id<Skeleton> skeleton{};
+		Index<Source> source{};
+		std::vector<Id<Node>> target_nodes{};
+
+		void update_nodes(Node::Locator node_locator, Time time, Source const& source) const;
 	};
 
-	struct Clip {
-		std::string name{};
-		std::vector<Channel> channels{};
-	};
-
-	std::vector<glm::mat4> inverse_bind_matrices{};
 	std::vector<Joint> joints{};
-	std::vector<Clip> clips{};
+	std::vector<Animation::Source> animation_sources{};
 	std::string name{};
 	Id<Skeleton> self{};
 

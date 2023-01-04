@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/graphics_common.hpp>
 #include <levk/mesh_geometry.hpp>
+#include <levk/util/id.hpp>
 
 namespace levk {
 class Material;
