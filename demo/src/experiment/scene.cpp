@@ -30,7 +30,7 @@ bool Scene::import_gltf(char const* in_path, char const* out_path) {
 		if (auto it = std::find_if(asset_list.static_meshes.begin(), asset_list.static_meshes.end(), func); it != asset_list.static_meshes.end()) {
 			return &*it;
 		}
-		if (auto it = std::find_if(asset_list.skinned_meshes.begin(), asset_list.skinned_meshes.end(), func); it != asset_list.static_meshes.end()) {
+		if (auto it = std::find_if(asset_list.skinned_meshes.begin(), asset_list.skinned_meshes.end(), func); it != asset_list.skinned_meshes.end()) {
 			return &*it;
 		}
 		return nullptr;
