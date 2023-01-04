@@ -16,11 +16,13 @@ struct StaticMeshRenderer {
 };
 
 struct SkeletonController : TickComponent {
+	using Animation = Skeleton::Animation;
+
 	std::optional<Id<Animation>> enabled{};
 	float time_scale{1.0f};
 	Time elapsed{};
 
-	void change_animation(std::optional<Id<Animation>> index);
+	void change_animation(std::optional<Id<Skeleton::Animation>> index);
 	void tick(Time dt) override;
 };
 

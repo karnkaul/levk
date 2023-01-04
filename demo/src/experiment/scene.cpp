@@ -68,7 +68,7 @@ bool Scene::add_mesh_to_tree(Id<SkinnedMesh> id) {
 	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
 	auto& entity = m_entities.get({node.entity});
 	auto skeleton = Skeleton::Instance{};
-	auto enabled = std::optional<Id<Animation>>{};
+	auto enabled = std::optional<Id<Skeleton::Animation>>{};
 	if (mesh->skeleton) {
 		auto const& source_skeleton = mesh_resources.skeletons.get(mesh->skeleton);
 		skeleton = source_skeleton.instantiate(m_nodes, node.id());
@@ -95,18 +95,15 @@ bool Scene::add_mesh_to_tree(Id<StaticMesh> id) {
 	return true;
 }
 
-void SkeletonController::change_animation(std::optional<Id<Animation>> index) {
+void SkeletonController::change_animation(std::optional<Id<Skeleton::Animation>> index) {
 	if (index != enabled) {
 		auto* mesh_renderer = dynamic_cast<MeshRenderer*>(entity().renderer());
 		if (!mesh_renderer) { return; }
 		auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 		if (!skinned_mesh_renderer) { return; }
-		if (index && *index >= skinned_mesh_renderer->skeleton.animations.size()) {
-			enabled.reset();
-			return;
-		}
-		if (enabled) { skinned_mesh_renderer->skeleton.animations[*enabled].elapsed = {}; }
+		if (index && *index >= skinned_mesh_renderer->skeleton.animations.size()) { index.reset(); }
 		enabled = index;
+		elapsed = {};
 	}
 }
 
@@ -116,9 +113,9 @@ void SkeletonController::tick(Time dt) {
 	if (!mesh_renderer) { return; }
 	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 	if (!skinned_mesh_renderer) { return; }
-	assert(*enabled < skinned_mesh_renderer->skeleton.animations2.size());
+	assert(*enabled < skinned_mesh_renderer->skeleton.animations.size());
 	elapsed += dt * time_scale;
-	auto const& animation = skinned_mesh_renderer->skeleton.animations2[*enabled];
+	auto const& animation = skinned_mesh_renderer->skeleton.animations[*enabled];
 	auto const& skeleton = Service<MeshResources>::get().skeletons.get(animation.skeleton);
 	assert(animation.source < skeleton.animation_sources.size());
 	auto const& source = skeleton.animation_sources[animation.source];

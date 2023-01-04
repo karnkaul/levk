@@ -105,8 +105,10 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 			}
 			if (controller.enabled) {
 				auto& animation = renderer.skeleton.animations[*controller.enabled];
-				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", animation.duration().count()}.c_str());
-				float const progress = animation.elapsed / animation.duration();
+				auto const& skeleton = Service<MeshResources>::get().skeletons.get(animation.skeleton);
+				auto const& source = skeleton.animation_sources[animation.source];
+				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", source.animation.duration().count()}.c_str());
+				float const progress = controller.elapsed / source.animation.duration();
 				ImGui::ProgressBar(progress);
 			}
 		}

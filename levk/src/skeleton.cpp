@@ -18,32 +18,8 @@ void add_to(Node::Tree& out_tree, JointToNode& out_map, std::span<Joint const> j
 }
 } // namespace
 
-Time JointAnimation::Sampler::duration() const {
-	return std::visit([](auto const& s) { return s.duration(); }, storage);
-}
-
-void JointAnimation::Sampler::update(Transform& out, Time time) const {
-	auto const visitor = Visitor{
-		[time, &out](JointAnimation::Translate const& translate) {
-			if (auto const p = translate(time)) { out.set_position(*p); }
-		},
-		[time, &out](JointAnimation::Rotate const& rotate) {
-			if (auto const o = rotate(time)) { out.set_orientation(*o); }
-		},
-		[time, &out](JointAnimation::Scale const& scale) {
-			if (auto const s = scale(time)) { out.set_scale(*s); }
-		},
-	};
-	std::visit(visitor, storage);
-}
-
-Time JointAnimation::duration() const {
-	auto ret = Time{};
-	for (auto const& sampler : samplers) { ret = std::max(ret, sampler.duration()); }
-	return ret;
-}
-
-void SkeletalAnimation::update(Node::Locator node_locator, Time time, Source const& source) const {
+void Skeleton::Animation::update(Node::Locator node_locator, Time time, Source const& source) const {
+	assert(target_nodes.size() == source.animation.samplers.size());
 	for (auto const [target_id, sampler] : zip_ranges(target_nodes, source.animation.samplers)) {
 		auto& joint = node_locator.get(target_id);
 		sampler.update(joint.transform, time);
@@ -66,21 +42,9 @@ Skeleton::Instance Skeleton::instantiate(Node::Tree& out, Id<Node> root) const {
 		assert(map.contains(joint.self));
 		ret.joints.push_back(map[joint.self]);
 	}
-	ret.animations.reserve(clips.size());
-	for (auto const& src_animation : clips) {
-		auto animation = Animation{};
-		for (auto const& channel : src_animation.channels) {
-			auto animator = TransformAnimator{};
-			animator.sampler = channel.sampler;
-			assert(map.contains(channel.target));
-			animator.target = map[channel.target];
-			animation.add(std::move(animator));
-		}
-		ret.animations.push_back(std::move(animation));
-	}
-	ret.animations2.reserve(animation_sources.size());
+	ret.animations.reserve(animation_sources.size());
 	for (auto const [in_animation, index] : enumerate(animation_sources)) {
-		auto& out_animation = ret.animations2.emplace_back(SkeletalAnimation{.skeleton = self, .source = index});
+		auto& out_animation = ret.animations.emplace_back(Animation{.skeleton = self, .source = index});
 		for (auto const& joint : in_animation.target_joints) {
 			assert(map.contains(joint));
 			out_animation.target_nodes.push_back(map[joint]);

@@ -83,6 +83,7 @@ set(levk_headers
   include/levk/surface.hpp
   include/levk/texture_sampler.hpp
   include/levk/texture.hpp
+  include/levk/transform_animation.hpp
   include/levk/transform_controller.hpp
   include/levk/transform.hpp
   include/levk/window_common.hpp

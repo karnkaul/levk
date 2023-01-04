@@ -198,67 +198,21 @@ std::vector<typename Interpolator<T>::Keyframe> make_keyframes(dj::Json const& j
 	return ret;
 }
 
-Skeleton::Sampler make_skeleton_sampler(dj::Json const& json) {
-	auto ret = Skeleton::Sampler{};
+TransformAnimation::Sampler make_animation_sampler(dj::Json const& json) {
+	auto ret = TransformAnimation::Sampler{};
 	auto const type = json["type"].as_string();
 	if (type == "translate") {
-		auto sampler = TransformAnimator::Translate{};
-		sampler.keyframes = make_keyframes<glm::vec3>(json["keyframes"]);
-		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
-		ret = std::move(sampler);
-	} else if (type == "rotate") {
-		auto sampler = TransformAnimator::Rotate{};
-		sampler.keyframes = make_keyframes<glm::quat>(json["keyframes"]);
-		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
-		ret = std::move(sampler);
-	} else if (type == "scale") {
-		auto sampler = TransformAnimator::Scale{};
-		sampler.keyframes = make_keyframes<glm::vec3>(json["keyframes"]);
-		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
-		ret = std::move(sampler);
-	}
-	return ret;
-}
-
-dj::Json make_json(Skeleton::Sampler const& asset) {
-	auto ret = dj::Json{};
-	ret["asset_type"] = "animation_sampler";
-	auto visitor = Visitor{
-		[&](TransformAnimator::Translate const& t) {
-			ret["type"] = "translate";
-			ret["interpolation"] = from(t.interpolation);
-			ret["keyframes"] = make_json<glm::vec3>(t.keyframes);
-		},
-		[&](TransformAnimator::Rotate const& r) {
-			ret["type"] = "rotate";
-			ret["interpolation"] = from(r.interpolation);
-			ret["keyframes"] = make_json<glm::quat>(r.keyframes);
-		},
-		[&](TransformAnimator::Scale const s) {
-			ret["type"] = "scale";
-			ret["interpolation"] = from(s.interpolation);
-			ret["keyframes"] = make_json<glm::vec3>(s.keyframes);
-		},
-	};
-	std::visit(visitor, asset);
-	return ret;
-}
-
-JointAnimation::Sampler make_animation_sampler(dj::Json const& json) {
-	auto ret = JointAnimation::Sampler{};
-	auto const type = json["type"].as_string();
-	if (type == "translate") {
-		auto sampler = JointAnimation::Translate{};
+		auto sampler = TransformAnimation::Translate{};
 		sampler.keyframes = make_keyframes<glm::vec3>(json["keyframes"]);
 		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
 		ret.storage = std::move(sampler);
 	} else if (type == "rotate") {
-		auto sampler = JointAnimation::Rotate{};
+		auto sampler = TransformAnimation::Rotate{};
 		sampler.keyframes = make_keyframes<glm::quat>(json["keyframes"]);
 		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
 		ret.storage = std::move(sampler);
 	} else if (type == "scale") {
-		auto sampler = JointAnimation::Scale{};
+		auto sampler = TransformAnimation::Scale{};
 		sampler.keyframes = make_keyframes<glm::vec3>(json["keyframes"]);
 		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
 		ret.storage = std::move(sampler);
@@ -266,21 +220,21 @@ JointAnimation::Sampler make_animation_sampler(dj::Json const& json) {
 	return ret;
 }
 
-dj::Json make_json(JointAnimation::Sampler const& asset) {
+dj::Json make_json(TransformAnimation::Sampler const& asset) {
 	auto ret = dj::Json{};
 	ret["asset_type"] = "animation_sampler";
 	auto visitor = Visitor{
-		[&](JointAnimation::Translate const& t) {
+		[&](TransformAnimation::Translate const& t) {
 			ret["type"] = "translate";
 			ret["interpolation"] = from(t.interpolation);
 			ret["keyframes"] = make_json<glm::vec3>(t.keyframes);
 		},
-		[&](JointAnimation::Rotate const& r) {
+		[&](TransformAnimation::Rotate const& r) {
 			ret["type"] = "rotate";
 			ret["interpolation"] = from(r.interpolation);
 			ret["keyframes"] = make_json<glm::quat>(r.keyframes);
 		},
-		[&](JointAnimation::Scale const s) {
+		[&](TransformAnimation::Scale const s) {
 			ret["type"] = "scale";
 			ret["interpolation"] = from(s.interpolation);
 			ret["keyframes"] = make_json<glm::vec3>(s.keyframes);
@@ -384,15 +338,6 @@ void asset::from_json(dj::Json const& json, Skeleton& out) {
 		if (auto const& parent = in_joint["parent"]; parent.is_number()) { out_joint.parent = parent.as<std::size_t>(); }
 		for (auto const& child : in_joint["children"].array_view()) { out_joint.children.push_back(child.as<std::size_t>()); }
 	}
-	for (auto const& in_clip : json["clips"].array_view()) {
-		auto& out_clip = out.skeleton.clips.emplace_back();
-		out_clip.name = in_clip["name"].as_string();
-		for (auto const& in_channel : in_clip["channels"].array_view()) {
-			auto& out_channel = out_clip.channels.emplace_back();
-			out_channel.target = in_channel["target"].as<std::size_t>();
-			out_channel.sampler = make_skeleton_sampler(in_channel["sampler"]);
-		}
-	}
 	for (auto const& in_source : json["animation_sources"].array_view()) {
 		auto& out_source = out.skeleton.animation_sources.emplace_back();
 		out_source.animation.name = in_source["name"].as_string();
@@ -420,21 +365,6 @@ void asset::to_json(dj::Json& out, Skeleton const& asset) {
 		joints.push_back(std::move(out_joint));
 	}
 	out["joints"] = std::move(joints);
-	auto clips = dj::Json{};
-	for (auto const& in_clip : asset.skeleton.clips) {
-		auto out_clip = dj::Json{};
-		out_clip["name"] = in_clip.name;
-		auto channels = dj::Json{};
-		for (auto const& in_channel : in_clip.channels) {
-			auto out_channel = dj::Json{};
-			out_channel["target"] = in_channel.target;
-			out_channel["sampler"] = make_json(in_channel.sampler);
-			channels.push_back(std::move(out_channel));
-		}
-		out_clip["channels"] = std::move(channels);
-		clips.push_back(std::move(out_clip));
-	}
-	out["clips"] = std::move(clips);
 	auto out_animation_sources = dj::Json{};
 	for (auto const& in_source : asset.skeleton.animation_sources) {
 		auto out_source = dj::Json{};

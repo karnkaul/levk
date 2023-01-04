@@ -18,5 +18,6 @@ target_sources(levk PRIVATE
   rgba.cpp
   pixel_map.cpp
   skeleton.cpp
+  transform_animation.cpp
   transform.cpp
 )
