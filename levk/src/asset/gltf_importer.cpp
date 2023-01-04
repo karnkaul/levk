@@ -330,6 +330,20 @@ struct GltfExporter {
 		return uri;
 	}
 
+	Uri<asset::SkeletalAnimation> export_skeletal_animation(GltfAsset const& asset, asset::SkeletalAnimation const& animation) {
+		auto uri = fmt::format("{}.json", asset.asset_name);
+		auto json = dj::Json{};
+		asset::to_json(json, animation);
+		auto dst = out_dir / uri;
+		if (fs::exists(dst)) {
+			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
+			fs::remove(dst);
+		}
+		json.to_file(dst.string().c_str());
+		import_logger.info("[Import] Skeleton Animation [{}] imported", uri);
+		return uri;
+	}
+
 	Uri<Skeleton> export_skeleton(GltfAsset const& av_skin) {
 		auto skin_node = Ptr<gltf2cpp::Node const>{};
 		for (auto& node : in_root.nodes) {
@@ -342,11 +356,11 @@ struct GltfExporter {
 
 		auto const& in = in_root.skins[av_skin.index];
 		auto [joints, map] = MapGltfNodesToJoints{}(in, in_root.nodes);
-		auto skeleton = levk::Skeleton{.joints = std::move(joints)};
 
+		auto animations = std::vector<SkeletalAnimation>{};
 		for (auto const& in_animation : in_root.animations) {
-			auto out_source = levk::Skeleton::Animation::Source{};
-			out_source.animation.name = in_animation.name;
+			auto out_source = SkeletalAnimation{};
+			out_source.name = in_animation.name;
 			for (auto const& in_channel : in_animation.channels) {
 				if (!in_channel.target.node) { continue; }
 				auto joint_it = map.find(*in_channel.target.node);
@@ -393,13 +407,18 @@ struct GltfExporter {
 			}
 			if (!out_source.animation.samplers.empty()) {
 				assert(out_source.animation.samplers.size() == out_source.target_joints.size());
-				skeleton.animation_sources.push_back(std::move(out_source));
+				animations.push_back(std::move(out_source));
 			}
 		}
 
-		auto asset = Skeleton{std::move(skeleton)};
+		auto asset = Skeleton{.joints = std::move(joints)};
+		for (auto const [in_animation, index] : enumerate(animations)) {
+			auto const animation_prefix = make_gltf_asset_view(in_animation.name, index, "animation");
+			asset.animations.push_back(export_skeletal_animation(animation_prefix, in_animation));
+		}
+
 		auto uri = fmt::format("{}.json", av_skin.asset_name);
-		asset.skeleton.name = fs::path{av_skin.asset_name}.stem().string();
+		asset.name = fs::path{av_skin.asset_name}.stem().string();
 		auto json = dj::Json{};
 		to_json(json, asset);
 		auto dst = out_dir / uri;

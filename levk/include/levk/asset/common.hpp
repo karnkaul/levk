@@ -52,9 +52,25 @@ struct BinGeometry {
 	bool read(char const* path);
 };
 
-struct Skeleton {
-	levk::Skeleton skeleton{};
+struct SkeletalAnimation {
+	TransformAnimation animation{};
+	std::vector<std::size_t> target_joints{};
+	std::string name{};
 };
+
+void from_json(dj::Json const& json, SkeletalAnimation& out);
+void to_json(dj::Json& out, SkeletalAnimation const& asset);
+
+struct Skeleton {
+	using Joint = levk::Skeleton::Joint;
+
+	std::vector<Joint> joints{};
+	std::vector<Uri<SkeletalAnimation>> animations{};
+	std::string name{};
+};
+
+void from_json(dj::Json const& json, Skeleton& out);
+void to_json(dj::Json& out, Skeleton const& asset);
 
 struct Mesh {
 	enum class Type { eStatic, eSkinned };
@@ -73,7 +89,4 @@ struct Mesh {
 
 void from_json(dj::Json const& json, Mesh& out);
 void to_json(dj::Json& out, Mesh const& asset);
-
-void from_json(dj::Json const& json, Skeleton& out);
-void to_json(dj::Json& out, Skeleton const& asset);
 } // namespace levk::asset

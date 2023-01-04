@@ -107,8 +107,26 @@ Id<levk::Skeleton> AssetLoader::load_skeleton(char const* path) const {
 	}
 	auto asset = asset::Skeleton{};
 	asset::from_json(json, asset);
-	logger::info("[Load] [{}] Skeleton loaded", asset.skeleton.name);
-	return mesh_resources.skeletons.add(std::move(asset.skeleton)).first;
+	auto const parent_dir = fs::path{path}.parent_path();
+	auto skeleton = Skeleton{};
+	skeleton.name = std::string{json["name"].as_string()};
+	skeleton.joints = std::move(asset.joints);
+	for (auto const& in_animation : asset.animations) {
+		auto const in_animation_asset = open_json((parent_dir / in_animation.value()).generic_string().c_str());
+		if (!in_animation_asset) {
+			logger::warn("[Load] Failed to load Skeletal animation JSON [{}]", in_animation.value());
+			continue;
+		}
+		auto out_animation_asset = asset::SkeletalAnimation{};
+		from_json(in_animation_asset, out_animation_asset);
+		skeleton.animation_sources.push_back(Skeleton::Animation::Source{
+			.animation = std::move(out_animation_asset.animation),
+			.target_joints = std::move(out_animation_asset.target_joints),
+			.name = std::move(out_animation_asset.name),
+		});
+	}
+	logger::info("[Load] [{}] Skeleton loaded", asset.name);
+	return mesh_resources.skeletons.add(std::move(skeleton)).first;
 }
 
 Id<SkinnedMesh> AssetLoader::try_load_skinned_mesh(char const* path) const {

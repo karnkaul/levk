@@ -290,6 +290,70 @@ void asset::to_json(dj::Json& out, asset::Material const& asset) {
 	out["name"] = asset.name;
 }
 
+void asset::from_json(dj::Json const& json, SkeletalAnimation& out) {
+	assert(json["asset_type"].as_string() == "skeletal_animation");
+	out.name = json["name"].as_string();
+	for (auto const& in_sampler : json["samplers"].array_view()) {
+		auto& out_sampler = out.animation.samplers.emplace_back();
+		out_sampler = make_animation_sampler(in_sampler);
+	}
+	for (auto const& in_target : json["target_joints"].array_view()) { out.target_joints.push_back(in_target.as<std::size_t>()); }
+}
+
+void asset::to_json(dj::Json& out_source, SkeletalAnimation const& asset) {
+	out_source["asset_type"] = "skeletal_animation";
+	out_source["name"] = asset.name;
+	if (!asset.animation.samplers.empty()) {
+		auto out_samplers = dj::Json{};
+		for (auto const& in_sampler : asset.animation.samplers) { out_samplers.push_back(make_json(in_sampler)); }
+		out_source["samplers"] = std::move(out_samplers);
+	}
+	if (!asset.target_joints.empty()) {
+		auto out_targets = dj::Json{};
+		for (auto const in_target : asset.target_joints) { out_targets.push_back(in_target); }
+		out_source["target_joints"] = std::move(out_targets);
+	}
+}
+
+void asset::from_json(dj::Json const& json, Skeleton& out) {
+	assert(json["asset_type"].as_string() == "skeleton");
+	out.name = json["name"].as_string();
+	for (auto const& in_joint : json["joints"].array_view()) {
+		auto& out_joint = out.joints.emplace_back();
+		out_joint.name = in_joint["name"].as_string();
+		from_json(in_joint["transform"], out_joint.transform);
+		out_joint.self = in_joint["self"].as<std::size_t>();
+		if (auto const& in_parent = in_joint["parent"]) { out_joint.parent = in_parent.as<std::size_t>(); }
+		for (auto const& in_child : in_joint["children"].array_view()) { out_joint.children.push_back(in_child.as<std::size_t>()); }
+	}
+	for (auto const& in_animation : json["animations"].array_view()) { out.animations.push_back(std::string{in_animation.as_string()}); }
+}
+
+void asset::to_json(dj::Json& out, Skeleton const& asset) {
+	out["asset_type"] = "skeleton";
+	out["name"] = asset.name;
+	auto out_joints = dj::Json{};
+	for (auto const& in_joint : asset.joints) {
+		auto out_joint = dj::Json{};
+		out_joint["name"] = in_joint.name;
+		to_json(out_joint["transform"], in_joint.transform);
+		out_joint["self"] = in_joint.self;
+		if (in_joint.parent) { out_joint["parent"] = *in_joint.parent; }
+		if (!in_joint.children.empty()) {
+			auto out_children = dj::Json{};
+			for (auto const child : in_joint.children) { out_children.push_back(child); }
+			out_joint["children"] = std::move(out_children);
+		}
+		out_joints.push_back(std::move(out_joint));
+	}
+	out["joints"] = std::move(out_joints);
+	if (!asset.animations.empty()) {
+		auto out_animations = dj::Json{};
+		for (auto const& in_animation : asset.animations) { out_animations.push_back(in_animation.value()); }
+		out["animations"] = std::move(out_animations);
+	}
+}
+
 void asset::from_json(dj::Json const& json, Mesh& out) {
 	assert(json["asset_type"].as_string() == "mesh");
 	out.type = json["type"].as_string() == "skinned" ? Mesh::Type::eSkinned : Mesh::Type::eStatic;
@@ -325,58 +389,5 @@ void asset::to_json(dj::Json& out, Mesh const& asset) {
 		out["inverse_bind_matrices"] = std::move(ibm);
 	}
 	out["name"] = asset.name;
-}
-
-void asset::from_json(dj::Json const& json, Skeleton& out) {
-	assert(json["asset_type"].as_string() == "skeleton");
-	out.skeleton.name = json["name"].as_string();
-	for (auto const& in_joint : json["joints"].array_view()) {
-		auto& out_joint = out.skeleton.joints.emplace_back();
-		out_joint.name = in_joint["name"].as_string();
-		from_json(in_joint["transform"], out_joint.transform);
-		out_joint.self = in_joint["self"].as<std::size_t>();
-		if (auto const& parent = in_joint["parent"]; parent.is_number()) { out_joint.parent = parent.as<std::size_t>(); }
-		for (auto const& child : in_joint["children"].array_view()) { out_joint.children.push_back(child.as<std::size_t>()); }
-	}
-	for (auto const& in_source : json["animation_sources"].array_view()) {
-		auto& out_source = out.skeleton.animation_sources.emplace_back();
-		out_source.animation.name = in_source["name"].as_string();
-		for (auto const& in_sampler : in_source["samplers"].array_view()) {
-			auto& out_sampler = out_source.animation.samplers.emplace_back();
-			out_sampler = make_animation_sampler(in_sampler);
-		}
-		for (auto const& in_target : in_source["target_joints"].array_view()) { out_source.target_joints.push_back(in_target.as<std::size_t>()); }
-	}
-}
-
-void asset::to_json(dj::Json& out, Skeleton const& asset) {
-	out["asset_type"] = "skeleton";
-	out["name"] = asset.skeleton.name;
-	auto joints = dj::Json{};
-	for (auto const& in_joint : asset.skeleton.joints) {
-		auto out_joint = dj::Json{};
-		out_joint["name"] = in_joint.name;
-		to_json(out_joint["transform"], in_joint.transform);
-		out_joint["self"] = in_joint.self;
-		if (in_joint.parent) { out_joint["parent"] = *in_joint.parent; }
-		auto children = dj::Json{};
-		for (auto const child : in_joint.children) { children.push_back(child); }
-		out_joint["children"] = std::move(children);
-		joints.push_back(std::move(out_joint));
-	}
-	out["joints"] = std::move(joints);
-	auto out_animation_sources = dj::Json{};
-	for (auto const& in_source : asset.skeleton.animation_sources) {
-		auto out_source = dj::Json{};
-		out_source["name"] = in_source.animation.name;
-		auto out_samplers = dj::Json{};
-		for (auto const& in_sampler : in_source.animation.samplers) { out_samplers.push_back(make_json(in_sampler)); }
-		out_source["samplers"] = std::move(out_samplers);
-		auto out_targets = dj::Json{};
-		for (auto const in_target : in_source.target_joints) { out_targets.push_back(in_target); }
-		out_source["target_joints"] = std::move(out_targets);
-		out_animation_sources.push_back(std::move(out_source));
-	}
-	out["animation_sources"] = std::move(out_animation_sources);
 }
 } // namespace levk

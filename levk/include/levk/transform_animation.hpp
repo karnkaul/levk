@@ -17,7 +17,6 @@ struct TransformAnimation {
 	};
 
 	std::vector<Sampler> samplers{};
-	std::string name{};
 
 	Time duration() const;
 };

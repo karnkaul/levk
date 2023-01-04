@@ -31,6 +31,7 @@ struct Skeleton {
 		struct Source {
 			TransformAnimation animation{};
 			std::vector<Index<Joint>> target_joints{};
+			std::string name{};
 		};
 
 		Id<Skeleton> skeleton{};
