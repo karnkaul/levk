@@ -144,6 +144,12 @@ dj::Json make_json(glm::quat const& quat) {
 	return ret;
 }
 
+dj::Json make_json(glm::mat4 const& mat) {
+	auto ret = dj::Json{};
+	for (glm::length_t i = 0; i < 4; ++i) { add_to(ret, mat[i]); }
+	return ret;
+}
+
 glm::quat make_quat(dj::Json const& json) {
 	auto ret = glm::quat{};
 	assert(json.array_view().size() >= 4);
@@ -250,10 +256,7 @@ void asset::from_json(dj::Json const& json, Transform& out) {
 	out.set_scale(scale);
 }
 
-void asset::to_json(dj::Json& out, Transform const& transform) {
-	auto const mat = transform.matrix();
-	for (glm::length_t i = 0; i < 4; ++i) { add_to(out, mat[i]); }
-}
+void asset::to_json(dj::Json& out, Transform const& transform) { out = make_json(transform.matrix()); }
 
 void asset::from_json(dj::Json const& json, asset::Material& out) {
 	assert(json["asset_type"].as_string() == "material");
