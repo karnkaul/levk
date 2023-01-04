@@ -86,46 +86,52 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 	}
 	auto* entity = scene.find(Id<experiment::Entity>{node->entity});
 	if (!entity) { return; }
-	auto inspect_skin = [&](experiment::SkeletonController& skin, experiment::SkinnedMeshRenderer const& renderer) {
-		auto const& skeleton = Service<MeshResources>::get().skeletons.get(renderer.skeleton.source);
-		imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
+	auto inspect_skeleton_controller = [&](experiment::SkeletonController& controller, experiment::SkinnedMeshRenderer const& renderer) {
 		if (renderer.skeleton.animations.empty()) { return; }
-		if (auto tn = imcpp::TreeNode("Animation")) {
-			auto const preview = skin.enabled ? FixedString{"{}", skin.enabled->value()} : FixedString{"[None]"};
+		if (auto tn = imcpp::TreeNode("Animation", ImGuiTreeNodeFlags_Framed)) {
+			auto const preview = controller.enabled ? FixedString{"{}", controller.enabled->value()} : FixedString{"[None]"};
 			if (ImGui::BeginCombo("Active", preview.c_str())) {
 				if (ImGui::Selectable("[None]")) {
-					skin.change_animation({});
+					controller.change_animation({});
 				} else {
 					for (std::size_t i = 0; i < renderer.skeleton.animations.size(); ++i) {
-						if (ImGui::Selectable(FixedString{"{}", i}.c_str(), skin.enabled && i == skin.enabled->value())) {
-							skin.change_animation(i);
+						if (ImGui::Selectable(FixedString{"{}", i}.c_str(), controller.enabled && i == controller.enabled->value())) {
+							controller.change_animation(i);
 							break;
 						}
 					}
 				}
 				ImGui::EndCombo();
 			}
-			if (skin.enabled) {
-				auto& animation = renderer.skeleton.animations[*skin.enabled];
+			if (controller.enabled) {
+				auto& animation = renderer.skeleton.animations[*controller.enabled];
 				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", animation.duration().count()}.c_str());
 				float const progress = animation.elapsed / animation.duration();
 				ImGui::ProgressBar(progress);
 			}
 		}
 	};
-	if (auto* mesh_renderer = dynamic_cast<experiment::MeshRenderer*>(entity->renderer())) {
+	auto* mesh_renderer = dynamic_cast<experiment::MeshRenderer*>(entity->renderer());
+	if (mesh_renderer) {
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
 				[&](experiment::StaticMeshRenderer& smr) {
 					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<MeshResources>::get().static_meshes.get(smr.mesh).name}.c_str());
 				},
 				[&](experiment::SkinnedMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<MeshResources>::get().skinned_meshes.get(smr.mesh).name}.c_str());
-					inspect_skin(entity->get<experiment::SkeletonController>(), smr);
+					auto const& mesh = Service<MeshResources>::get().skinned_meshes.get(smr.mesh);
+					auto const& skeleton = Service<MeshResources>::get().skeletons.get(mesh.skeleton);
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
 				},
 			};
 			std::visit(visitor, mesh_renderer->renderer);
 		}
+	}
+	if (auto* skinned_mesh_renderer = std::get_if<experiment::SkinnedMeshRenderer>(&mesh_renderer->renderer)) {
+		if (auto* skeleton_controller = entity->find<experiment::SkeletonController>()) {
+			inspect_skeleton_controller(*skeleton_controller, *skinned_mesh_renderer);
+}
 	}
 }
 

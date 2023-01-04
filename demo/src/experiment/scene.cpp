@@ -116,8 +116,14 @@ void SkeletonController::tick(Time dt) {
 	if (!mesh_renderer) { return; }
 	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 	if (!skinned_mesh_renderer) { return; }
-	assert(*enabled < skinned_mesh_renderer->skeleton.animations.size());
-	skinned_mesh_renderer->skeleton.animations[*enabled].update(scene().node_locator(), dt);
+	assert(*enabled < skinned_mesh_renderer->skeleton.animations2.size());
+	elapsed += dt * time_scale;
+	auto const& animation = skinned_mesh_renderer->skeleton.animations2[*enabled];
+	auto const& skeleton = Service<MeshResources>::get().skeletons.get(animation.skeleton);
+	assert(animation.source < skeleton.animation_sources.size());
+	auto const& source = skeleton.animation_sources[animation.source];
+	animation.update(scene().node_locator(), elapsed, source);
+	if (elapsed > source.animation.duration()) { elapsed = {}; }
 }
 
 void StaticMeshRenderer::render(Entity const& entity) const {

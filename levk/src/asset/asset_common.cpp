@@ -243,6 +243,52 @@ dj::Json make_json(Skeleton::Sampler const& asset) {
 	std::visit(visitor, asset);
 	return ret;
 }
+
+JointAnimation::Sampler make_animation_sampler(dj::Json const& json) {
+	auto ret = JointAnimation::Sampler{};
+	auto const type = json["type"].as_string();
+	if (type == "translate") {
+		auto sampler = JointAnimation::Translate{};
+		sampler.keyframes = make_keyframes<glm::vec3>(json["keyframes"]);
+		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
+		ret.storage = std::move(sampler);
+	} else if (type == "rotate") {
+		auto sampler = JointAnimation::Rotate{};
+		sampler.keyframes = make_keyframes<glm::quat>(json["keyframes"]);
+		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
+		ret.storage = std::move(sampler);
+	} else if (type == "scale") {
+		auto sampler = JointAnimation::Scale{};
+		sampler.keyframes = make_keyframes<glm::vec3>(json["keyframes"]);
+		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
+		ret.storage = std::move(sampler);
+	}
+	return ret;
+}
+
+dj::Json make_json(JointAnimation::Sampler const& asset) {
+	auto ret = dj::Json{};
+	ret["asset_type"] = "animation_sampler";
+	auto visitor = Visitor{
+		[&](JointAnimation::Translate const& t) {
+			ret["type"] = "translate";
+			ret["interpolation"] = from(t.interpolation);
+			ret["keyframes"] = make_json<glm::vec3>(t.keyframes);
+		},
+		[&](JointAnimation::Rotate const& r) {
+			ret["type"] = "rotate";
+			ret["interpolation"] = from(r.interpolation);
+			ret["keyframes"] = make_json<glm::quat>(r.keyframes);
+		},
+		[&](JointAnimation::Scale const s) {
+			ret["type"] = "scale";
+			ret["interpolation"] = from(s.interpolation);
+			ret["keyframes"] = make_json<glm::vec3>(s.keyframes);
+		},
+	};
+	std::visit(visitor, asset.storage);
+	return ret;
+}
 } // namespace
 
 void asset::from_json(dj::Json const& json, Transform& out) {
@@ -347,6 +393,15 @@ void asset::from_json(dj::Json const& json, Skeleton& out) {
 			out_channel.sampler = make_skeleton_sampler(in_channel["sampler"]);
 		}
 	}
+	for (auto const& in_source : json["animation_sources"].array_view()) {
+		auto& out_source = out.skeleton.animation_sources.emplace_back();
+		out_source.animation.name = in_source["name"].as_string();
+		for (auto const& in_sampler : in_source["samplers"].array_view()) {
+			auto& out_sampler = out_source.animation.samplers.emplace_back();
+			out_sampler = make_animation_sampler(in_sampler);
+		}
+		for (auto const& in_target : in_source["target_joints"].array_view()) { out_source.target_joints.push_back(in_target.as<std::size_t>()); }
+	}
 }
 
 void asset::to_json(dj::Json& out, Skeleton const& asset) {
@@ -380,5 +435,18 @@ void asset::to_json(dj::Json& out, Skeleton const& asset) {
 		clips.push_back(std::move(out_clip));
 	}
 	out["clips"] = std::move(clips);
+	auto out_animation_sources = dj::Json{};
+	for (auto const& in_source : asset.skeleton.animation_sources) {
+		auto out_source = dj::Json{};
+		out_source["name"] = in_source.animation.name;
+		auto out_samplers = dj::Json{};
+		for (auto const& in_sampler : in_source.animation.samplers) { out_samplers.push_back(make_json(in_sampler)); }
+		out_source["samplers"] = std::move(out_samplers);
+		auto out_targets = dj::Json{};
+		for (auto const in_target : in_source.target_joints) { out_targets.push_back(in_target); }
+		out_source["target_joints"] = std::move(out_targets);
+		out_animation_sources.push_back(std::move(out_source));
+	}
+	out["animation_sources"] = std::move(out_animation_sources);
 }
 } // namespace levk

@@ -392,6 +392,59 @@ struct GltfExporter {
 			if (!clip.channels.empty()) { skeleton.clips.push_back(std::move(clip)); }
 		}
 
+		for (auto const& in_animation : in_root.animations) {
+			auto out_source = levk::SkeletalAnimation::Source{};
+			out_source.animation.name = in_animation.name;
+			for (auto const& in_channel : in_animation.channels) {
+				if (!in_channel.target.node) { continue; }
+				auto joint_it = map.find(*in_channel.target.node);
+				if (joint_it == map.end()) { continue; }
+				using Path = gltf2cpp::Animation::Path;
+				auto out_sampler = levk::JointAnimation::Sampler{};
+				auto const& in_sampler = in_animation.samplers[in_channel.sampler];
+				if (in_sampler.interpolation == gltf2cpp::Interpolation::eCubicSpline) { continue; } // facade constraint
+				auto const& input = in_root.accessors[in_sampler.input];
+				assert(input.type == gltf2cpp::Accessor::Type::eScalar && input.component_type == gltf2cpp::ComponentType::eFloat);
+				auto times = std::get<gltf2cpp::Accessor::Float>(input.data).span();
+				auto const& output = in_root.accessors[in_sampler.output];
+				assert(output.component_type == gltf2cpp::ComponentType::eFloat);
+				auto const values = std::get<gltf2cpp::Accessor::Float>(output.data).span();
+				switch (in_channel.target.path) {
+				case Path::eTranslation:
+				case Path::eScale: {
+					assert(output.type == gltf2cpp::Accessor::Type::eVec3);
+					auto vec = std::vector<glm::vec3>{};
+					vec.resize(values.size() / 3);
+					std::memcpy(vec.data(), values.data(), values.size_bytes());
+					if (in_channel.target.path == Path::eScale) {
+						out_sampler.storage = JointAnimation::Scale{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
+					} else {
+						out_sampler.storage = JointAnimation::Translate{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
+					}
+					break;
+				}
+				case Path::eRotation: {
+					assert(output.type == gltf2cpp::Accessor::Type::eVec4);
+					auto vec = std::vector<glm::quat>{};
+					vec.resize(values.size() / 4);
+					std::memcpy(vec.data(), values.data(), values.size_bytes());
+					out_sampler.storage = JointAnimation::Rotate{make_interpolator<glm::quat>(times, vec, in_sampler.interpolation)};
+					break;
+				}
+				default:
+					// TODO not implemented
+					continue;
+				}
+
+				out_source.animation.samplers.push_back(std::move(out_sampler));
+				out_source.target_joints.push_back(joint_it->second);
+			}
+			if (!out_source.animation.samplers.empty()) {
+				assert(out_source.animation.samplers.size() == out_source.target_joints.size());
+				skeleton.animation_sources.push_back(std::move(out_source));
+			}
+		}
+
 		auto asset = Skeleton{std::move(skeleton)};
 		auto uri = fmt::format("{}.json", av_skin.asset_name);
 		asset.skeleton.name = fs::path{av_skin.asset_name}.stem().string();
