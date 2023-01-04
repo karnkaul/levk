@@ -1,23 +1,14 @@
 #include <fmt/format.h>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <levk/asset/common.hpp>
+#include <levk/util/binary_file.hpp>
+#include <levk/util/hash_combine.hpp>
+#include <levk/util/logger.hpp>
 #include <levk/util/visitor.hpp>
 #include <sstream>
 
 namespace levk {
 namespace {
-constexpr Interpolation to_interpolation(std::string_view const str) {
-	if (str == "step") { return Interpolation::eStep; }
-	return Interpolation::eLinear;
-}
-
-constexpr std::string_view from(Interpolation const i) {
-	switch (i) {
-	case Interpolation::eStep: return "step";
-	default: return "linear";
-	}
-}
-
 constexpr RenderMode::Type to_render_mode(std::string_view const str) {
 	if (str == "fill") { return RenderMode::Type::eFill; }
 	if (str == "line") { return RenderMode::Type::eLine; }
@@ -137,41 +128,10 @@ dj::Json make_json(glm::vec3 const& vec3) {
 	return ret;
 }
 
-dj::Json make_json(glm::quat const& quat) {
-	auto ret = dj::Json{};
-	auto vec4 = glm::vec4{quat.x, quat.y, quat.z, quat.w};
-	add_to(ret, vec4);
-	return ret;
-}
-
 dj::Json make_json(glm::mat4 const& mat) {
 	auto ret = dj::Json{};
 	for (glm::length_t i = 0; i < 4; ++i) { add_to(ret, mat[i]); }
 	return ret;
-}
-
-glm::quat make_quat(dj::Json const& json) {
-	auto ret = glm::quat{};
-	assert(json.array_view().size() >= 4);
-	ret.x = json[0].as<float>();
-	ret.y = json[1].as<float>();
-	ret.z = json[2].as<float>();
-	ret.w = json[3].as<float>();
-	return ret;
-}
-
-template <typename... T>
-[[maybe_unused]] constexpr bool false_v = false;
-
-template <typename T>
-T glm_from_json(dj::Json const& json) {
-	if constexpr (std::same_as<T, glm::quat>) {
-		return make_quat(json);
-	} else if constexpr (std::same_as<T, glm::vec3>) {
-		return glm_vec_from_json<3>(json);
-	} else {
-		static_assert(false_v<T>, "Type not implemented");
-	}
 }
 
 template <typename T>
@@ -198,52 +158,169 @@ std::vector<typename Interpolator<T>::Keyframe> make_keyframes(dj::Json const& j
 	return ret;
 }
 
-TransformAnimation::Sampler make_animation_sampler(dj::Json const& json) {
-	auto ret = TransformAnimation::Sampler{};
-	auto const type = json["type"].as_string();
-	if (type == "translate") {
-		auto sampler = TransformAnimation::Translate{};
-		sampler.keyframes = make_keyframes<glm::vec3>(json["keyframes"]);
-		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
-		ret.storage = std::move(sampler);
-	} else if (type == "rotate") {
-		auto sampler = TransformAnimation::Rotate{};
-		sampler.keyframes = make_keyframes<glm::quat>(json["keyframes"]);
-		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
-		ret.storage = std::move(sampler);
-	} else if (type == "scale") {
-		auto sampler = TransformAnimation::Scale{};
-		sampler.keyframes = make_keyframes<glm::vec3>(json["keyframes"]);
-		sampler.interpolation = to_interpolation(json["interpolation"].as_string());
-		ret.storage = std::move(sampler);
-	}
-	return ret;
-}
-
-dj::Json make_json(TransformAnimation::Sampler const& asset) {
-	auto ret = dj::Json{};
-	ret["asset_type"] = "animation_sampler";
-	auto visitor = Visitor{
-		[&](TransformAnimation::Translate const& t) {
-			ret["type"] = "translate";
-			ret["interpolation"] = from(t.interpolation);
-			ret["keyframes"] = make_json<glm::vec3>(t.keyframes);
-		},
-		[&](TransformAnimation::Rotate const& r) {
-			ret["type"] = "rotate";
-			ret["interpolation"] = from(r.interpolation);
-			ret["keyframes"] = make_json<glm::quat>(r.keyframes);
-		},
-		[&](TransformAnimation::Scale const s) {
-			ret["type"] = "scale";
-			ret["interpolation"] = from(s.interpolation);
-			ret["keyframes"] = make_json<glm::vec3>(s.keyframes);
-		},
-	};
-	std::visit(visitor, asset.storage);
+template <typename T>
+T get_sampler(asset::BinSkeletalAnimation::Header::Sampler const& header, BinaryInFile& file) {
+	auto ret = T{};
+	ret.interpolation = header.interpolation;
+	ret.keyframes.resize(static_cast<std::size_t>(header.keyframes));
+	file.read(std::span{ret.keyframes});
 	return ret;
 }
 } // namespace
+
+namespace asset {
+std::uint64_t BinGeometry::compute_hash() const {
+	auto ret = std::size_t{};
+	for (auto const& position : geometry.positions) { hash_combine(ret, position.x, position.y, position.z); }
+	hash_combine(ret, geometry.rgbs.size(), geometry.normals.size(), geometry.uvs.size(), geometry.indices.size(), joints.size());
+	return static_cast<std::uint64_t>(ret);
+}
+
+bool BinGeometry::write(char const* path) const {
+	auto file = BinaryOutFile{path};
+	if (!file) { return false; }
+	auto const header = Header{
+		.hash = compute_hash(),
+		.positions = geometry.positions.size(),
+		.indices = geometry.indices.size(),
+		.joints = joints.size(),
+		.weights = weights.size(),
+	};
+	file.write(std::span{&header, 1});
+	file.write(std::span{geometry.positions});
+	file.write(std::span{geometry.rgbs});
+	file.write(std::span{geometry.normals});
+	file.write(std::span{geometry.uvs});
+	file.write(std::span{geometry.indices});
+	if (!joints.empty()) {
+		file.write(std::span{joints});
+		file.write(std::span{weights});
+	}
+	return true;
+}
+
+bool BinGeometry::read(char const* path) {
+	auto file = BinaryInFile{path};
+	if (!file) { return false; }
+
+	auto in = BinGeometry{};
+	auto header = Header{};
+	file.read(header);
+
+	in.geometry.positions.resize(static_cast<std::size_t>(header.positions));
+	file.read(std::span{in.geometry.positions});
+
+	in.geometry.rgbs.resize(static_cast<std::size_t>(header.positions));
+	file.read(std::span{in.geometry.rgbs});
+
+	in.geometry.normals.resize(static_cast<std::size_t>(header.positions));
+	file.read(std::span{in.geometry.normals});
+
+	in.geometry.uvs.resize(static_cast<std::size_t>(header.positions));
+	file.read(std::span{in.geometry.uvs});
+
+	if (header.indices) {
+		in.geometry.indices.resize(static_cast<std::size_t>(header.indices));
+		file.read(std::span{in.geometry.indices});
+	}
+
+	if (header.joints) {
+		in.joints.resize(static_cast<std::size_t>(header.joints));
+		file.read(std::span{in.joints});
+
+		assert(header.weights == header.joints);
+		in.weights.resize(static_cast<std::size_t>(header.weights));
+		file.read(std::span{in.weights});
+	}
+
+	if (in.compute_hash() != header.hash) { return false; }
+
+	*this = std::move(in);
+	return true;
+}
+
+template <typename T>
+constexpr bool has_w_v = requires(T t) { t.w; };
+
+std::uint64_t BinSkeletalAnimation::compute_hash() const {
+	auto ret = std::size_t{};
+	auto combine_sampler = [&ret](auto const& sampler) {
+		hash_combine(ret, sampler.interpolation);
+		for (auto const& keyframe : sampler.keyframes) {
+			hash_combine(ret, keyframe.timestamp.count(), keyframe.value.x, keyframe.value.x, keyframe.value.z);
+			if constexpr (has_w_v<decltype(keyframe.value)>) { hash_combine(ret, keyframe.value.w); }
+		}
+	};
+	for (auto const& sampler : samplers) { std::visit(combine_sampler, sampler); }
+	for (auto const joint : target_joints) { hash_combine(ret, joint); }
+	hash_combine(ret, name);
+	return ret;
+}
+
+bool BinSkeletalAnimation::write(char const* path) const {
+	auto file = BinaryOutFile{path};
+	if (!file) { return false; }
+	auto const header = Header{
+		.hash = compute_hash(),
+		.samplers = static_cast<std::uint64_t>(samplers.size()),
+		.target_joints = static_cast<std::uint64_t>(target_joints.size()),
+		.name_length = static_cast<std::uint64_t>(name.size()),
+	};
+	file.write(std::span{&header, 1u});
+	auto write_sampler = [&file](auto const& sampler, Type const type) {
+		auto const header = Header::Sampler{
+			.type = type,
+			.interpolation = sampler.interpolation,
+			.keyframes = static_cast<std::uint64_t>(sampler.keyframes.size()),
+		};
+		file.write(std::span{&header, 1u});
+		file.write(std::span{sampler.keyframes});
+	};
+	auto visitor = Visitor{
+		[&](TransformAnimation::Translate const& translate) { write_sampler(translate, Type::eTranslate); },
+		[&](TransformAnimation::Rotate const& rotate) { write_sampler(rotate, Type::eRotate); },
+		[&](TransformAnimation::Scale const& scale) { write_sampler(scale, Type::eScale); },
+	};
+	for (auto const& sampler : samplers) { std::visit(visitor, sampler); }
+
+	file.write(std::span{target_joints});
+	file.write(std::span{name.data(), name.size()});
+
+	return true;
+}
+
+bool BinSkeletalAnimation::read(char const* path) {
+	auto file = BinaryInFile{path};
+	if (!file) { return false; }
+
+	auto in = BinSkeletalAnimation{};
+	auto header = Header{};
+	file.read(header);
+
+	for (std::uint64_t i = 0; i < header.samplers; ++i) {
+		auto sampler_header = Header::Sampler{};
+		file.read(sampler_header);
+		auto& out_sampler = in.samplers.emplace_back();
+		switch (sampler_header.type) {
+		case Type::eTranslate: out_sampler = get_sampler<TransformAnimation::Translate>(sampler_header, file); break;
+		case Type::eRotate: out_sampler = get_sampler<TransformAnimation::Rotate>(sampler_header, file); break;
+		case Type::eScale: out_sampler = get_sampler<TransformAnimation::Scale>(sampler_header, file); break;
+		default: logger::error("[BinSkeletonAnimation] Unrecognized type: [{}]", static_cast<int>(sampler_header.type)); break;
+		}
+	}
+
+	in.target_joints.resize(static_cast<std::size_t>(header.target_joints));
+	file.read(std::span{in.target_joints});
+
+	in.name.resize(static_cast<std::size_t>(header.name_length));
+	file.read(std::span{in.name.data(), in.name.size()});
+
+	if (in.compute_hash() != header.hash) { return false; }
+
+	*this = std::move(in);
+	return true;
+}
+} // namespace asset
 
 void asset::from_json(dj::Json const& json, Transform& out) {
 	auto const mat = glm_mat_from_json(json);
@@ -288,31 +365,6 @@ void asset::to_json(dj::Json& out, asset::Material const& asset) {
 	out["alpha_mode"] = from(asset.alpha_mode);
 	out["shader"] = asset.shader;
 	out["name"] = asset.name;
-}
-
-void asset::from_json(dj::Json const& json, SkeletalAnimation& out) {
-	assert(json["asset_type"].as_string() == "skeletal_animation");
-	out.name = json["name"].as_string();
-	for (auto const& in_sampler : json["samplers"].array_view()) {
-		auto& out_sampler = out.animation.samplers.emplace_back();
-		out_sampler = make_animation_sampler(in_sampler);
-	}
-	for (auto const& in_target : json["target_joints"].array_view()) { out.target_joints.push_back(in_target.as<std::size_t>()); }
-}
-
-void asset::to_json(dj::Json& out_source, SkeletalAnimation const& asset) {
-	out_source["asset_type"] = "skeletal_animation";
-	out_source["name"] = asset.name;
-	if (!asset.animation.samplers.empty()) {
-		auto out_samplers = dj::Json{};
-		for (auto const& in_sampler : asset.animation.samplers) { out_samplers.push_back(make_json(in_sampler)); }
-		out_source["samplers"] = std::move(out_samplers);
-	}
-	if (!asset.target_joints.empty()) {
-		auto out_targets = dj::Json{};
-		for (auto const in_target : asset.target_joints) { out_targets.push_back(in_target); }
-		out_source["target_joints"] = std::move(out_targets);
-	}
 }
 
 void asset::from_json(dj::Json const& json, Skeleton& out) {

@@ -13,7 +13,7 @@ constexpr glm::vec3 lerp(glm::vec3 const& a, glm::vec3 const& b, float const t) 
 
 inline glm::quat lerp(glm::quat const& a, glm::quat const& b, float const t) { return glm::slerp(a, b, t); }
 
-enum class Interpolation {
+enum class Interpolation : std::uint8_t {
 	eLinear,
 	eStep,
 };

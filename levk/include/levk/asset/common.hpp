@@ -52,20 +52,37 @@ struct BinGeometry {
 	bool read(char const* path);
 };
 
-struct SkeletalAnimation {
-	TransformAnimation animation{};
+struct BinSkeletalAnimation {
+	enum class Type : std::uint8_t { eTranslate, eRotate, eScale };
+	using Sampler = std::variant<TransformAnimation::Translate, TransformAnimation::Rotate, TransformAnimation::Scale>;
+
+	struct Header {
+		struct Sampler {
+			Type type{};
+			Interpolation interpolation{};
+			std::uint64_t keyframes{};
+		};
+
+		std::uint64_t hash{};
+		std::uint64_t samplers{};
+		std::uint64_t target_joints{};
+		std::uint64_t name_length{};
+	};
+
+	std::vector<Sampler> samplers{};
 	std::vector<std::size_t> target_joints{};
 	std::string name{};
-};
 
-void from_json(dj::Json const& json, SkeletalAnimation& out);
-void to_json(dj::Json& out, SkeletalAnimation const& asset);
+	std::uint64_t compute_hash() const;
+	bool write(char const* path) const;
+	bool read(char const* path);
+};
 
 struct Skeleton {
 	using Joint = levk::Skeleton::Joint;
 
 	std::vector<Joint> joints{};
-	std::vector<Uri<SkeletalAnimation>> animations{};
+	std::vector<Uri<BinSkeletalAnimation>> animations{};
 	std::string name{};
 };
 

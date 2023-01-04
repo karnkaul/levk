@@ -1,11 +1,9 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <gltf2cpp/gltf2cpp.hpp>
 #include <levk/asset/gltf_importer.hpp>
-#include <levk/util/binary_file.hpp>
 #include <levk/util/bool.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
-#include <levk/util/hash_combine.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/visitor.hpp>
 #include <levk/util/zip_ranges.hpp>
@@ -330,16 +328,13 @@ struct GltfExporter {
 		return uri;
 	}
 
-	Uri<asset::SkeletalAnimation> export_skeletal_animation(GltfAsset const& asset, asset::SkeletalAnimation const& animation) {
-		auto uri = fmt::format("{}.json", asset.asset_name);
-		auto json = dj::Json{};
-		asset::to_json(json, animation);
+	Uri<asset::BinSkeletalAnimation> export_skeletal_animation(GltfAsset const& asset, asset::BinSkeletalAnimation const& animation) {
+		auto uri = fmt::format("{}.bin", asset.asset_name);
 		auto dst = out_dir / uri;
-		if (fs::exists(dst)) {
-			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
-			fs::remove(dst);
+		if (!animation.write(dst.generic_string().c_str())) {
+			import_logger.error("[Import] Failed to import Skeletal Animation: [{}]", uri);
+			return {};
 		}
-		json.to_file(dst.string().c_str());
 		import_logger.info("[Import] Skeleton Animation [{}] imported", uri);
 		return uri;
 	}
@@ -357,16 +352,16 @@ struct GltfExporter {
 		auto const& in = in_root.skins[av_skin.index];
 		auto [joints, map] = MapGltfNodesToJoints{}(in, in_root.nodes);
 
-		auto animations = std::vector<SkeletalAnimation>{};
+		auto animations = std::vector<BinSkeletalAnimation>{};
 		for (auto const& in_animation : in_root.animations) {
-			auto out_source = SkeletalAnimation{};
-			out_source.name = in_animation.name;
+			auto out_animation = BinSkeletalAnimation{};
+			out_animation.name = in_animation.name;
 			for (auto const& in_channel : in_animation.channels) {
 				if (!in_channel.target.node) { continue; }
 				auto joint_it = map.find(*in_channel.target.node);
 				if (joint_it == map.end()) { continue; }
 				using Path = gltf2cpp::Animation::Path;
-				auto out_sampler = levk::TransformAnimation::Sampler{};
+				auto out_sampler = BinSkeletalAnimation::Sampler{};
 				auto const& in_sampler = in_animation.samplers[in_channel.sampler];
 				if (in_sampler.interpolation == gltf2cpp::Interpolation::eCubicSpline) { continue; } // facade constraint
 				auto const& input = in_root.accessors[in_sampler.input];
@@ -383,9 +378,9 @@ struct GltfExporter {
 					vec.resize(values.size() / 3);
 					std::memcpy(vec.data(), values.data(), values.size_bytes());
 					if (in_channel.target.path == Path::eScale) {
-						out_sampler.storage = TransformAnimation::Scale{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
+						out_sampler = TransformAnimation::Scale{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
 					} else {
-						out_sampler.storage = TransformAnimation::Translate{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
+						out_sampler = TransformAnimation::Translate{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
 					}
 					break;
 				}
@@ -394,7 +389,7 @@ struct GltfExporter {
 					auto vec = std::vector<glm::quat>{};
 					vec.resize(values.size() / 4);
 					std::memcpy(vec.data(), values.data(), values.size_bytes());
-					out_sampler.storage = TransformAnimation::Rotate{make_interpolator<glm::quat>(times, vec, in_sampler.interpolation)};
+					out_sampler = TransformAnimation::Rotate{make_interpolator<glm::quat>(times, vec, in_sampler.interpolation)};
 					break;
 				}
 				default:
@@ -402,12 +397,12 @@ struct GltfExporter {
 					continue;
 				}
 
-				out_source.animation.samplers.push_back(std::move(out_sampler));
-				out_source.target_joints.push_back(joint_it->second);
+				out_animation.samplers.push_back(std::move(out_sampler));
+				out_animation.target_joints.push_back(joint_it->second);
 			}
-			if (!out_source.animation.samplers.empty()) {
-				assert(out_source.animation.samplers.size() == out_source.target_joints.size());
-				animations.push_back(std::move(out_source));
+			if (!out_animation.samplers.empty()) {
+				assert(out_animation.samplers.size() == out_animation.target_joints.size());
+				animations.push_back(std::move(out_animation));
 			}
 		}
 
@@ -433,76 +428,6 @@ struct GltfExporter {
 	}
 };
 } // namespace
-
-std::uint64_t BinGeometry::compute_hash() const {
-	auto ret = std::size_t{};
-	for (auto const& position : geometry.positions) { hash_combine(ret, position.x, position.y, position.z); }
-	hash_combine(ret, geometry.rgbs.size(), geometry.normals.size(), geometry.uvs.size(), geometry.indices.size(), joints.size());
-	return static_cast<std::uint64_t>(ret);
-}
-
-bool BinGeometry::write(char const* path) const {
-	auto file = BinaryOutFile{path};
-	if (!file) { return false; }
-	auto const header = Header{
-		.hash = compute_hash(),
-		.positions = geometry.positions.size(),
-		.indices = geometry.indices.size(),
-		.joints = joints.size(),
-		.weights = weights.size(),
-	};
-	file.write(std::span{&header, 1});
-	file.write(std::span{geometry.positions});
-	file.write(std::span{geometry.rgbs});
-	file.write(std::span{geometry.normals});
-	file.write(std::span{geometry.uvs});
-	file.write(std::span{geometry.indices});
-	if (!joints.empty()) {
-		file.write(std::span{joints});
-		file.write(std::span{weights});
-	}
-	return true;
-}
-
-bool BinGeometry::read(char const* path) {
-	auto file = BinaryInFile{path};
-	if (!file) { return false; }
-
-	auto in = BinGeometry{};
-	auto header = Header{};
-	file.read(header);
-
-	in.geometry.positions.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.positions});
-
-	in.geometry.rgbs.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.rgbs});
-
-	in.geometry.normals.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.normals});
-
-	in.geometry.uvs.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.uvs});
-
-	if (header.indices) {
-		in.geometry.indices.resize(static_cast<std::size_t>(header.indices));
-		file.read(std::span{in.geometry.indices});
-	}
-
-	if (header.joints) {
-		in.joints.resize(static_cast<std::size_t>(header.joints));
-		file.read(std::span{in.joints});
-
-		assert(header.weights == header.joints);
-		in.weights.resize(static_cast<std::size_t>(header.weights));
-		file.read(std::span{in.weights});
-	}
-
-	if (in.compute_hash() != header.hash) { return false; }
-
-	*this = std::move(in);
-	return true;
-}
 
 GltfImporter::List GltfImporter::peek(std::string gltf_path, logger::Dispatch const& import_logger) {
 	auto ret = GltfImporter::List{};

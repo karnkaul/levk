@@ -117,13 +117,17 @@ Id<levk::Skeleton> AssetLoader::load_skeleton(char const* path) const {
 			logger::warn("[Load] Failed to load Skeletal animation JSON [{}]", in_animation.value());
 			continue;
 		}
-		auto out_animation_asset = asset::SkeletalAnimation{};
-		from_json(in_animation_asset, out_animation_asset);
-		skeleton.animation_sources.push_back(Skeleton::Animation::Source{
-			.animation = std::move(out_animation_asset.animation),
+		auto out_animation_asset = asset::BinSkeletalAnimation{};
+		if (!out_animation_asset.read((parent_dir / in_animation.value()).string().c_str())) {
+			logger::warn("[Load] Failed to load SkeletalAnimation at: [{}]", in_animation.value());
+			continue;
+		}
+		auto source = Skeleton::Animation::Source{
 			.target_joints = std::move(out_animation_asset.target_joints),
 			.name = std::move(out_animation_asset.name),
-		});
+		};
+		for (auto const& in_sampler : out_animation_asset.samplers) { source.animation.samplers.push_back({in_sampler}); }
+		skeleton.animation_sources.push_back(std::move(source));
 	}
 	logger::info("[Load] [{}] Skeleton loaded", asset.name);
 	return mesh_resources.skeletons.add(std::move(skeleton)).first;
