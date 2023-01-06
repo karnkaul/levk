@@ -1,9 +1,12 @@
 #include <imgui.h>
+#include <levk/asset/asset_loader.hpp>
 #include <levk/engine.hpp>
 #include <levk/entity.hpp>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/impl/desktop_window.hpp>
 #include <levk/impl/vulkan_device.hpp>
+#include <levk/resources.hpp>
+#include <levk/service.hpp>
 #include <levk/transform_controller.hpp>
 #include <levk/util/error.hpp>
 #include <levk/util/fixed_string.hpp>
@@ -16,10 +19,6 @@
 #include <experiment/entity.hpp>
 #include <experiment/scene.hpp>
 #include <experiment/serializer.hpp>
-#include <levk/asset/asset_loader.hpp>
-#include <levk/resources.hpp>
-#include <levk/service.hpp>
-
 namespace levk {
 namespace fs = std::filesystem;
 
@@ -220,7 +219,7 @@ void run(fs::path data_path) {
 	auto inspect = Id<Node>{};
 
 	services.serializer.get().bind_to<experiment::SkeletonController>("skeleton_controller");
-	services.serializer.get().bind_to("mesh_renderer", [] { return std::make_unique<experiment::MeshRenderer>(experiment::StaticMeshRenderer{}); });
+	services.serializer.get().bind_to<experiment::MeshRenderer>("mesh_renderer");
 
 	engine.show();
 	while (engine.is_running()) {

@@ -1,5 +1,4 @@
 #pragma once
-#include <experiment/component.hpp>
 #include <experiment/entity.hpp>
 #include <levk/asset/uri.hpp>
 #include <levk/engine.hpp>
@@ -47,7 +46,7 @@ struct SkinnedMeshRenderer {
 struct MeshRenderer : Entity::Renderer {
 	std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer{};
 
-	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer) : renderer(std::move(renderer)) {}
+	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer = StaticMeshRenderer{}) : renderer(std::move(renderer)) {}
 
 	void render(Entity const& entity) const override;
 

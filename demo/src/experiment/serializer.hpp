@@ -11,6 +11,7 @@ class Serializer {
 	using Factory = UniqueTask<std::unique_ptr<ISerializable>()>;
 
 	template <typename Type>
+		requires(std::is_default_constructible_v<Type>)
 	void bind_to(std::string type_name) {
 		bind_to(std::move(type_name), [] { return std::make_unique<Type>(); });
 	}

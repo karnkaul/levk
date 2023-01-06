@@ -18,7 +18,6 @@ namespace fs = std::filesystem;
 dj::Json make_json(Skeleton::Instance const& skeleton) {
 	auto ret = dj::Json{};
 	ret["root"] = skeleton.root.value();
-	ret["source"] = skeleton.source.value();
 	auto out_joints = dj::Json{};
 	for (auto const in_joint : skeleton.joints) { out_joints.push_back(in_joint.value()); }
 	ret["joints"] = std::move(out_joints);
@@ -29,133 +28,26 @@ dj::Json make_json(Skeleton::Instance const& skeleton) {
 		auto out_nodes = dj::Json{};
 		for (auto const in_node : in_animation.target_nodes) { out_nodes.push_back(in_node.value()); }
 		out_animation["target_nodes"] = std::move(out_nodes);
-		out_animation["skeleton"] = in_animation.skeleton.value();
 		out_animations.push_back(std::move(out_animation));
 	}
 	ret["animations"] = std::move(out_animations);
 	return ret;
 }
 
-Skeleton::Instance to_skeleton_instance(dj::Json const& json) {
+Skeleton::Instance to_skeleton_instance(dj::Json const& json, Id<Skeleton> skeleton) {
 	auto ret = Skeleton::Instance{};
 	ret.root = json["root"].as<std::size_t>();
-	ret.source = json["source"].as<std::size_t>();
+	ret.source = skeleton;
 	for (auto const& in_joint : json["joints"].array_view()) { ret.joints.push_back(in_joint.as<std::size_t>()); }
 	for (auto const& in_animation : json["animations"].array_view()) {
 		auto& out_animation = ret.animations.emplace_back();
 		out_animation.source = in_animation["source"].as<std::size_t>();
-		out_animation.skeleton = in_animation["skeleton"].as<std::size_t>();
+		out_animation.skeleton = skeleton;
 		for (auto const& in_node : in_animation["target_nodes"].array_view()) { out_animation.target_nodes.push_back(in_node.as<std::size_t>()); }
 	}
 	return ret;
 }
 } // namespace
-
-bool Scene::import_gltf(char const* in_path, std::string_view dest_dir) {
-	auto src = fs::path{in_path};
-	auto dst = fs::path{Service<Resources>::locate().root_dir()} / dest_dir;
-	auto src_filename = src.filename().stem();
-	auto export_path = dst / src_filename;
-	auto asset_list = asset::GltfImporter::peek(in_path);
-
-	if (!asset_list) { return {}; }
-
-	if (asset_list.static_meshes.empty() && asset_list.skinned_meshes.empty()) {
-		logger::error("No meshes found in {}\n", in_path);
-		return {};
-	}
-
-	bool is_skinned{};
-	auto mesh_asset = [&]() -> Ptr<asset::GltfAsset const> {
-		auto const func = [](asset::GltfAsset const& asset) { return asset.index == 0; };
-		if (auto it = std::find_if(asset_list.static_meshes.begin(), asset_list.static_meshes.end(), func); it != asset_list.static_meshes.end()) {
-			return &*it;
-		}
-		if (auto it = std::find_if(asset_list.skinned_meshes.begin(), asset_list.skinned_meshes.end(), func); it != asset_list.skinned_meshes.end()) {
-			is_skinned = true;
-			return &*it;
-		}
-		return nullptr;
-	}();
-
-	auto importer = asset_list.importer(dst.string());
-	if (!importer) { return {}; }
-
-	auto mesh_uri = importer.import_mesh(*mesh_asset);
-	if (mesh_uri.value().empty()) {
-		logger::error("Import failed! {}\n", mesh_asset->asset_name);
-		return {};
-	}
-	mesh_uri = (fs::path{dest_dir} / mesh_uri.value()).generic_string();
-
-	if (is_skinned) {
-		return load_into_tree(asset::Uri<SkinnedMesh>{mesh_uri.value()});
-	} else {
-		return load_into_tree(asset::Uri<StaticMesh>{mesh_uri.value()});
-	}
-}
-
-bool Scene::load_mesh_into_tree(std::string_view uri) {
-	auto& resources = Service<Resources>::locate();
-	switch (resources.get_mesh_type(uri)) {
-	case MeshType::eStatic: return load_into_tree(asset::Uri<StaticMesh>{std::string{uri}});
-	case MeshType::eSkinned: return load_into_tree(asset::Uri<SkinnedMesh>{std::string{uri}});
-	default: logger::error("[Scene] Failed to load Mesh [{}]", uri); return false;
-	}
-}
-
-bool Scene::load_into_tree(asset::Uri<StaticMesh> uri) {
-	auto id = Service<Resources>::get().load(uri);
-	if (!id) { return false; }
-	return add_to_tree(uri.value(), id);
-}
-
-bool Scene::load_into_tree(asset::Uri<SkinnedMesh> uri) {
-	auto id = Service<Resources>::get().load(uri);
-	if (!id) { return false; }
-	return add_to_tree(uri.value(), id);
-}
-
-bool Scene::add_to_tree(std::string_view uri, Id<SkinnedMesh> id) {
-	auto& render_resources = Service<Resources>::get().render;
-	auto const* mesh = render_resources.skinned_meshes.find(id);
-	if (!mesh) {
-		logger::warn("[Scene] Failed to find SkinnedMesh [{}]", id.value());
-		return false;
-	}
-	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
-	// TODO: fix
-	auto& entity = m_entities.get({node.entity.value()});
-	auto skeleton = Skeleton::Instance{};
-	auto enabled = std::optional<Id<Skeleton::Animation>>{};
-	if (mesh->skeleton) {
-		auto const& source_skeleton = render_resources.skeletons.get(mesh->skeleton);
-		skeleton = source_skeleton.instantiate(m_nodes, node.id());
-		if (!skeleton.animations.empty()) { enabled = 0; }
-	}
-	auto mesh_renderer = SkinnedMeshRenderer{};
-	mesh_renderer.set_mesh(id, std::move(skeleton));
-	mesh_renderer.mesh_uri = std::string{uri};
-	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
-	entity.attach(std::make_unique<SkeletonController>()).enabled = enabled;
-	return true;
-}
-
-bool Scene::add_to_tree(std::string_view uri, Id<StaticMesh> id) {
-	auto& render_resources = Service<Resources>::get().render;
-	auto const* mesh = render_resources.static_meshes.find(id);
-	if (!mesh) {
-		logger::warn("[Scene] Failed to find StaticMesh [{}]", id.value());
-		return false;
-	}
-	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
-	// TODO: fix
-	auto& entity = m_entities.get({node.entity.value()});
-	auto mesh_renderer = StaticMeshRenderer{id};
-	mesh_renderer.mesh_uri = std::string{uri};
-	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
-	return true;
-}
 
 void SkeletonController::change_animation(std::optional<Id<Skeleton::Animation>> index) {
 	if (index != enabled) {
@@ -279,12 +171,119 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 			logger::error("[MeshRenderer] Failed to load StaticMesh [{}]", smr.mesh_uri.value());
 			return false;
 		}
-		smr.set_mesh(mesh, to_skeleton_instance(json["skeleton"]));
+		auto const& source_mesh = resources.render.skinned_meshes.get(mesh);
+		smr.set_mesh(mesh, to_skeleton_instance(json["skeleton"], source_mesh.skeleton));
 		renderer = std::move(smr);
 	} else {
 		logger::warn("[MeshRenderer] Unrecognized type: [{}]", type);
 		return false;
 	}
+	return true;
+}
+
+bool Scene::import_gltf(char const* in_path, std::string_view dest_dir) {
+	auto src = fs::path{in_path};
+	auto dst = fs::path{Service<Resources>::locate().root_dir()} / dest_dir;
+	auto src_filename = src.filename().stem();
+	auto export_path = dst / src_filename;
+	auto asset_list = asset::GltfImporter::peek(in_path);
+
+	if (!asset_list) { return {}; }
+
+	if (asset_list.static_meshes.empty() && asset_list.skinned_meshes.empty()) {
+		logger::error("No meshes found in {}\n", in_path);
+		return {};
+	}
+
+	bool is_skinned{};
+	auto mesh_asset = [&]() -> Ptr<asset::GltfAsset const> {
+		auto const func = [](asset::GltfAsset const& asset) { return asset.index == 0; };
+		if (auto it = std::find_if(asset_list.static_meshes.begin(), asset_list.static_meshes.end(), func); it != asset_list.static_meshes.end()) {
+			return &*it;
+		}
+		if (auto it = std::find_if(asset_list.skinned_meshes.begin(), asset_list.skinned_meshes.end(), func); it != asset_list.skinned_meshes.end()) {
+			is_skinned = true;
+			return &*it;
+		}
+		return nullptr;
+	}();
+
+	auto importer = asset_list.importer(dst.string());
+	if (!importer) { return {}; }
+
+	auto mesh_uri = importer.import_mesh(*mesh_asset);
+	if (mesh_uri.value().empty()) {
+		logger::error("Import failed! {}\n", mesh_asset->asset_name);
+		return {};
+	}
+	mesh_uri = (fs::path{dest_dir} / mesh_uri.value()).generic_string();
+
+	if (is_skinned) {
+		return load_into_tree(asset::Uri<SkinnedMesh>{mesh_uri.value()});
+	} else {
+		return load_into_tree(asset::Uri<StaticMesh>{mesh_uri.value()});
+	}
+}
+
+bool Scene::load_mesh_into_tree(std::string_view uri) {
+	auto& resources = Service<Resources>::locate();
+	switch (resources.get_mesh_type(uri)) {
+	case MeshType::eStatic: return load_into_tree(asset::Uri<StaticMesh>{std::string{uri}});
+	case MeshType::eSkinned: return load_into_tree(asset::Uri<SkinnedMesh>{std::string{uri}});
+	default: logger::error("[Scene] Failed to load Mesh [{}]", uri); return false;
+	}
+}
+
+bool Scene::load_into_tree(asset::Uri<StaticMesh> uri) {
+	auto id = Service<Resources>::get().load(uri);
+	if (!id) { return false; }
+	return add_to_tree(uri.value(), id);
+}
+
+bool Scene::load_into_tree(asset::Uri<SkinnedMesh> uri) {
+	auto id = Service<Resources>::get().load(uri);
+	if (!id) { return false; }
+	return add_to_tree(uri.value(), id);
+}
+
+bool Scene::add_to_tree(std::string_view uri, Id<SkinnedMesh> id) {
+	auto& render_resources = Service<Resources>::get().render;
+	auto const* mesh = render_resources.skinned_meshes.find(id);
+	if (!mesh) {
+		logger::warn("[Scene] Failed to find SkinnedMesh [{}]", id.value());
+		return false;
+	}
+	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
+	// TODO: fix
+	auto& entity = m_entities.get({node.entity.value()});
+	auto skeleton = Skeleton::Instance{};
+	auto enabled = std::optional<Id<Skeleton::Animation>>{};
+	if (mesh->skeleton) {
+		auto const& source_skeleton = render_resources.skeletons.get(mesh->skeleton);
+		skeleton = source_skeleton.instantiate(m_nodes, node.id());
+		if (!skeleton.animations.empty()) { enabled = 0; }
+	}
+	auto mesh_renderer = SkinnedMeshRenderer{};
+	mesh_renderer.set_mesh(id, std::move(skeleton));
+	mesh_renderer.mesh_uri = std::string{uri};
+	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
+	entity.attach(std::make_unique<SkeletonController>()).enabled = enabled;
+	return true;
+}
+
+bool Scene::add_to_tree(std::string_view uri, Id<StaticMesh> id) {
+	auto& render_resources = Service<Resources>::get().render;
+	auto const* mesh = render_resources.static_meshes.find(id);
+	if (!mesh) {
+		logger::warn("[Scene] Failed to find StaticMesh [{}]", id.value());
+		return false;
+	}
+	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
+	// TODO: fix
+	auto& entity = m_entities.get({node.entity.value()});
+	auto mesh_renderer = StaticMeshRenderer{id};
+	mesh_renderer.mesh_uri = std::string{uri};
+	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
 	return true;
 }
 
