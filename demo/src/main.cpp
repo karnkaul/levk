@@ -105,7 +105,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 			}
 			if (controller.enabled) {
 				auto& animation = renderer.skeleton.animations[*controller.enabled];
-				auto const& skeleton = Service<MeshResources>::get().skeletons.get(animation.skeleton);
+				auto const& skeleton = Service<RenderResources>::get().skeletons.get(animation.skeleton);
 				auto const& source = skeleton.animation_sources[animation.source];
 				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", source.animation.duration().count()}.c_str());
 				float const progress = controller.elapsed / source.animation.duration();
@@ -118,11 +118,11 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
 				[&](experiment::StaticMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<MeshResources>::get().static_meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<RenderResources>::get().static_meshes.get(smr.mesh).name}.c_str());
 				},
 				[&](experiment::SkinnedMeshRenderer& smr) {
-					auto const& mesh = Service<MeshResources>::get().skinned_meshes.get(smr.mesh);
-					auto const& skeleton = Service<MeshResources>::get().skeletons.get(mesh.skeleton);
+					auto const& mesh = Service<RenderResources>::get().skinned_meshes.get(smr.mesh);
+					auto const& skeleton = Service<RenderResources>::get().skeletons.get(mesh.skeleton);
 					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
 					imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
 				},
@@ -133,7 +133,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 	if (auto* skinned_mesh_renderer = std::get_if<experiment::SkinnedMeshRenderer>(&mesh_renderer->renderer)) {
 		if (auto* skeleton_controller = entity->find<experiment::SkeletonController>()) {
 			inspect_skeleton_controller(*skeleton_controller, *skinned_mesh_renderer);
-}
+		}
 	}
 }
 
@@ -194,7 +194,7 @@ struct FreeCam {
 
 struct Services {
 	std::optional<Service<Engine>::Instance> engine{};
-	Service<MeshResources>::Instance mesh_resources{};
+	Service<RenderResources>::Instance mesh_resources{};
 };
 
 void run(fs::path data_path) {
@@ -203,7 +203,7 @@ void run(fs::path data_path) {
 	auto services = Services{};
 	services.engine.emplace(make_engine(reader));
 	auto& engine = Service<Engine>::locate();
-	auto& mesh_resources = Service<MeshResources>::locate();
+	auto& mesh_resources = Service<RenderResources>::locate();
 	auto scene = std::make_unique<experiment::Scene>();
 	auto free_cam = FreeCam{&engine.window()};
 	auto inspect = Id<Node>{};

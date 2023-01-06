@@ -10,7 +10,7 @@ namespace levk {
 class Window;
 struct StaticMesh;
 struct SkinnedMesh;
-struct MeshResources;
+struct RenderResources;
 
 using Extent2D = glm::uvec2;
 
@@ -96,14 +96,14 @@ struct RenderInfo {
 };
 
 struct StaticMeshRenderInfo {
-	MeshResources const& resources;
+	RenderResources const& resources;
 	StaticMesh const& mesh;
 	glm::mat4 const& parent;
 	std::span<Transform const> instances;
 };
 
 struct SkinnedMeshRenderInfo {
-	MeshResources const& resources;
+	RenderResources const& resources;
 	SkinnedMesh const& mesh;
 	std::span<glm::mat4 const> joints;
 };

@@ -1,7 +1,7 @@
 #include <levk/graphics_device.hpp>
 
 namespace levk {
-void GraphicsDevice::render(StaticMesh const& mesh, MeshResources const& resources, std::span<Transform const> instances, glm::mat4 const& parent) {
+void GraphicsDevice::render(StaticMesh const& mesh, RenderResources const& resources, std::span<Transform const> instances, glm::mat4 const& parent) {
 	auto const smri = StaticMeshRenderInfo{
 		resources,
 		mesh,
@@ -11,7 +11,7 @@ void GraphicsDevice::render(StaticMesh const& mesh, MeshResources const& resourc
 	m_model->render(smri);
 }
 
-void GraphicsDevice::render(SkinnedMesh const& mesh, MeshResources const& resources, std::span<glm::mat4 const> joints) {
+void GraphicsDevice::render(SkinnedMesh const& mesh, RenderResources const& resources, std::span<glm::mat4 const> joints) {
 	auto const skri = SkinnedMeshRenderInfo{
 		resources,
 		mesh,

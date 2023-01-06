@@ -34,8 +34,8 @@ class GraphicsDevice {
 	MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints = {}) { return m_model->make_mesh_geometry(geometry, joints); }
 	Texture make_texture(Image::View image, Texture::CreateInfo create_info = {}) { return m_model->make_texture(image, std::move(create_info)); }
 
-	void render(StaticMesh const& mesh, MeshResources const& resources, std::span<Transform const> instances, glm::mat4 const& parent = matrix_identity_v);
-	void render(SkinnedMesh const& mesh, MeshResources const& resources, std::span<glm::mat4 const> joints);
+	void render(StaticMesh const& mesh, RenderResources const& resources, std::span<Transform const> instances, glm::mat4 const& parent = matrix_identity_v);
+	void render(SkinnedMesh const& mesh, RenderResources const& resources, std::span<glm::mat4 const> joints);
 
 	template <typename T>
 	Ptr<T> as() const {

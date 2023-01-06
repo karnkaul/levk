@@ -49,7 +49,7 @@ bool Scene::import_gltf(char const* in_path, char const* out_path) {
 }
 
 bool Scene::load_mesh_into_tree(char const* path) {
-	auto loader = AssetLoader{Service<Engine>::get().device(), Service<MeshResources>::get()};
+	auto loader = AssetLoader{Service<Engine>::get().device(), Service<RenderResources>::get()};
 	auto const res = loader.try_load_mesh(path);
 	auto visitor = Visitor{
 		[this](auto id) { return add_mesh_to_tree(id); },
@@ -59,7 +59,7 @@ bool Scene::load_mesh_into_tree(char const* path) {
 }
 
 bool Scene::add_mesh_to_tree(Id<SkinnedMesh> id) {
-	auto& mesh_resources = Service<MeshResources>::get();
+	auto& mesh_resources = Service<RenderResources>::get();
 	auto const* mesh = mesh_resources.skinned_meshes.find(id);
 	if (!mesh) {
 		logger::warn("[Scene] Failed to find SkinnedMesh [{}]", id.value());
@@ -83,7 +83,7 @@ bool Scene::add_mesh_to_tree(Id<SkinnedMesh> id) {
 }
 
 bool Scene::add_mesh_to_tree(Id<StaticMesh> id) {
-	auto& mesh_resources = Service<MeshResources>::get();
+	auto& mesh_resources = Service<RenderResources>::get();
 	auto const* mesh = mesh_resources.static_meshes.find(id);
 	if (!mesh) {
 		logger::warn("[Scene] Failed to find StaticMesh [{}]", id.value());
@@ -118,7 +118,7 @@ void SkeletonController::tick(Time dt) {
 	assert(*enabled < skinned_mesh_renderer->skeleton.animations.size());
 	elapsed += dt * time_scale;
 	auto const& animation = skinned_mesh_renderer->skeleton.animations[*enabled];
-	auto const& skeleton = Service<MeshResources>::get().skeletons.get(animation.skeleton);
+	auto const& skeleton = Service<RenderResources>::get().skeletons.get(animation.skeleton);
 	assert(animation.source < skeleton.animation_sources.size());
 	auto const& source = skeleton.animation_sources[animation.source];
 	animation.update_nodes(scene().node_locator(), elapsed, source);
@@ -127,7 +127,7 @@ void SkeletonController::tick(Time dt) {
 
 void StaticMeshRenderer::render(Entity const& entity) const {
 	auto const& tree = entity.scene().nodes();
-	auto const& resources = Service<MeshResources>::locate();
+	auto const& resources = Service<RenderResources>::locate();
 	auto const& m = resources.static_meshes.get(mesh);
 	if (m.primitives.empty()) { return; }
 	auto& device = Service<Engine>::locate().device();
@@ -144,7 +144,7 @@ void SkinnedMeshRenderer::set_mesh(Id<SkinnedMesh> id, Skeleton::Instance instan
 
 void SkinnedMeshRenderer::render(Entity const& entity) const {
 	auto const& tree = entity.scene().nodes();
-	auto const& resources = Service<MeshResources>::locate();
+	auto const& resources = Service<RenderResources>::locate();
 	auto const& m = resources.skinned_meshes.get(mesh);
 	if (m.primitives.empty()) { return; }
 	assert(m.primitives[0].geometry.has_joints() && joint_matrices.size() == skeleton.joints.size());

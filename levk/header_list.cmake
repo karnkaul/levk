@@ -47,6 +47,7 @@ set(assets_headers
   include/levk/asset/asset_loader.hpp
   include/levk/asset/common.hpp
   include/levk/asset/gltf_importer.hpp
+  include/levk/asset/uri.hpp
 )
 
 set(levk_headers
@@ -69,9 +70,9 @@ set(levk_headers
   include/levk/material.hpp
   include/levk/mesh_geometry.hpp
   include/levk/mesh_primitive.hpp
-  include/levk/mesh_resources.hpp
   include/levk/node.hpp
   include/levk/pixel_map.hpp
+  include/levk/render_resources.hpp
   include/levk/rgba.hpp
   include/levk/service.hpp
   include/levk/shader.hpp

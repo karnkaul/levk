@@ -2,7 +2,7 @@
 #include <experiment/component.hpp>
 #include <experiment/entity.hpp>
 #include <levk/engine.hpp>
-#include <levk/mesh_resources.hpp>
+#include <levk/render_resources.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/time.hpp>
 #include <variant>

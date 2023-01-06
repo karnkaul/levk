@@ -46,7 +46,7 @@ T make_mesh(dj::Json const& json, AssetLoader const& loader, fs::path const& dir
 		if (!asset_material.roughness_metallic.empty()) {
 			material.roughness_metallic = loader.load_texture(asset_path(dir, asset_material.roughness_metallic).c_str(), ColourSpace::eLinear);
 		}
-		auto material_id = loader.mesh_resources.materials.add(std::move(material)).first;
+		auto material_id = loader.render_resources.materials.add(std::move(material)).first;
 		auto geometry = loader.graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
 		ret.primitives.push_back(MeshPrimitive{std::move(geometry), material_id});
 	}
@@ -74,7 +74,7 @@ Id<Texture> AssetLoader::load_texture(char const* path, ColourSpace colour_space
 	};
 	auto texture = graphics_device.make_texture(image, std::move(tci));
 	logger::info("[Load] [{}] Texture loaded", texture.name());
-	return mesh_resources.textures.add(std::move(texture)).first;
+	return render_resources.textures.add(std::move(texture)).first;
 }
 
 Id<StaticMesh> AssetLoader::try_load_static_mesh(char const* path) const {
@@ -95,7 +95,7 @@ Id<StaticMesh> AssetLoader::load_static_mesh(char const* path, dj::Json const& j
 	}
 	auto mesh = make_mesh<StaticMesh>(json, *this, fs::path{path}.parent_path());
 	logger::info("[Load] [{}] StaticMesh loaded", mesh.name);
-	return mesh_resources.static_meshes.add(std::move(mesh)).first;
+	return render_resources.static_meshes.add(std::move(mesh)).first;
 }
 
 Id<levk::Skeleton> AssetLoader::load_skeleton(char const* path) const {
@@ -130,7 +130,7 @@ Id<levk::Skeleton> AssetLoader::load_skeleton(char const* path) const {
 		skeleton.animation_sources.push_back(std::move(source));
 	}
 	logger::info("[Load] [{}] Skeleton loaded", asset.name);
-	return mesh_resources.skeletons.add(std::move(skeleton)).first;
+	return render_resources.skeletons.add(std::move(skeleton)).first;
 }
 
 Id<SkinnedMesh> AssetLoader::try_load_skinned_mesh(char const* path) const {
@@ -156,7 +156,7 @@ Id<SkinnedMesh> AssetLoader::load_skinned_mesh(char const* path, dj::Json const&
 		mesh.skeleton = load_skeleton(skeleton_uri.string().c_str());
 	}
 	logger::info("[Load] [{}] SkinnedMesh loaded", mesh.name);
-	return mesh_resources.skinned_meshes.add(std::move(mesh)).first;
+	return render_resources.skinned_meshes.add(std::move(mesh)).first;
 }
 
 std::variant<std::monostate, Id<StaticMesh>, Id<SkinnedMesh>> AssetLoader::try_load_mesh(char const* path) const {

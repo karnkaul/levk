@@ -1,5 +1,6 @@
 #pragma once
 #include <djson/json.hpp>
+#include <levk/asset/uri.hpp>
 #include <levk/geometry.hpp>
 #include <levk/graphics_common.hpp>
 #include <levk/material.hpp>
@@ -10,9 +11,6 @@
 #include <variant>
 
 namespace levk::asset {
-template <typename Type>
-using Uri = Id<Type, std::string>;
-
 void from_json(dj::Json const& json, Transform& out);
 void to_json(dj::Json& out, Transform const& transform);
 

@@ -1,13 +1,13 @@
 #pragma once
 #include <djson/json.hpp>
 #include <levk/graphics_device.hpp>
-#include <levk/mesh_resources.hpp>
+#include <levk/render_resources.hpp>
 #include <variant>
 
 namespace levk {
 struct AssetLoader {
 	GraphicsDevice& graphics_device;
-	MeshResources& mesh_resources;
+	RenderResources& render_resources;
 
 	Id<Texture> load_texture(char const* path, ColourSpace colour_space) const;
 	Id<StaticMesh> try_load_static_mesh(char const* path) const;
