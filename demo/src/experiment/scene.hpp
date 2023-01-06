@@ -1,6 +1,7 @@
 #pragma once
 #include <experiment/entity.hpp>
 #include <levk/asset/uri.hpp>
+#include <levk/asset_id.hpp>
 #include <levk/engine.hpp>
 #include <levk/resources.hpp>
 #include <levk/serializable.hpp>
@@ -10,9 +11,8 @@
 
 namespace levk::experiment {
 struct StaticMeshRenderer {
-	Id<StaticMesh> mesh{};
 	std::vector<Transform> instances{};
-	asset::Uri<StaticMesh> mesh_uri{};
+	AssetId<StaticMesh> asset_id{};
 
 	void render(Entity const& entity) const;
 };
@@ -34,12 +34,11 @@ struct SkeletonController : Component {
 
 struct SkinnedMeshRenderer {
 	Skeleton::Instance skeleton{};
-	Id<SkinnedMesh> mesh{};
-	asset::Uri<SkinnedMesh> mesh_uri{};
+	AssetId<SkinnedMesh> asset_id{};
 
 	DynArray<glm::mat4> joint_matrices{};
 
-	void set_mesh(Id<SkinnedMesh> id, Skeleton::Instance instance);
+	void set_mesh(AssetId<SkinnedMesh> asset_id, Skeleton::Instance skeleton);
 	void render(Entity const& entity) const;
 };
 

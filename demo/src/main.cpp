@@ -119,10 +119,10 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
 				[&](experiment::StaticMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.asset_id.id).name}.c_str());
 				},
 				[&](experiment::SkinnedMeshRenderer& smr) {
-					auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.mesh);
+					auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.asset_id.id);
 					auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
 					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
 					imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());

@@ -56,6 +56,7 @@ set(levk_headers
   ${imcpp_headers}
   ${assets_headers}
 
+  include/levk/asset_id.hpp
   include/levk/camera.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp

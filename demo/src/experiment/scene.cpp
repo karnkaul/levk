@@ -96,9 +96,10 @@ bool SkeletonController::deserialize(dj::Json const& json) {
 }
 
 void StaticMeshRenderer::render(Entity const& entity) const {
+	if (!asset_id) { return; }
 	auto const& tree = entity.scene().nodes();
 	auto const& resources = Service<Resources>::locate();
-	auto const& m = resources.render.static_meshes.get(mesh);
+	auto const& m = resources.render.static_meshes.get(asset_id.id);
 	if (m.primitives.empty()) { return; }
 	auto& device = Service<Engine>::locate().device();
 	static auto const s_instance = Transform{};
@@ -106,16 +107,17 @@ void StaticMeshRenderer::render(Entity const& entity) const {
 	device.render(m, resources.render, is, tree.global_transform(tree.get(entity.node_id())));
 }
 
-void SkinnedMeshRenderer::set_mesh(Id<SkinnedMesh> id, Skeleton::Instance instance) {
-	mesh = id;
-	skeleton = std::move(instance);
+void SkinnedMeshRenderer::set_mesh(AssetId<SkinnedMesh> asset_id_, Skeleton::Instance skeleton_) {
+	asset_id = std::move(asset_id_);
+	skeleton = std::move(skeleton_);
 	joint_matrices = DynArray<glm::mat4>{skeleton.joints.size()};
 }
 
 void SkinnedMeshRenderer::render(Entity const& entity) const {
+	if (!asset_id) { return; }
 	auto const& tree = entity.scene().nodes();
 	auto const& resources = Service<Resources>::locate();
-	auto const& m = resources.render.skinned_meshes.get(mesh);
+	auto const& m = resources.render.skinned_meshes.get(asset_id.id);
 	if (m.primitives.empty()) { return; }
 	assert(m.primitives[0].geometry.has_joints() && joint_matrices.size() == skeleton.joints.size());
 	for (auto const [id, index] : enumerate(skeleton.joints)) { joint_matrices[index] = tree.global_transform(tree.get(id)); }
@@ -130,7 +132,7 @@ bool MeshRenderer::serialize(dj::Json& out) const {
 	auto const visitor = Visitor{
 		[&](StaticMeshRenderer const& smr) {
 			out["type"] = "static";
-			out["mesh"] = smr.mesh_uri.value();
+			out["mesh"] = smr.asset_id.uri.value();
 			auto instances = dj::Json{};
 			for (auto const& in_instance : smr.instances) {
 				auto out_instance = dj::Json{};
@@ -141,7 +143,7 @@ bool MeshRenderer::serialize(dj::Json& out) const {
 		},
 		[&](SkinnedMeshRenderer const& smr) {
 			out["type"] = "skinned";
-			out["mesh"] = smr.mesh_uri.value();
+			out["mesh"] = smr.asset_id.uri.value();
 			out["skeleton"] = make_json(smr.skeleton);
 		},
 	};
@@ -151,31 +153,31 @@ bool MeshRenderer::serialize(dj::Json& out) const {
 
 bool MeshRenderer::deserialize(dj::Json const& json) {
 	auto const type = json["type"].as_string();
+	auto& resources = Service<Resources>::locate();
 	if (type == "static") {
-		auto smr = StaticMeshRenderer{.mesh_uri = json["mesh"].as<std::string>()};
-		smr.mesh = Service<Resources>::locate().load(smr.mesh_uri);
-		if (!smr.mesh) {
-			logger::error("[MeshRenderer] Failed to load StaticMesh [{}]", smr.mesh_uri.value());
+		auto asset_id = AssetId<StaticMesh>{.uri = json["mesh"].as<std::string>()};
+		if (asset_id.id = resources.load(asset_id.uri); !asset_id) {
+			logger::error("[MeshRenderer] Failed to load StaticMesh [{}]", asset_id.uri.value());
 			return false;
 		}
+		auto smr = StaticMeshRenderer{.asset_id = std::move(asset_id)};
 		for (auto const& in_instance : json["instances"].array_view()) {
 			auto& out_instance = smr.instances.emplace_back();
 			asset::from_json(in_instance, out_instance);
 		}
 		renderer = std::move(smr);
 	} else if (type == "skinned") {
-		auto& resources = Service<Resources>::locate();
-		auto smr = SkinnedMeshRenderer{.mesh_uri = json["mesh"].as<std::string>()};
-		auto mesh = resources.load(smr.mesh_uri);
-		if (!mesh) {
-			logger::error("[MeshRenderer] Failed to load StaticMesh [{}]", smr.mesh_uri.value());
+		auto asset_id = AssetId<SkinnedMesh>{.uri = json["mesh"].as<std::string>()};
+		if (asset_id.id = resources.load(asset_id.uri); !asset_id) {
+			logger::error("[MeshRenderer] Failed to load SkinnedMesh [{}]", asset_id.uri.value());
 			return false;
 		}
-		auto const& source_mesh = resources.render.skinned_meshes.get(mesh);
-		smr.set_mesh(mesh, to_skeleton_instance(json["skeleton"], source_mesh.skeleton));
+		auto const& source_mesh = resources.render.skinned_meshes.get(asset_id.id);
+		auto smr = SkinnedMeshRenderer{};
+		smr.set_mesh(std::move(asset_id), to_skeleton_instance(json["skeleton"], source_mesh.skeleton));
 		renderer = std::move(smr);
 	} else {
-		logger::warn("[MeshRenderer] Unrecognized type: [{}]", type);
+		logger::error("[MeshRenderer] Unrecognized Mesh type: [{}]", type);
 		return false;
 	}
 	return true;
@@ -264,8 +266,7 @@ bool Scene::add_to_tree(std::string_view uri, Id<SkinnedMesh> id) {
 		if (!skeleton.animations.empty()) { enabled = 0; }
 	}
 	auto mesh_renderer = SkinnedMeshRenderer{};
-	mesh_renderer.set_mesh(id, std::move(skeleton));
-	mesh_renderer.mesh_uri = std::string{uri};
+	mesh_renderer.set_mesh({std::string{uri}, id}, std::move(skeleton));
 	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
 	entity.attach(std::make_unique<SkeletonController>()).enabled = enabled;
 	return true;
@@ -281,8 +282,7 @@ bool Scene::add_to_tree(std::string_view uri, Id<StaticMesh> id) {
 	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
 	// TODO: fix
 	auto& entity = m_entities.get({node.entity.value()});
-	auto mesh_renderer = StaticMeshRenderer{id};
-	mesh_renderer.mesh_uri = std::string{uri};
+	auto mesh_renderer = StaticMeshRenderer{.asset_id = {std::string{uri}, id}};
 	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
 	return true;
 }
