@@ -342,9 +342,8 @@ bool Scene::serialize(dj::Json& out) const {
 		out_entity["id"] = id.value();
 		out_entity["node"] = in_entity.node_id().value();
 		auto& out_components = out_entity["components"];
-		for (auto const& [id, component] : in_entity.m_components) {
+		for (auto const& [_, component] : in_entity.m_components) {
 			if (auto out_component = serializer.serialize(*component)) {
-				out_component["type_id"] = id;
 				out_components.push_back(std::move(out_component));
 			} else {
 				logger::warn("[Scene] Failed to serialize Component [{}]", component->type_name());
@@ -395,13 +394,16 @@ bool Scene::deserialize(dj::Json const& json) {
 		out_entity.m_node = in_entity["node"].as<std::size_t>();
 		out_entity.m_scene = this;
 		for (auto const& in_component : in_entity["components"].array_view()) {
-			if (auto out_component = std::unique_ptr<Component>(dynamic_cast<Component*>(serializer.deserialize(in_component).release()))) {
-				out_entity.attach(in_component["type_id"].as<std::size_t>(), std::move(out_component));
+			auto [out_component, type_id] = serializer.deserialize_as<Component>(in_component);
+			if (!out_component) {
+				logger::warn("[Scene] Failed to deserialize Component");
+				continue;
 			}
+			out_entity.attach(type_id.value(), std::move(out_component));
 		}
 		if (auto const& in_renderer = in_entity["renderer"]) {
-			auto out_renderer = serializer.deserialize(in_renderer);
-			out_entity.m_renderer = std::unique_ptr<Entity::Renderer>(dynamic_cast<Entity::Renderer*>(out_renderer.release()));
+			auto [out_component, _] = serializer.deserialize_as<Entity::Renderer>(in_renderer);
+			out_entity.m_renderer = std::move(out_component);
 			if (!out_entity.m_renderer) { logger::error("[Scene] Failed to obtain Renderer for Entity [{}]", id); }
 		}
 		out_entities.insert_or_assign(id, std::move(out_entity));
