@@ -159,10 +159,12 @@ Id<SkinnedMesh> AssetLoader::load_skinned_mesh(char const* path, dj::Json const&
 	return render_resources.skinned_meshes.add(std::move(mesh)).first;
 }
 
-std::variant<std::monostate, Id<StaticMesh>, Id<SkinnedMesh>> AssetLoader::try_load_mesh(char const* path) const {
-	if (auto ret = try_load_skinned_mesh(path)) { return ret; }
-	if (auto ret = try_load_static_mesh(path)) { return ret; }
-	logger::error("[Load] Failed to load mesh [{}]", path);
-	return std::monostate{};
+MeshType AssetLoader::get_mesh_type(char const* path) {
+	auto json = dj::Json::from_file(path);
+	if (!json || json["asset_type"].as_string() != "mesh") { return MeshType::eNone; }
+	auto const type = json["type"].as_string();
+	if (type == "skinned") { return MeshType::eSkinned; }
+	if (type == "static") { return MeshType::eStatic; }
+	return MeshType::eNone;
 }
 } // namespace levk

@@ -16,6 +16,7 @@ using Extent2D = glm::uvec2;
 
 enum class ColourSpace : std::uint8_t { eSrgb, eLinear };
 enum class Topology : std::uint8_t { ePointList, eLineList, eLineStrip, eTriangleList, eTriangleStrip, eTriangleFan };
+enum class MeshType : std::uint8_t { eNone, eStatic, eSkinned };
 
 struct RenderMode {
 	enum class Type : std::uint8_t { eDefault, eFill, eLine, ePoint };

@@ -2,7 +2,7 @@
 #include <experiment/component.hpp>
 #include <experiment/entity.hpp>
 #include <levk/engine.hpp>
-#include <levk/render_resources.hpp>
+#include <levk/resources.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/time.hpp>
 #include <variant>
@@ -11,6 +11,7 @@ namespace levk::experiment {
 struct StaticMeshRenderer {
 	Id<StaticMesh> mesh{};
 	std::vector<Transform> instances{};
+	std::string mesh_uri{};
 
 	void render(Entity const& entity) const;
 };
@@ -29,6 +30,7 @@ struct SkeletonController : TickComponent {
 struct SkinnedMeshRenderer {
 	Skeleton::Instance skeleton{};
 	Id<SkinnedMesh> mesh{};
+	std::string mesh_uri{};
 
 	DynArray<glm::mat4> joint_matrices{};
 
@@ -48,10 +50,12 @@ class Scene {
   public:
 	struct Renderer;
 
-	bool import_gltf(char const* in_path, char const* out_path);
-	bool load_mesh_into_tree(char const* path);
-	bool add_mesh_to_tree(Id<SkinnedMesh> id);
-	bool add_mesh_to_tree(Id<StaticMesh> id);
+	bool import_gltf(char const* in_path, std::string_view dest_dir);
+	bool load_mesh_into_tree(std::string_view uri);
+	bool load_into_tree(asset::Uri<StaticMesh> uri);
+	bool load_into_tree(asset::Uri<SkinnedMesh> uri);
+	bool add_to_tree(std::string_view uri, Id<SkinnedMesh> id);
+	bool add_to_tree(std::string_view uri, Id<StaticMesh> id);
 
 	Node& spawn(Entity entity, Node::CreateInfo const& node_create_info = {});
 	void tick(Time dt);

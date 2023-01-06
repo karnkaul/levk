@@ -73,6 +73,7 @@ set(levk_headers
   include/levk/node.hpp
   include/levk/pixel_map.hpp
   include/levk/render_resources.hpp
+  include/levk/resources.hpp
   include/levk/rgba.hpp
   include/levk/service.hpp
   include/levk/shader.hpp

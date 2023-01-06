@@ -11,9 +11,9 @@
 namespace levk::experiment {
 namespace fs = std::filesystem;
 
-bool Scene::import_gltf(char const* in_path, char const* out_path) {
+bool Scene::import_gltf(char const* in_path, std::string_view dest_dir) {
 	auto src = fs::path{in_path};
-	auto dst = fs::path{out_path};
+	auto dst = fs::path{Service<Resources>::locate().root_dir()} / dest_dir;
 	auto src_filename = src.filename().stem();
 	auto export_path = dst / src_filename;
 	auto asset_list = asset::GltfImporter::peek(in_path);
@@ -25,12 +25,14 @@ bool Scene::import_gltf(char const* in_path, char const* out_path) {
 		return {};
 	}
 
+	bool is_skinned{};
 	auto mesh_asset = [&]() -> Ptr<asset::GltfAsset const> {
 		auto const func = [](asset::GltfAsset const& asset) { return asset.index == 0; };
 		if (auto it = std::find_if(asset_list.static_meshes.begin(), asset_list.static_meshes.end(), func); it != asset_list.static_meshes.end()) {
 			return &*it;
 		}
 		if (auto it = std::find_if(asset_list.skinned_meshes.begin(), asset_list.skinned_meshes.end(), func); it != asset_list.skinned_meshes.end()) {
+			is_skinned = true;
 			return &*it;
 		}
 		return nullptr;
@@ -39,28 +41,44 @@ bool Scene::import_gltf(char const* in_path, char const* out_path) {
 	auto importer = asset_list.importer(dst.string());
 	if (!importer) { return {}; }
 
-	auto const mesh_uri = importer.import_mesh(*mesh_asset);
+	auto mesh_uri = importer.import_mesh(*mesh_asset);
 	if (mesh_uri.value().empty()) {
 		logger::error("Import failed! {}\n", mesh_asset->asset_name);
 		return {};
 	}
+	mesh_uri = (fs::path{dest_dir} / mesh_uri.value()).generic_string();
 
-	return load_mesh_into_tree((dst / mesh_uri.value()).string().c_str());
+	if (is_skinned) {
+		return load_into_tree(asset::Uri<SkinnedMesh>{mesh_uri.value()});
+	} else {
+		return load_into_tree(asset::Uri<StaticMesh>{mesh_uri.value()});
+}
 }
 
-bool Scene::load_mesh_into_tree(char const* path) {
-	auto loader = AssetLoader{Service<Engine>::get().device(), Service<RenderResources>::get()};
-	auto const res = loader.try_load_mesh(path);
-	auto visitor = Visitor{
-		[this](auto id) { return add_mesh_to_tree(id); },
-		[](std::monostate) { return false; },
-	};
-	return std::visit(visitor, res);
+bool Scene::load_mesh_into_tree(std::string_view uri) {
+	auto& resources = Service<Resources>::locate();
+	switch (resources.get_mesh_type(uri)) {
+	case MeshType::eStatic: return load_into_tree(asset::Uri<StaticMesh>{std::string{uri}});
+	case MeshType::eSkinned: return load_into_tree(asset::Uri<SkinnedMesh>{std::string{uri}});
+	default: logger::error("[Scene] Failed to load Mesh [{}]", uri); return false;
+}
 }
 
-bool Scene::add_mesh_to_tree(Id<SkinnedMesh> id) {
-	auto& mesh_resources = Service<RenderResources>::get();
-	auto const* mesh = mesh_resources.skinned_meshes.find(id);
+bool Scene::load_into_tree(asset::Uri<StaticMesh> uri) {
+	auto id = Service<Resources>::get().load(uri);
+	if (!id) { return false; }
+	return add_to_tree(uri.value(), id);
+}
+
+bool Scene::load_into_tree(asset::Uri<SkinnedMesh> uri) {
+	auto id = Service<Resources>::get().load(uri);
+	if (!id) { return false; }
+	return add_to_tree(uri.value(), id);
+}
+
+bool Scene::add_to_tree(std::string_view uri, Id<SkinnedMesh> id) {
+	auto& render_resources = Service<Resources>::get().render;
+	auto const* mesh = render_resources.skinned_meshes.find(id);
 	if (!mesh) {
 		logger::warn("[Scene] Failed to find SkinnedMesh [{}]", id.value());
 		return false;
@@ -71,20 +89,21 @@ bool Scene::add_mesh_to_tree(Id<SkinnedMesh> id) {
 	auto skeleton = Skeleton::Instance{};
 	auto enabled = std::optional<Id<Skeleton::Animation>>{};
 	if (mesh->skeleton) {
-		auto const& source_skeleton = mesh_resources.skeletons.get(mesh->skeleton);
+		auto const& source_skeleton = render_resources.skeletons.get(mesh->skeleton);
 		skeleton = source_skeleton.instantiate(m_nodes, node.id());
 		if (!skeleton.animations.empty()) { enabled = 0; }
 	}
 	auto mesh_renderer = SkinnedMeshRenderer{};
 	mesh_renderer.set_mesh(id, std::move(skeleton));
+	mesh_renderer.mesh_uri = uri;
 	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
 	entity.attach(std::make_unique<SkeletonController>()).enabled = enabled;
 	return true;
 }
 
-bool Scene::add_mesh_to_tree(Id<StaticMesh> id) {
-	auto& mesh_resources = Service<RenderResources>::get();
-	auto const* mesh = mesh_resources.static_meshes.find(id);
+bool Scene::add_to_tree(std::string_view uri, Id<StaticMesh> id) {
+	auto& render_resources = Service<Resources>::get().render;
+	auto const* mesh = render_resources.static_meshes.find(id);
 	if (!mesh) {
 		logger::warn("[Scene] Failed to find StaticMesh [{}]", id.value());
 		return false;
@@ -93,6 +112,7 @@ bool Scene::add_mesh_to_tree(Id<StaticMesh> id) {
 	// TODO: fix
 	auto& entity = m_entities.get({node.entity.value()});
 	auto mesh_renderer = StaticMeshRenderer{id};
+	mesh_renderer.mesh_uri = uri;
 	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
 	return true;
 }
@@ -118,7 +138,7 @@ void SkeletonController::tick(Time dt) {
 	assert(*enabled < skinned_mesh_renderer->skeleton.animations.size());
 	elapsed += dt * time_scale;
 	auto const& animation = skinned_mesh_renderer->skeleton.animations[*enabled];
-	auto const& skeleton = Service<RenderResources>::get().skeletons.get(animation.skeleton);
+	auto const& skeleton = Service<Resources>::get().render.skeletons.get(animation.skeleton);
 	assert(animation.source < skeleton.animation_sources.size());
 	auto const& source = skeleton.animation_sources[animation.source];
 	animation.update_nodes(scene().node_locator(), elapsed, source);
@@ -127,13 +147,13 @@ void SkeletonController::tick(Time dt) {
 
 void StaticMeshRenderer::render(Entity const& entity) const {
 	auto const& tree = entity.scene().nodes();
-	auto const& resources = Service<RenderResources>::locate();
-	auto const& m = resources.static_meshes.get(mesh);
+	auto const& resources = Service<Resources>::locate();
+	auto const& m = resources.render.static_meshes.get(mesh);
 	if (m.primitives.empty()) { return; }
 	auto& device = Service<Engine>::locate().device();
 	static auto const s_instance = Transform{};
 	auto const is = instances.empty() ? std::span{&s_instance, 1u} : std::span{instances};
-	device.render(m, resources, is, tree.global_transform(tree.get(entity.node_id())));
+	device.render(m, resources.render, is, tree.global_transform(tree.get(entity.node_id())));
 }
 
 void SkinnedMeshRenderer::set_mesh(Id<SkinnedMesh> id, Skeleton::Instance instance) {
@@ -144,12 +164,12 @@ void SkinnedMeshRenderer::set_mesh(Id<SkinnedMesh> id, Skeleton::Instance instan
 
 void SkinnedMeshRenderer::render(Entity const& entity) const {
 	auto const& tree = entity.scene().nodes();
-	auto const& resources = Service<RenderResources>::locate();
-	auto const& m = resources.skinned_meshes.get(mesh);
+	auto const& resources = Service<Resources>::locate();
+	auto const& m = resources.render.skinned_meshes.get(mesh);
 	if (m.primitives.empty()) { return; }
 	assert(m.primitives[0].geometry.has_joints() && joint_matrices.size() == skeleton.joints.size());
 	for (auto const [id, index] : enumerate(skeleton.joints)) { joint_matrices[index] = tree.global_transform(tree.get(id)); }
-	Service<Engine>::locate().device().render(m, resources, joint_matrices.span());
+	Service<Engine>::locate().device().render(m, resources.render, joint_matrices.span());
 }
 
 void MeshRenderer::render(Entity const& entity) const {

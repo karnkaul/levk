@@ -16,6 +16,7 @@
 #include <experiment/entity.hpp>
 #include <experiment/scene.hpp>
 #include <levk/asset/asset_loader.hpp>
+#include <levk/resources.hpp>
 #include <levk/service.hpp>
 
 namespace levk {
@@ -105,7 +106,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 			}
 			if (controller.enabled) {
 				auto& animation = renderer.skeleton.animations[*controller.enabled];
-				auto const& skeleton = Service<RenderResources>::get().skeletons.get(animation.skeleton);
+				auto const& skeleton = Service<Resources>::get().render.skeletons.get(animation.skeleton);
 				auto const& source = skeleton.animation_sources[animation.source];
 				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", source.animation.duration().count()}.c_str());
 				float const progress = controller.elapsed / source.animation.duration();
@@ -118,11 +119,11 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
 				[&](experiment::StaticMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<RenderResources>::get().static_meshes.get(smr.mesh).name}.c_str());
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.mesh).name}.c_str());
 				},
 				[&](experiment::SkinnedMeshRenderer& smr) {
-					auto const& mesh = Service<RenderResources>::get().skinned_meshes.get(smr.mesh);
-					auto const& skeleton = Service<RenderResources>::get().skeletons.get(mesh.skeleton);
+					auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.mesh);
+					auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
 					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
 					imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
 				},
@@ -194,16 +195,24 @@ struct FreeCam {
 
 struct Services {
 	std::optional<Service<Engine>::Instance> engine{};
-	Service<RenderResources>::Instance mesh_resources{};
+	std::optional<Service<Resources>::Instance> resources{};
 };
+
+std::string trim_to_uri(std::string_view full, std::string_view data) {
+	auto const i = full.find(data);
+	if (i == std::string_view::npos) { return {}; }
+	full = full.substr(i + data.size());
+	while (!full.empty() && full.front() == '/') { full = full.substr(1); }
+	return std::string{full};
+}
 
 void run(fs::path data_path) {
 	auto reader = FileReader{};
 	reader.mount(data_path.generic_string());
 	auto services = Services{};
 	services.engine.emplace(make_engine(reader));
+	services.resources.emplace(data_path.generic_string());
 	auto& engine = Service<Engine>::locate();
-	auto& mesh_resources = Service<RenderResources>::locate();
 	auto scene = std::make_unique<experiment::Scene>();
 	auto free_cam = FreeCam{&engine.window()};
 	auto inspect = Id<Node>{};
@@ -218,20 +227,12 @@ void run(fs::path data_path) {
 			auto path = fs::path{drop};
 			if (path.extension() == ".gltf") {
 				auto export_path = data_path / path.filename().stem();
-				scene->import_gltf(drop.c_str(), export_path.string().c_str());
+				scene->import_gltf(drop.c_str(), export_path.generic_string());
 				break;
 			}
 			if (path.extension() == ".json") {
-				auto json = dj::Json::from_file(drop.c_str());
-				if (json["asset_type"].as_string() == "mesh") {
-					auto loader = AssetLoader{engine.device(), mesh_resources};
-					auto const res = loader.try_load_mesh(drop.c_str());
-					auto visitor = Visitor{
-						[&](auto id) { scene->add_mesh_to_tree(id); },
-						[](std::monostate) {},
-					};
-					std::visit(visitor, res);
-				}
+				auto uri = trim_to_uri(fs::path{drop}.generic_string(), data_path.generic_string());
+				if (!uri.empty()) { scene->load_mesh_into_tree(uri); }
 				break;
 			}
 		}
