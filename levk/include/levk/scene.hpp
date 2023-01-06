@@ -1,15 +1,15 @@
 #pragma once
-#include <experiment/entity.hpp>
 #include <levk/asset/uri.hpp>
 #include <levk/asset_id.hpp>
 #include <levk/engine.hpp>
+#include <levk/entity.hpp>
 #include <levk/resources.hpp>
 #include <levk/serializable.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/time.hpp>
 #include <variant>
 
-namespace levk::experiment {
+namespace levk {
 struct StaticMeshRenderer {
 	std::vector<Transform> instances{};
 	AssetId<StaticMesh> asset_id{};
@@ -92,4 +92,4 @@ class Scene : public GraphicsRenderer, public ISerializable {
 	MonotonicMap<Entity> m_entities{};
 	std::vector<Ptr<Entity>> m_sorted{};
 };
-} // namespace levk::experiment
+} // namespace levk

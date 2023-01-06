@@ -1,9 +1,9 @@
-#include <experiment/scene.hpp>
-#include <experiment/serializer.hpp>
 #include <levk/asset/asset_loader.hpp>
 #include <levk/asset/common.hpp>
 #include <levk/asset/gltf_importer.hpp>
 #include <levk/engine.hpp>
+#include <levk/scene.hpp>
+#include <levk/serializer.hpp>
 #include <levk/service.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/logger.hpp>
@@ -11,7 +11,7 @@
 #include <charconv>
 #include <filesystem>
 
-namespace levk::experiment {
+namespace levk {
 namespace {
 namespace fs = std::filesystem;
 
@@ -418,4 +418,4 @@ void Scene::render_3d() {
 	};
 	m_entities.for_each(func);
 }
-} // namespace levk::experiment
+} // namespace levk

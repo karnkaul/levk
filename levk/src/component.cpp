@@ -1,8 +1,8 @@
-#include <experiment/component.hpp>
-#include <experiment/scene.hpp>
+#include <levk/component.hpp>
+#include <levk/scene.hpp>
 #include <cassert>
 
-namespace levk::experiment {
+namespace levk {
 Entity& Component::entity() const {
 	assert(m_entity);
 	return scene().get(m_entity);
@@ -12,4 +12,4 @@ Scene& Component::scene() const {
 	assert(m_scene);
 	return *m_scene;
 }
-} // namespace levk::experiment
+} // namespace levk

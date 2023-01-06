@@ -16,9 +16,9 @@
 #include <levk/util/visitor.hpp>
 #include <filesystem>
 
-#include <experiment/entity.hpp>
-#include <experiment/scene.hpp>
-#include <experiment/serializer.hpp>
+#include <levk/scene.hpp>
+#include <levk/serializer.hpp>
+
 namespace levk {
 namespace fs = std::filesystem;
 
@@ -76,7 +76,7 @@ void draw_scene_tree(imcpp::NotClosed<imcpp::Window>, Node::Locator node_locator
 	}
 }
 
-void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene, Id<Node> id) {
+void draw_inspector(imcpp::NotClosed<imcpp::Window> w, Scene& scene, Id<Node> id) {
 	if (!id) { return; }
 	auto* node = scene.node_locator().find(id);
 	if (!node) { return; }
@@ -85,9 +85,9 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 		auto unified_scaling = Bool{true};
 		imcpp::Reflector{w}(node->transform, unified_scaling, {true});
 	}
-	auto* entity = scene.find(Id<experiment::Entity>{node->entity});
+	auto* entity = scene.find(Id<Entity>{node->entity});
 	if (!entity) { return; }
-	auto inspect_skeleton_controller = [&](experiment::SkeletonController& controller, experiment::SkinnedMeshRenderer const& renderer) {
+	auto inspect_skeleton_controller = [&](SkeletonController& controller, SkinnedMeshRenderer const& renderer) {
 		if (renderer.skeleton.animations.empty()) { return; }
 		if (auto tn = imcpp::TreeNode("Animation", ImGuiTreeNodeFlags_Framed)) {
 			auto const preview = controller.enabled ? FixedString{"{}", controller.enabled->value()} : FixedString{"[None]"};
@@ -114,14 +114,14 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 			}
 		}
 	};
-	auto* mesh_renderer = dynamic_cast<experiment::MeshRenderer*>(entity->renderer());
+	auto* mesh_renderer = dynamic_cast<MeshRenderer*>(entity->renderer());
 	if (mesh_renderer) {
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
-				[&](experiment::StaticMeshRenderer& smr) {
+				[&](StaticMeshRenderer& smr) {
 					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.asset_id.id).name}.c_str());
 				},
-				[&](experiment::SkinnedMeshRenderer& smr) {
+				[&](SkinnedMeshRenderer& smr) {
 					auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.asset_id.id);
 					auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
 					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
@@ -131,10 +131,8 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 			std::visit(visitor, mesh_renderer->renderer);
 		}
 	}
-	if (auto* skinned_mesh_renderer = std::get_if<experiment::SkinnedMeshRenderer>(&mesh_renderer->renderer)) {
-		if (auto* skeleton_controller = entity->find<experiment::SkeletonController>()) {
-			inspect_skeleton_controller(*skeleton_controller, *skinned_mesh_renderer);
-		}
+	if (auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer)) {
+		if (auto* skeleton_controller = entity->find<SkeletonController>()) { inspect_skeleton_controller(*skeleton_controller, *skinned_mesh_renderer); }
 	}
 }
 
@@ -196,7 +194,7 @@ struct FreeCam {
 struct Services {
 	std::optional<Service<Engine>::Instance> engine{};
 	std::optional<Service<Resources>::Instance> resources{};
-	Service<experiment::Serializer>::Instance serializer{};
+	Service<Serializer>::Instance serializer{};
 };
 
 std::string trim_to_uri(std::string_view full, std::string_view data) {
@@ -214,12 +212,12 @@ void run(fs::path data_path) {
 	services.engine.emplace(make_engine(reader));
 	services.resources.emplace(data_path.generic_string());
 	auto& engine = Service<Engine>::locate();
-	auto scene = std::make_unique<experiment::Scene>();
+	auto scene = std::make_unique<Scene>();
 	auto free_cam = FreeCam{&engine.window()};
 	auto inspect = Id<Node>{};
 
-	services.serializer.get().bind_to<experiment::SkeletonController>("skeleton_controller");
-	services.serializer.get().bind_to<experiment::MeshRenderer>("mesh_renderer");
+	services.serializer.get().bind_to<SkeletonController>("skeleton_controller");
+	services.serializer.get().bind_to<MeshRenderer>("mesh_renderer");
 
 	engine.show();
 	while (engine.is_running()) {

@@ -4,7 +4,7 @@
 #include <levk/util/ptr.hpp>
 #include <levk/util/time.hpp>
 
-namespace levk::experiment {
+namespace levk {
 class Entity;
 class Scene;
 
@@ -26,4 +26,4 @@ class Component : public ISerializable {
 
 	friend class Entity;
 };
-} // namespace levk::experiment
+} // namespace levk

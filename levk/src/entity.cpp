@@ -1,7 +1,7 @@
-#include <experiment/entity.hpp>
+#include <levk/entity.hpp>
 #include <algorithm>
 
-namespace levk::experiment {
+namespace levk {
 void Entity::tick(Time dt) {
 	m_sorted.clear();
 	m_sorted.reserve(m_components.size());
@@ -20,4 +20,4 @@ void Entity::attach(TypeId::value_type type_id, std::unique_ptr<Component>&& out
 	out->m_scene = m_scene;
 	m_components.insert_or_assign(type_id, std::move(out));
 }
-} // namespace levk::experiment
+} // namespace levk

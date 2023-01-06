@@ -1,65 +1,73 @@
 #pragma once
+#include <levk/component.hpp>
 #include <levk/util/id.hpp>
-#include <levk/util/monotonic_map.hpp>
 #include <levk/util/ptr.hpp>
 #include <levk/util/type_id.hpp>
+#include <cassert>
 #include <memory>
 #include <unordered_map>
+#include <vector>
+
+namespace levk {
+class Node;
+}
 
 namespace levk {
 template <typename T>
-concept AttachmentT = std::is_move_constructible_v<T>;
+concept ComponentT = std::derived_from<T, Component>;
 
 class Entity {
   public:
-	using Map = MonotonicMap<Entity, Id<Entity>>;
+	struct Renderer : ISerializable {
+		virtual ~Renderer() = default;
 
-	template <AttachmentT T>
-	T& attach(T t) {
-		auto ut = std::make_unique<Model<T>>(std::move(t));
-		auto& ret = ut->t;
-		m_attachments.insert_or_assign(TypeId::make<T>(), std::move(ut));
+		virtual void render(Entity const& entity) const = 0;
+	};
+
+	template <ComponentT T>
+	T& attach(std::unique_ptr<T>&& t) {
+		assert(t);
+		auto& ret = *t;
+		attach(TypeId::make<T>().value(), std::move(t));
 		return ret;
 	}
 
-	template <AttachmentT T>
+	template <ComponentT T>
 	Ptr<T> find() const {
-		if (auto it = m_attachments.find(TypeId::make<T>()); it != m_attachments.end()) { return &static_cast<Model<T>&>(*it->second).t; }
+		if (auto it = m_components.find(TypeId::make<T>().value()); it != m_components.end()) { return &static_cast<T&>(*it->second); }
 		return {};
 	}
 
-	template <AttachmentT T>
+	template <ComponentT T>
 	T& get() const {
 		auto ret = find<T>();
 		assert(ret);
 		return *ret;
 	}
 
-	template <AttachmentT T>
+	template <ComponentT T>
 	void detach() {
-		m_attachments.erase(TypeId::make<T>());
+		m_components.erase(TypeId::make<T>());
 	}
 
 	Id<Entity> id() const { return m_id; }
+	Id<Node> node_id() const { return m_node; }
+	Ptr<Renderer> renderer() const { return m_renderer.get(); }
+
+	void tick(Time dt);
+
+	Scene& scene() const;
 
   private:
-	struct Base {
-		virtual ~Base() = default;
-	};
-	template <typename T>
-	struct Model : Base {
-		T t;
-		Model(T&& t) : t(std::move(t)) {}
-	};
-	struct Hasher {
-		std::size_t operator()(TypeId const& type) const { return std::hash<std::size_t>{}(type.value()); }
-	};
+	void attach(TypeId::value_type type_id, std::unique_ptr<Component>&& component);
 
-	void set_id(Id<Entity> id) { m_id = id; }
-
-	std::unordered_map<TypeId, std::unique_ptr<Base>, Hasher> m_attachments{};
+	std::unordered_map<TypeId::value_type, std::unique_ptr<Component>> m_components{};
+	std::vector<Ptr<Component>> m_sorted{};
 	Id<Entity> m_id{};
+	Id<Node> m_node{};
+	Ptr<Scene> m_scene{};
+	std::unique_ptr<Renderer> m_renderer{};
 
-	friend class MonotonicMap<Entity, std::size_t>;
+	friend class Scene;
 };
 } // namespace levk

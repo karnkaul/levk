@@ -58,6 +58,7 @@ set(levk_headers
 
   include/levk/asset_id.hpp
   include/levk/camera.hpp
+  include/levk/component.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
   include/levk/entity.hpp
@@ -76,8 +77,10 @@ set(levk_headers
   include/levk/render_resources.hpp
   include/levk/resources.hpp
   include/levk/rgba.hpp
+  include/levk/scene.hpp
   include/levk/service.hpp
   include/levk/serializable.hpp
+  include/levk/serializer.hpp
   include/levk/shader.hpp
   include/levk/skeleton.hpp
   include/levk/skinned_mesh.hpp

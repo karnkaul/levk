@@ -1,7 +1,7 @@
-#include <experiment/serializer.hpp>
+#include <levk/serializer.hpp>
 #include <levk/util/logger.hpp>
 
-namespace levk::experiment {
+namespace levk {
 Serializer::Result<ISerializable> Serializer::deserialize(dj::Json const& json) const {
 	auto const type_name = std::string{json["type_name"].as_string()};
 	if (type_name.empty()) {
@@ -54,4 +54,4 @@ void Serializer::bind_to(std::string&& type_name, TypeId type_id, Factory<ISeria
 	}
 	m_entries.insert_or_assign(std::move(type_name), Entry{std::move(factory), type_id});
 }
-} // namespace levk::experiment
+} // namespace levk

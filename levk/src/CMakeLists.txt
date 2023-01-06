@@ -7,7 +7,9 @@ target_sources(levk PRIVATE
   impl/vulkan_device.cpp
 
   camera.cpp
+  component.cpp
   engine.cpp
+  entity.cpp
   geometry.cpp
   graphics_device.cpp
   image.cpp
@@ -16,6 +18,8 @@ target_sources(levk PRIVATE
   rgba.cpp
   pixel_map.cpp
   resources.cpp
+  scene.cpp
+  serializer.cpp
   skeleton.cpp
   transform_animation.cpp
   transform.cpp

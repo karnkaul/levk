@@ -5,7 +5,7 @@
 #include <memory>
 #include <unordered_map>
 
-namespace levk::experiment {
+namespace levk {
 class Serializer {
   public:
 	template <std::derived_from<ISerializable> Type>
@@ -56,4 +56,4 @@ class Serializer {
 
 	std::unordered_map<std::string, Entry> m_entries{};
 };
-} // namespace levk::experiment
+} // namespace levk
