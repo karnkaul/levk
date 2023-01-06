@@ -76,6 +76,7 @@ set(levk_headers
   include/levk/resources.hpp
   include/levk/rgba.hpp
   include/levk/service.hpp
+  include/levk/serializable.hpp
   include/levk/shader.hpp
   include/levk/skeleton.hpp
   include/levk/skinned_mesh.hpp

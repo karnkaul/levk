@@ -159,6 +159,8 @@ Id<SkinnedMesh> AssetLoader::load_skinned_mesh(char const* path, dj::Json const&
 	return render_resources.skinned_meshes.add(std::move(mesh)).first;
 }
 
+std::string AssetLoader::get_asset_type(char const* path) { return dj::Json::from_file(path)["asset_type"].as<std::string>(); }
+
 MeshType AssetLoader::get_mesh_type(char const* path) {
 	auto json = dj::Json::from_file(path);
 	if (!json || json["asset_type"].as_string() != "mesh") { return MeshType::eNone; }

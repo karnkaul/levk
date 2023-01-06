@@ -3,6 +3,7 @@
 #include <levk/camera.hpp>
 #include <levk/lights.hpp>
 #include <levk/rgba.hpp>
+#include <levk/util/ptr.hpp>
 #include <cstdint>
 #include <span>
 
@@ -81,6 +82,8 @@ struct GraphicsDeviceCreateInfo {
 class GraphicsDevice;
 
 struct GraphicsRenderer {
+	Ptr<GraphicsRenderer> next_renderer{};
+
 	virtual ~GraphicsRenderer() = default;
 
 	virtual void render_3d() = 0;

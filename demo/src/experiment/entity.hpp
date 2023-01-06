@@ -18,7 +18,7 @@ concept ComponentT = std::derived_from<T, Component>;
 
 class Entity {
   public:
-	struct Renderer {
+	struct Renderer : ISerializable {
 		virtual ~Renderer() = default;
 
 		virtual void render(Entity const& entity) const = 0;
@@ -28,16 +28,13 @@ class Entity {
 	T& attach(std::unique_ptr<T>&& t) {
 		assert(t);
 		auto& ret = *t;
-		ret.m_entity = m_id;
-		ret.m_scene = m_scene;
-		m_components.all.insert_or_assign(TypeId::make<T>().value(), std::move(t));
-		if constexpr (std::derived_from<T, TickComponent>) { m_components.tick.insert_or_assign(TypeId::make<T>().value(), &ret); }
+		attach(TypeId::make<T>().value(), std::move(t));
 		return ret;
 	}
 
 	template <ComponentT T>
 	Ptr<T> find() const {
-		if (auto it = m_components.all.find(TypeId::make<T>().value()); it != m_components.all.end()) { return &static_cast<T&>(*it->second); }
+		if (auto it = m_components.find(TypeId::make<T>().value()); it != m_components.end()) { return &static_cast<T&>(*it->second); }
 		return {};
 	}
 
@@ -50,8 +47,7 @@ class Entity {
 
 	template <ComponentT T>
 	void detach() {
-		m_components.all.erase(TypeId::make<T>());
-		if constexpr (std::derived_from<T, TickComponent>) { m_components.tick.erase(TypeId::make<T>()); }
+		m_components.erase(TypeId::make<T>());
 	}
 
 	Id<Entity> id() const { return m_id; }
@@ -63,13 +59,10 @@ class Entity {
 	Scene& scene() const;
 
   private:
-	struct {
-		std::unordered_map<TypeId::value_type, std::unique_ptr<Component>> all{};
-		std::unordered_map<TypeId::value_type, Ptr<TickComponent>> tick{};
-	} m_components{};
-	struct {
-		std::vector<Ptr<TickComponent>> tick{};
-	} m_sorted{};
+	void attach(TypeId::value_type type_id, std::unique_ptr<Component>&& component);
+
+	std::unordered_map<TypeId::value_type, std::unique_ptr<Component>> m_components{};
+	std::vector<Ptr<Component>> m_sorted{};
 	Id<Entity> m_id{};
 	Id<Node> m_node{};
 	Ptr<Scene> m_scene{};

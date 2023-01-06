@@ -3,15 +3,21 @@
 
 namespace levk::experiment {
 void Entity::tick(Time dt) {
-	m_sorted.tick.clear();
-	m_sorted.tick.reserve(m_components.tick.size());
-	for (auto const& [_, component] : m_components.tick) { m_sorted.tick.push_back(component); }
-	std::sort(m_sorted.tick.begin(), m_sorted.tick.end(), [](auto const* a, auto const* b) { return a->id() < b->id(); });
-	for (auto* component : m_sorted.tick) { component->tick(dt); }
+	m_sorted.clear();
+	m_sorted.reserve(m_components.size());
+	for (auto const& [_, component] : m_components) { m_sorted.push_back(component.get()); }
+	std::sort(m_sorted.begin(), m_sorted.end(), [](auto const* a, auto const* b) { return a->id() < b->id(); });
+	for (auto* component : m_sorted) { component->tick(dt); }
 }
 
 Scene& Entity::scene() const {
 	assert(m_scene);
 	return *m_scene;
+}
+
+void Entity::attach(TypeId::value_type type_id, std::unique_ptr<Component>&& out) {
+	out->m_entity = m_id;
+	out->m_scene = m_scene;
+	m_components.insert_or_assign(type_id, std::move(out));
 }
 } // namespace levk::experiment

@@ -15,6 +15,7 @@
 
 #include <experiment/entity.hpp>
 #include <experiment/scene.hpp>
+#include <experiment/serializer.hpp>
 #include <levk/asset/asset_loader.hpp>
 #include <levk/resources.hpp>
 #include <levk/service.hpp>
@@ -196,6 +197,7 @@ struct FreeCam {
 struct Services {
 	std::optional<Service<Engine>::Instance> engine{};
 	std::optional<Service<Resources>::Instance> resources{};
+	Service<experiment::Serializer>::Instance serializer{};
 };
 
 std::string trim_to_uri(std::string_view full, std::string_view data) {
@@ -217,6 +219,9 @@ void run(fs::path data_path) {
 	auto free_cam = FreeCam{&engine.window()};
 	auto inspect = Id<Node>{};
 
+	services.serializer.get().bind_to<experiment::SkeletonController>("skeleton_controller");
+	services.serializer.get().bind_to("mesh_renderer", [] { return std::make_unique<experiment::MeshRenderer>(experiment::StaticMeshRenderer{}); });
+
 	engine.show();
 	while (engine.is_running()) {
 		auto frame = engine.next_frame();
@@ -232,7 +237,14 @@ void run(fs::path data_path) {
 			}
 			if (path.extension() == ".json") {
 				auto uri = trim_to_uri(fs::path{drop}.generic_string(), data_path.generic_string());
-				if (!uri.empty()) { scene->load_mesh_into_tree(uri); }
+				if (!uri.empty()) {
+					auto const asset_type = AssetLoader::get_asset_type(drop.c_str());
+					if (asset_type == "mesh") {
+						scene->load_mesh_into_tree(uri);
+					} else if (asset_type == "scene") {
+						scene->from_json(drop.c_str());
+					}
+				}
 				break;
 			}
 		}
@@ -244,6 +256,14 @@ void run(fs::path data_path) {
 			static bool show_demo{true};
 			if (show_demo) { ImGui::ShowDemoWindow(&show_demo); }
 		}
+
+		// test code
+		if (frame.state.input.chord(Key::eS, Key::eLeftControl)) {
+			auto json = dj::Json{};
+			scene->serialize(json);
+			json.to_file((data_path / "test_scene.json").string().c_str());
+		}
+		// test code
 
 		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
 		if (auto w = imcpp::Window{"Scene"}) {
@@ -259,8 +279,7 @@ void run(fs::path data_path) {
 			if (!show_inspector) { inspect = {}; }
 		}
 
-		auto renderer = experiment::Scene::Renderer{*scene};
-		engine.render(renderer, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
+		engine.render(*scene, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
 	}
 }
 } // namespace

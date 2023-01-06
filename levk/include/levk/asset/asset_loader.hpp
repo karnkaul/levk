@@ -15,6 +15,7 @@ struct AssetLoader {
 	Id<SkinnedMesh> try_load_skinned_mesh(char const* path) const;
 	Id<SkinnedMesh> load_skinned_mesh(char const* path, dj::Json const& json) const;
 
+	static std::string get_asset_type(char const* path);
 	static MeshType get_mesh_type(char const* path);
 };
 } // namespace levk

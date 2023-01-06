@@ -1,8 +1,10 @@
 #pragma once
 #include <experiment/component.hpp>
 #include <experiment/entity.hpp>
+#include <levk/asset/uri.hpp>
 #include <levk/engine.hpp>
 #include <levk/resources.hpp>
+#include <levk/serializable.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/time.hpp>
 #include <variant>
@@ -11,12 +13,12 @@ namespace levk::experiment {
 struct StaticMeshRenderer {
 	Id<StaticMesh> mesh{};
 	std::vector<Transform> instances{};
-	std::string mesh_uri{};
+	asset::Uri<StaticMesh> mesh_uri{};
 
 	void render(Entity const& entity) const;
 };
 
-struct SkeletonController : TickComponent {
+struct SkeletonController : Component {
 	using Animation = Skeleton::Animation;
 
 	std::optional<Id<Animation>> enabled{};
@@ -25,12 +27,16 @@ struct SkeletonController : TickComponent {
 
 	void change_animation(std::optional<Id<Skeleton::Animation>> index);
 	void tick(Time dt) override;
+
+	std::string_view type_name() const override { return "skeleton_controller"; }
+	bool serialize(dj::Json& out) const override;
+	bool deserialize(dj::Json const& json) override;
 };
 
 struct SkinnedMeshRenderer {
 	Skeleton::Instance skeleton{};
 	Id<SkinnedMesh> mesh{};
-	std::string mesh_uri{};
+	asset::Uri<SkinnedMesh> mesh_uri{};
 
 	DynArray<glm::mat4> joint_matrices{};
 
@@ -44,9 +50,13 @@ struct MeshRenderer : Entity::Renderer {
 	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer) : renderer(std::move(renderer)) {}
 
 	void render(Entity const& entity) const override;
+
+	std::string_view type_name() const override { return "mesh_renderer"; }
+	bool serialize(dj::Json& out) const override;
+	bool deserialize(dj::Json const& json) override;
 };
 
-class Scene {
+class Scene : public GraphicsRenderer, public ISerializable {
   public:
 	struct Renderer;
 
@@ -68,18 +78,20 @@ class Scene {
 	Node::Tree const& nodes() const { return m_nodes; }
 	Node::Locator node_locator() { return m_nodes; }
 
+	bool from_json(char const* path);
+
+	void render_3d() final;
+	void render_ui() final {}
+
+	std::string_view type_name() const override { return "scene"; }
+	bool serialize(dj::Json& out) const override;
+	bool deserialize(dj::Json const& json) override;
+
+	std::string name{};
+
   private:
 	Node::Tree m_nodes{};
 	MonotonicMap<Entity> m_entities{};
 	std::vector<Ptr<Entity>> m_sorted{};
-};
-
-struct Scene::Renderer : GraphicsRenderer {
-	Ptr<Scene const> scene{};
-
-	Renderer(Scene const& scene) : scene(&scene) {}
-
-	void render_3d() final;
-	void render_ui() final {}
 };
 } // namespace levk::experiment

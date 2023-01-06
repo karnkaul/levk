@@ -17,6 +17,8 @@ target_sources(levk-demo PRIVATE
   src/experiment/entity.hpp
   src/experiment/scene.cpp
   src/experiment/scene.hpp
+  src/experiment/serializer.cpp
+  src/experiment/serializer.hpp
   src/main.cpp
 )
 

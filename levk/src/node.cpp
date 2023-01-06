@@ -50,6 +50,24 @@ glm::mat4 Node::Tree::global_transform(Node const& node) const {
 	return ret;
 }
 
+Node Node::Tree::make_node(Id<Node> self, std::vector<Id<Node>> children, CreateInfo create_info) {
+	auto ret = Node{};
+	ret.m_id = self;
+	ret.m_parent = create_info.parent;
+	ret.m_children = std::move(children);
+	ret.entity = create_info.entity;
+	ret.transform = create_info.transform;
+	ret.name = std::move(create_info.name);
+	return ret;
+}
+
+void Node::Tree::import_tree(Map nodes, std::vector<Id<Node>> roots) {
+	m_nodes = std::move(nodes);
+	m_roots = std::move(roots);
+	m_prev_id = {};
+	for (auto const& [id, _] : m_nodes) { m_prev_id = std::max(m_prev_id, id); }
+}
+
 void Node::Tree::remove_child_from_parent(Node& out) {
 	if (auto* parent = find(out.m_parent)) {
 		std::erase(parent->m_children, out.m_id);

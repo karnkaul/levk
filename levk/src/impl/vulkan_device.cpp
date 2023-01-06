@@ -2042,7 +2042,7 @@ Defer<UniqueImage> make_image(VulkanDevice const& device, std::span<Image::View 
 	auto const size = std::accumulate(images.begin(), images.end(), std::size_t{}, accumulate_size);
 	auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst, size, true);
 	if (!staging.get().buffer) {
-		// TODO error
+		// TODO: error
 		return {};
 	}
 
@@ -2509,7 +2509,7 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	out.impl->default_render_mode = info.default_render_mode;
 	// dispatch 3D render
 	out.impl->cmd_3d = cmd_3d;
-	info.renderer.render_3d();
+	for (auto* renderer = &info.renderer; renderer; renderer = renderer->next_renderer) { renderer->render_3d(); }
 	out.impl->cmd_3d = {};
 
 	// trace 3D output image to native render pass
@@ -2527,7 +2527,7 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 
 	// dispatch UI render
 	out.impl->cmd_ui = cmd_ui;
-	info.renderer.render_ui();
+	for (auto* renderer = &info.renderer; renderer; renderer = renderer->next_renderer) { renderer->render_ui(); }
 	out.impl->cmd_ui = {};
 
 	// dispatch Dear ImGui render
@@ -2605,7 +2605,7 @@ void levk::gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info) {
 		return;
 	}
 	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
-	// TODO update stats
+	// TODO: update stats
 }
 
 void levk::gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info) {
@@ -2614,5 +2614,5 @@ void levk::gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info) {
 		return;
 	}
 	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
-	// TODO update stats
+	// TODO: update stats
 }
