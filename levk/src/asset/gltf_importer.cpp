@@ -393,7 +393,7 @@ struct GltfExporter {
 					break;
 				}
 				default:
-					// TODO not implemented
+					// TODO: not implemented
 					continue;
 				}
 

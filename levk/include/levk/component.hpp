@@ -1,15 +1,18 @@
 #pragma once
+#include <levk/serializable.hpp>
 #include <levk/util/id.hpp>
 #include <levk/util/ptr.hpp>
 #include <levk/util/time.hpp>
 
-namespace levk::experiment {
+namespace levk {
 class Entity;
 class Scene;
 
-class Component {
+class Component : public ISerializable {
   public:
 	virtual ~Component() = default;
+
+	virtual void tick(Time dt) = 0;
 
 	Id<Component> id() const { return m_self; }
 	Entity& entity() const;
@@ -23,9 +26,4 @@ class Component {
 
 	friend class Entity;
 };
-
-class TickComponent : public Component {
-  public:
-	virtual void tick(Time dt) = 0;
-};
-} // namespace levk::experiment
+} // namespace levk

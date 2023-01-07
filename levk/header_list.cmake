@@ -47,6 +47,7 @@ set(assets_headers
   include/levk/asset/asset_loader.hpp
   include/levk/asset/common.hpp
   include/levk/asset/gltf_importer.hpp
+  include/levk/asset/uri.hpp
 )
 
 set(levk_headers
@@ -55,7 +56,9 @@ set(levk_headers
   ${imcpp_headers}
   ${assets_headers}
 
+  include/levk/asset_id.hpp
   include/levk/camera.hpp
+  include/levk/component.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
   include/levk/entity.hpp
@@ -69,11 +72,15 @@ set(levk_headers
   include/levk/material.hpp
   include/levk/mesh_geometry.hpp
   include/levk/mesh_primitive.hpp
-  include/levk/mesh_resources.hpp
   include/levk/node.hpp
   include/levk/pixel_map.hpp
+  include/levk/render_resources.hpp
+  include/levk/resources.hpp
   include/levk/rgba.hpp
+  include/levk/scene.hpp
   include/levk/service.hpp
+  include/levk/serializable.hpp
+  include/levk/serializer.hpp
   include/levk/shader.hpp
   include/levk/skeleton.hpp
   include/levk/skinned_mesh.hpp

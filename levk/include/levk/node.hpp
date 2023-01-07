@@ -59,6 +59,9 @@ class Node::Tree {
 
 	Map const& map() const { return m_nodes; }
 
+	static Node make_node(Id<Node> self, std::vector<Id<Node>> children, CreateInfo create_info = {});
+	void import_tree(Map nodes, std::vector<Id<Node>> roots);
+
   private:
 	void remove_child_from_parent(Node& out);
 	void destroy_children(Node& out);

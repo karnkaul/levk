@@ -1,12 +1,12 @@
 #pragma once
 #include <levk/material.hpp>
-#include <levk/static_mesh.hpp>
-#include <levk/skinned_mesh.hpp>
 #include <levk/skeleton.hpp>
+#include <levk/skinned_mesh.hpp>
+#include <levk/static_mesh.hpp>
 #include <levk/util/monotonic_map.hpp>
 
 namespace levk {
-struct MeshResources {
+struct RenderResources {
 	MonotonicMap<Texture> textures{};
 	MonotonicMap<Material> materials{};
 	MonotonicMap<StaticMesh> static_meshes{};

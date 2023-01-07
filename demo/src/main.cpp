@@ -1,9 +1,14 @@
 #include <imgui.h>
+#include <levk/asset/asset_loader.hpp>
 #include <levk/engine.hpp>
 #include <levk/entity.hpp>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/impl/desktop_window.hpp>
 #include <levk/impl/vulkan_device.hpp>
+#include <levk/resources.hpp>
+#include <levk/scene.hpp>
+#include <levk/serializer.hpp>
+#include <levk/service.hpp>
 #include <levk/transform_controller.hpp>
 #include <levk/util/error.hpp>
 #include <levk/util/fixed_string.hpp>
@@ -12,11 +17,6 @@
 #include <levk/util/resource_map.hpp>
 #include <levk/util/visitor.hpp>
 #include <filesystem>
-
-#include <experiment/entity.hpp>
-#include <experiment/scene.hpp>
-#include <levk/asset/asset_loader.hpp>
-#include <levk/service.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -75,7 +75,7 @@ void draw_scene_tree(imcpp::NotClosed<imcpp::Window>, Node::Locator node_locator
 	}
 }
 
-void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene, Id<Node> id) {
+void draw_inspector(imcpp::NotClosed<imcpp::Window> w, Scene& scene, Id<Node> id) {
 	if (!id) { return; }
 	auto* node = scene.node_locator().find(id);
 	if (!node) { return; }
@@ -84,9 +84,9 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 		auto unified_scaling = Bool{true};
 		imcpp::Reflector{w}(node->transform, unified_scaling, {true});
 	}
-	auto* entity = scene.find(Id<experiment::Entity>{node->entity});
+	auto* entity = scene.find(Id<Entity>{node->entity});
 	if (!entity) { return; }
-	auto inspect_skeleton_controller = [&](experiment::SkeletonController& controller, experiment::SkinnedMeshRenderer const& renderer) {
+	auto inspect_skeleton_controller = [&](SkeletonController& controller, SkinnedMeshRenderer const& renderer) {
 		if (renderer.skeleton.animations.empty()) { return; }
 		if (auto tn = imcpp::TreeNode("Animation", ImGuiTreeNodeFlags_Framed)) {
 			auto const preview = controller.enabled ? FixedString{"{}", controller.enabled->value()} : FixedString{"[None]"};
@@ -105,7 +105,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 			}
 			if (controller.enabled) {
 				auto& animation = renderer.skeleton.animations[*controller.enabled];
-				auto const& skeleton = Service<MeshResources>::get().skeletons.get(animation.skeleton);
+				auto const& skeleton = Service<Resources>::get().render.skeletons.get(animation.skeleton);
 				auto const& source = skeleton.animation_sources[animation.source];
 				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", source.animation.duration().count()}.c_str());
 				float const progress = controller.elapsed / source.animation.duration();
@@ -113,16 +113,16 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 			}
 		}
 	};
-	auto* mesh_renderer = dynamic_cast<experiment::MeshRenderer*>(entity->renderer());
+	auto* mesh_renderer = dynamic_cast<MeshRenderer*>(entity->renderer());
 	if (mesh_renderer) {
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{
-				[&](experiment::StaticMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<MeshResources>::get().static_meshes.get(smr.mesh).name}.c_str());
+				[&](StaticMeshRenderer& smr) {
+					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.asset_id.id).name}.c_str());
 				},
-				[&](experiment::SkinnedMeshRenderer& smr) {
-					auto const& mesh = Service<MeshResources>::get().skinned_meshes.get(smr.mesh);
-					auto const& skeleton = Service<MeshResources>::get().skeletons.get(mesh.skeleton);
+				[&](SkinnedMeshRenderer& smr) {
+					auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.asset_id.id);
+					auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
 					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
 					imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
 				},
@@ -130,10 +130,8 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, experiment::Scene& scene,
 			std::visit(visitor, mesh_renderer->renderer);
 		}
 	}
-	if (auto* skinned_mesh_renderer = std::get_if<experiment::SkinnedMeshRenderer>(&mesh_renderer->renderer)) {
-		if (auto* skeleton_controller = entity->find<experiment::SkeletonController>()) {
-			inspect_skeleton_controller(*skeleton_controller, *skinned_mesh_renderer);
-}
+	if (auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer)) {
+		if (auto* skeleton_controller = entity->find<SkeletonController>()) { inspect_skeleton_controller(*skeleton_controller, *skinned_mesh_renderer); }
 	}
 }
 
@@ -194,19 +192,31 @@ struct FreeCam {
 
 struct Services {
 	std::optional<Service<Engine>::Instance> engine{};
-	Service<MeshResources>::Instance mesh_resources{};
+	std::optional<Service<Resources>::Instance> resources{};
+	Service<Serializer>::Instance serializer{};
 };
+
+std::string trim_to_uri(std::string_view full, std::string_view data) {
+	auto const i = full.find(data);
+	if (i == std::string_view::npos) { return {}; }
+	full = full.substr(i + data.size());
+	while (!full.empty() && full.front() == '/') { full = full.substr(1); }
+	return std::string{full};
+}
 
 void run(fs::path data_path) {
 	auto reader = FileReader{};
 	reader.mount(data_path.generic_string());
 	auto services = Services{};
 	services.engine.emplace(make_engine(reader));
+	services.resources.emplace(data_path.generic_string());
 	auto& engine = Service<Engine>::locate();
-	auto& mesh_resources = Service<MeshResources>::locate();
-	auto scene = std::make_unique<experiment::Scene>();
+	auto scene = std::make_unique<Scene>();
 	auto free_cam = FreeCam{&engine.window()};
 	auto inspect = Id<Node>{};
+
+	services.serializer.get().bind_to<SkeletonController>("skeleton_controller");
+	services.serializer.get().bind_to<MeshRenderer>("mesh_renderer");
 
 	engine.show();
 	while (engine.is_running()) {
@@ -217,20 +227,19 @@ void run(fs::path data_path) {
 		for (auto const& drop : frame.state.drops) {
 			auto path = fs::path{drop};
 			if (path.extension() == ".gltf") {
-				auto export_path = data_path / path.filename().stem();
-				scene->import_gltf(drop.c_str(), export_path.string().c_str());
+				auto export_path = path.filename().stem();
+				scene->import_gltf(drop.c_str(), export_path.generic_string());
 				break;
 			}
 			if (path.extension() == ".json") {
-				auto json = dj::Json::from_file(drop.c_str());
-				if (json["asset_type"].as_string() == "mesh") {
-					auto loader = AssetLoader{engine.device(), mesh_resources};
-					auto const res = loader.try_load_mesh(drop.c_str());
-					auto visitor = Visitor{
-						[&](auto id) { scene->add_mesh_to_tree(id); },
-						[](std::monostate) {},
-					};
-					std::visit(visitor, res);
+				auto uri = trim_to_uri(fs::path{drop}.generic_string(), data_path.generic_string());
+				if (!uri.empty()) {
+					auto const asset_type = AssetLoader::get_asset_type(drop.c_str());
+					if (asset_type == "mesh") {
+						scene->load_mesh_into_tree(uri);
+					} else if (asset_type == "scene") {
+						scene->from_json(drop.c_str());
+					}
 				}
 				break;
 			}
@@ -243,6 +252,14 @@ void run(fs::path data_path) {
 			static bool show_demo{true};
 			if (show_demo) { ImGui::ShowDemoWindow(&show_demo); }
 		}
+
+		// test code
+		if (frame.state.input.chord(Key::eS, Key::eLeftControl)) {
+			auto json = dj::Json{};
+			scene->serialize(json);
+			json.to_file((data_path / "test_scene.json").string().c_str());
+		}
+		// test code
 
 		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
 		if (auto w = imcpp::Window{"Scene"}) {
@@ -258,8 +275,7 @@ void run(fs::path data_path) {
 			if (!show_inspector) { inspect = {}; }
 		}
 
-		auto renderer = experiment::Scene::Renderer{*scene};
-		engine.render(renderer, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
+		engine.render(*scene, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
 	}
 }
 } // namespace

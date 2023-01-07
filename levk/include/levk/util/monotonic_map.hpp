@@ -14,6 +14,7 @@ template <typename Type, typename IdType = Id<Type>>
 class MonotonicMap {
   public:
 	using id_type = IdType;
+	using id_underlying_t = typename IdType::id_type;
 
 	std::pair<Id<Type>, Type&> add(Type t = Type{}) {
 		auto lock = std::scoped_lock{m_mutex};
@@ -81,8 +82,15 @@ class MonotonicMap {
 		for (auto& [key, value] : m_map) { func(key, value); }
 	}
 
+	void import_map(std::unordered_map<id_underlying_t, Type> map) {
+		auto prev_id = id_underlying_t{};
+		for (auto const& [id, _] : map) { prev_id = std::max(id, m_prev_id); }
+		auto lock = std::scoped_lock{m_mutex};
+		m_map = std::move(map);
+		m_prev_id = prev_id;
+	}
+
   private:
-	using id_underlying_t = typename IdType::id_type;
 	std::unordered_map<id_underlying_t, Type> m_map{};
 	mutable std::mutex m_mutex{};
 	id_underlying_t m_prev_id{};

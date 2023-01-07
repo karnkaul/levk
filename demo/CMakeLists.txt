@@ -11,12 +11,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL Clang OR CMAKE_CXX_COMPILER_ID STREQUAL GNU)
 endif()
 
 target_sources(levk-demo PRIVATE
-  src/experiment/component.cpp
-  src/experiment/component.hpp
-  src/experiment/entity.cpp
-  src/experiment/entity.hpp
-  src/experiment/scene.cpp
-  src/experiment/scene.hpp
   src/main.cpp
 )
 

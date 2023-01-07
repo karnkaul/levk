@@ -3,6 +3,7 @@
 #include <levk/camera.hpp>
 #include <levk/lights.hpp>
 #include <levk/rgba.hpp>
+#include <levk/util/ptr.hpp>
 #include <cstdint>
 #include <span>
 
@@ -10,12 +11,13 @@ namespace levk {
 class Window;
 struct StaticMesh;
 struct SkinnedMesh;
-struct MeshResources;
+struct RenderResources;
 
 using Extent2D = glm::uvec2;
 
 enum class ColourSpace : std::uint8_t { eSrgb, eLinear };
 enum class Topology : std::uint8_t { ePointList, eLineList, eLineStrip, eTriangleList, eTriangleStrip, eTriangleFan };
+enum class MeshType : std::uint8_t { eNone, eStatic, eSkinned };
 
 struct RenderMode {
 	enum class Type : std::uint8_t { eDefault, eFill, eLine, ePoint };
@@ -80,6 +82,8 @@ struct GraphicsDeviceCreateInfo {
 class GraphicsDevice;
 
 struct GraphicsRenderer {
+	Ptr<GraphicsRenderer> next_renderer{};
+
 	virtual ~GraphicsRenderer() = default;
 
 	virtual void render_3d() = 0;
@@ -96,14 +100,14 @@ struct RenderInfo {
 };
 
 struct StaticMeshRenderInfo {
-	MeshResources const& resources;
+	RenderResources const& resources;
 	StaticMesh const& mesh;
 	glm::mat4 const& parent;
 	std::span<Transform const> instances;
 };
 
 struct SkinnedMeshRenderInfo {
-	MeshResources const& resources;
+	RenderResources const& resources;
 	SkinnedMesh const& mesh;
 	std::span<glm::mat4 const> joints;
 };
