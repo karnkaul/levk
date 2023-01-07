@@ -193,7 +193,6 @@ struct FreeCam {
 struct Services {
 	std::optional<Service<Engine>::Instance> engine{};
 	std::optional<Service<Resources>::Instance> resources{};
-	Service<Serializer>::Instance serializer{};
 };
 
 std::string trim_to_uri(std::string_view full, std::string_view data) {
@@ -214,9 +213,6 @@ void run(fs::path data_path) {
 	auto scene = std::make_unique<Scene>();
 	auto free_cam = FreeCam{&engine.window()};
 	auto inspect = Id<Node>{};
-
-	services.serializer.get().bind_to<SkeletonController>("skeleton_controller");
-	services.serializer.get().bind_to<MeshRenderer>("mesh_renderer");
 
 	engine.show();
 	while (engine.is_running()) {

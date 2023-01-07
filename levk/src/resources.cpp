@@ -1,5 +1,4 @@
 #include <levk/asset/asset_loader.hpp>
-#include <levk/engine.hpp>
 #include <levk/resources.hpp>
 #include <levk/service.hpp>
 #include <levk/util/error.hpp>
@@ -39,7 +38,7 @@ Id<T> Resources::load(asset::Uri<T> const& uri, std::string_view const type, Map
 		if (map.contains(id)) { return id; }
 	}
 	lock.unlock();
-	auto loader = AssetLoader{Service<Engine>::get().device(), render};
+	auto loader = AssetLoader{Service<GraphicsDevice>::locate(), render};
 	auto ret = func(loader, absolute_path_for(uri.value()).c_str());
 	if (!ret) {
 		logger::error("[Resources] Failed to load {} [{}]", type, uri.value());

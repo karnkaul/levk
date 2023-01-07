@@ -1,4 +1,5 @@
 #pragma once
+#include <levk/component.hpp>
 #include <levk/serializable.hpp>
 #include <levk/util/type_id.hpp>
 #include <levk/util/unique_task.hpp>
@@ -11,12 +12,21 @@ class Serializer {
 	template <std::derived_from<ISerializable> Type>
 	using Factory = UniqueTask<std::unique_ptr<Type>()>;
 
+	struct Entry {
+		Factory<ISerializable> factory{};
+		TypeId type_id{};
+		bool is_component{};
+	};
+
+	using Map = std::unordered_map<std::string, Entry>;
+
 	template <std::derived_from<ISerializable> Type>
 	struct Result {
-		std::unique_ptr<Type> serializable{};
+		std::unique_ptr<Type> value{};
 		TypeId type_id{};
+		bool is_component{};
 
-		explicit operator bool() const { return type_id != TypeId{} && serializable != nullptr; }
+		explicit operator bool() const { return type_id != TypeId{} && value != nullptr; }
 	};
 
 	template <std::derived_from<ISerializable> To>
@@ -32,7 +42,7 @@ class Serializer {
 
 	template <typename Type>
 	void bind_to(std::string type_name, Factory<Type> factory) {
-		bind_to(std::move(type_name), TypeId::make<Type>(), std::move(factory));
+		bind_to(std::move(type_name), TypeId::make<Type>(), std::move(factory), std::derived_from<Type, Component>);
 	}
 
 	dj::Json serialize(ISerializable const& serializable) const;
@@ -41,19 +51,17 @@ class Serializer {
 	template <std::derived_from<ISerializable> To>
 	Result<To> deserialize_as(dj::Json const& json) const {
 		auto result = deserialize(json);
-		return {dynamic_pointer_cast<To>(std::move(result.serializable)), result.type_id};
+		return {dynamic_pointer_cast<To>(std::move(result.value)), result.type_id, result.is_component};
 	}
 
 	TypeId type_id(std::string const& type_name) const;
 
+	Ptr<Entry const> find_entry(std::string const& type_name) const;
+	Map const& entries() const { return m_entries; }
+
   private:
-	struct Entry {
-		Factory<ISerializable> factory{};
-		TypeId type_id{};
-	};
+	void bind_to(std::string&& type_name, TypeId type_id, Factory<ISerializable>&& factory, bool is_component);
 
-	void bind_to(std::string&& type_name, TypeId type_id, Factory<ISerializable>&& factory);
-
-	std::unordered_map<std::string, Entry> m_entries{};
+	Map m_entries{};
 };
 } // namespace levk

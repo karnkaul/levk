@@ -1,7 +1,6 @@
 #include <levk/asset/asset_loader.hpp>
 #include <levk/asset/common.hpp>
 #include <levk/asset/gltf_importer.hpp>
-#include <levk/engine.hpp>
 #include <levk/scene.hpp>
 #include <levk/serializer.hpp>
 #include <levk/service.hpp>
@@ -101,7 +100,7 @@ void StaticMeshRenderer::render(Entity const& entity) const {
 	auto const& resources = Service<Resources>::locate();
 	auto const& m = resources.render.static_meshes.get(asset_id.id);
 	if (m.primitives.empty()) { return; }
-	auto& device = Service<Engine>::locate().device();
+	auto& device = Service<GraphicsDevice>::locate();
 	static auto const s_instance = Transform{};
 	auto const is = instances.empty() ? std::span{&s_instance, 1u} : std::span{instances};
 	device.render(m, resources.render, is, tree.global_transform(tree.get(entity.node_id())));
@@ -121,7 +120,7 @@ void SkinnedMeshRenderer::render(Entity const& entity) const {
 	if (m.primitives.empty()) { return; }
 	assert(m.primitives[0].geometry.has_joints() && joint_matrices.size() == skeleton.joints.size());
 	for (auto const [id, index] : enumerate(skeleton.joints)) { joint_matrices[index] = tree.global_transform(tree.get(id)); }
-	Service<Engine>::locate().device().render(m, resources.render, joint_matrices.span());
+	Service<GraphicsDevice>::locate().render(m, resources.render, joint_matrices.span());
 }
 
 void MeshRenderer::render(Entity const& entity) const {
@@ -394,16 +393,16 @@ bool Scene::deserialize(dj::Json const& json) {
 		out_entity.m_node = in_entity["node"].as<std::size_t>();
 		out_entity.m_scene = this;
 		for (auto const& in_component : in_entity["components"].array_view()) {
-			auto [out_component, type_id] = serializer.deserialize_as<Component>(in_component);
-			if (!out_component) {
+			auto result = serializer.deserialize_as<Component>(in_component);
+			if (!result.is_component || !result.value) {
 				logger::warn("[Scene] Failed to deserialize Component");
 				continue;
 			}
-			out_entity.attach(type_id.value(), std::move(out_component));
+			out_entity.attach(result.type_id.value(), std::move(result.value));
 		}
 		if (auto const& in_renderer = in_entity["renderer"]) {
-			auto [out_component, _] = serializer.deserialize_as<Entity::Renderer>(in_renderer);
-			out_entity.m_renderer = std::move(out_component);
+			auto result = serializer.deserialize_as<Entity::Renderer>(in_renderer);
+			out_entity.m_renderer = std::move(result.value);
 			if (!out_entity.m_renderer) { logger::error("[Scene] Failed to obtain Renderer for Entity [{}]", id); }
 		}
 		out_entities.insert_or_assign(id, std::move(out_entity));
