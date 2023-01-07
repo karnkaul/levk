@@ -6,6 +6,8 @@
 #include <levk/impl/desktop_window.hpp>
 #include <levk/impl/vulkan_device.hpp>
 #include <levk/resources.hpp>
+#include <levk/scene.hpp>
+#include <levk/serializer.hpp>
 #include <levk/service.hpp>
 #include <levk/transform_controller.hpp>
 #include <levk/util/error.hpp>
@@ -15,9 +17,6 @@
 #include <levk/util/resource_map.hpp>
 #include <levk/util/visitor.hpp>
 #include <filesystem>
-
-#include <levk/scene.hpp>
-#include <levk/serializer.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -228,7 +227,7 @@ void run(fs::path data_path) {
 		for (auto const& drop : frame.state.drops) {
 			auto path = fs::path{drop};
 			if (path.extension() == ".gltf") {
-				auto export_path = data_path / path.filename().stem();
+				auto export_path = path.filename().stem();
 				scene->import_gltf(drop.c_str(), export_path.generic_string());
 				break;
 			}
