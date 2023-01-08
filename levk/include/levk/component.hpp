@@ -9,7 +9,7 @@ namespace levk {
 class Entity;
 class Scene;
 
-class Component : public ISerializable, public imcpp::IInspectable {
+class Component : public Serializable, public imcpp::Inspectable {
   public:
 	virtual ~Component() = default;
 

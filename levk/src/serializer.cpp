@@ -2,7 +2,7 @@
 #include <levk/util/logger.hpp>
 
 namespace levk {
-Serializer::Result<ISerializable> Serializer::deserialize(dj::Json const& json) const {
+Serializer::Result<Serializable> Serializer::deserialize(dj::Json const& json) const {
 	auto const type_name = std::string{json["type_name"].as_string()};
 	if (type_name.empty()) {
 		logger::warn("[Serializer] Missing type_name in JSON");
@@ -23,7 +23,7 @@ Serializer::Result<ISerializable> Serializer::deserialize(dj::Json const& json) 
 	return {std::move(ret), entry.type_id, entry.is_component};
 }
 
-dj::Json Serializer::serialize(ISerializable const& serializable) const {
+dj::Json Serializer::serialize(Serializable const& serializable) const {
 	auto ret = dj::Json{};
 	auto const type_name = serializable.type_name();
 	ret["type_name"] = type_name;
@@ -44,7 +44,7 @@ Ptr<Serializer::Entry const> Serializer::find_entry(std::string const& type_name
 	return {};
 }
 
-void Serializer::bind_to(std::string&& type_name, TypeId type_id, Factory<ISerializable>&& factory, Bool is_component) {
+void Serializer::bind_to(std::string&& type_name, TypeId type_id, Factory<Serializable>&& factory, Bool is_component) {
 	if (type_name.empty()) {
 		logger::warn("[Serializer] Ignoring attempt to bind empty type_name");
 		return;

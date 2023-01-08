@@ -6,7 +6,7 @@ class NotClosed;
 class Window;
 using OpenWindow = NotClosed<Window>;
 
-struct IInspectable {
+struct Inspectable {
 	virtual void inspect(OpenWindow) = 0;
 };
 } // namespace levk::imcpp

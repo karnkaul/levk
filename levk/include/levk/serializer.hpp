@@ -9,18 +9,18 @@
 namespace levk {
 class Serializer {
   public:
-	template <std::derived_from<ISerializable> Type>
+	template <std::derived_from<Serializable> Type>
 	using Factory = UniqueTask<std::unique_ptr<Type>()>;
 
 	struct Entry {
-		Factory<ISerializable> factory{};
+		Factory<Serializable> factory{};
 		TypeId type_id{};
 		bool is_component{};
 	};
 
 	using Map = std::unordered_map<std::string, Entry>;
 
-	template <std::derived_from<ISerializable> Type>
+	template <std::derived_from<Serializable> Type>
 	struct Result {
 		std::unique_ptr<Type> value{};
 		TypeId type_id{};
@@ -29,27 +29,27 @@ class Serializer {
 		explicit operator bool() const { return type_id != TypeId{} && value != nullptr; }
 	};
 
-	template <std::derived_from<ISerializable> To>
-	static std::unique_ptr<To> dynamic_pointer_cast(std::unique_ptr<ISerializable>&& in) {
+	template <std::derived_from<Serializable> To>
+	static std::unique_ptr<To> dynamic_pointer_cast(std::unique_ptr<Serializable>&& in) {
 		return std::unique_ptr<To>{dynamic_cast<To*>(in.release())};
 	}
 
-	template <std::derived_from<ISerializable> Type>
+	template <std::derived_from<Serializable> Type>
 		requires(std::is_default_constructible_v<Type>)
 	void bind() {
 		bind_to<Type>(Type{}.type_name(), [] { return std::make_unique<Type>(); });
 	}
 
-	template <std::derived_from<ISerializable> Type>
+	template <std::derived_from<Serializable> Type>
 	void bind_to(Factory<Type> factory) {
 		auto const type_name = factory()->type_name();
 		bind_to(type_name, std::move(factory));
 	}
 
-	dj::Json serialize(ISerializable const& serializable) const;
-	Result<ISerializable> deserialize(dj::Json const& json) const;
+	dj::Json serialize(Serializable const& serializable) const;
+	Result<Serializable> deserialize(dj::Json const& json) const;
 
-	template <std::derived_from<ISerializable> To>
+	template <std::derived_from<Serializable> To>
 	Result<To> deserialize_as(dj::Json const& json) const {
 		auto result = deserialize(json);
 		return {dynamic_pointer_cast<To>(std::move(result.value)), result.type_id, result.is_component};
@@ -66,7 +66,7 @@ class Serializer {
 		bind_to(std::string{type_name}, TypeId::make<Type>(), std::move(factory), {std::derived_from<Type, Component>});
 	}
 
-	void bind_to(std::string&& type_name, TypeId type_id, Factory<ISerializable>&& factory, Bool is_component);
+	void bind_to(std::string&& type_name, TypeId type_id, Factory<Serializable>&& factory, Bool is_component);
 
 	Map m_entries{};
 };

@@ -2,7 +2,7 @@
 #include <djson/json.hpp>
 
 namespace levk {
-struct ISerializable {
+struct Serializable {
 	///
 	/// \brief Type name for this type.
 	/// \returns Type name for this type

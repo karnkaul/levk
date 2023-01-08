@@ -56,7 +56,7 @@ struct MeshRenderer : Entity::Renderer {
 	void inspect(imcpp::OpenWindow) override;
 };
 
-class Scene : public GraphicsRenderer, public ISerializable {
+class Scene : public GraphicsRenderer, public Serializable {
   public:
 	struct Renderer;
 

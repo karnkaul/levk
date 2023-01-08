@@ -14,7 +14,7 @@ class Node;
 template <typename T>
 concept ComponentT = std::derived_from<T, Component>;
 
-class Entity final : public imcpp::IInspectable {
+class Entity final : public imcpp::Inspectable {
   public:
 	///
 	/// \brief Each Entity can have zero or one (concrete) Renderer instances attached.
