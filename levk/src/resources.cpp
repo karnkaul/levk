@@ -30,12 +30,20 @@ Id<SkinnedMesh> Resources::load(asset::Uri<SkinnedMesh> const& uri) {
 	return load<SkinnedMesh>(uri, "SkinnedMesh", render.skinned_meshes, func);
 }
 
+bool Resources::unload(asset::Uri<StaticMesh> const& uri) { return unload<StaticMesh>(uri, render.static_meshes); }
+bool Resources::unload(asset::Uri<SkinnedMesh> const& uri) { return unload<SkinnedMesh>(uri, render.skinned_meshes); }
+
+std::uint64_t Resources::signature() const {
+	auto lock = std::scoped_lock{m_mutex};
+	return m_signature;
+}
+
 template <typename T, typename Map, typename F>
 Id<T> Resources::load(asset::Uri<T> const& uri, std::string_view const type, Map const& map, F func) {
 	auto lock = std::unique_lock{m_mutex};
-	if (auto it = m_uri_to_id.find(uri); it != m_uri_to_id.end()) {
-		auto const id = it->second;
-		if (map.contains(id)) { return id; }
+	if (auto it = m_uri_to_entry.find(uri); it != m_uri_to_entry.end()) {
+		auto const& entry = it->second;
+		if (map.contains(entry.id)) { return entry.id; }
 	}
 	lock.unlock();
 	auto loader = AssetLoader{Service<GraphicsDevice>::locate(), render};
@@ -45,7 +53,21 @@ Id<T> Resources::load(asset::Uri<T> const& uri, std::string_view const type, Map
 		return {};
 	}
 	lock.lock();
-	m_uri_to_id.insert_or_assign(uri.value(), ret);
+	m_uri_to_entry.insert_or_assign(uri.value(), Entry{ret, TypeId::make<T>()});
+	++m_signature;
 	return ret;
+}
+
+template <typename T, typename Map>
+bool Resources::unload(asset::Uri<T> const& uri, Map& out) {
+	auto lock = std::scoped_lock{m_mutex};
+	auto it = m_uri_to_entry.find(uri.value());
+	if (it == m_uri_to_entry.end()) { return false; }
+	auto const& entry = it->second;
+	if (entry.type_id != TypeId::make<T>()) { return false; }
+	out.remove(entry.id);
+	m_uri_to_entry.erase(it);
+	++m_signature;
+	return true;
 }
 } // namespace levk
