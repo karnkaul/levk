@@ -7,7 +7,6 @@
 namespace levk {
 struct EngineCreateInfo {
 	glm::uvec2 window_extent{1280u, 720u};
-	glm::vec3 camera_position{0.0f, 0.0f, 5.0f};
 	char const* window_title{"levk"};
 	bool autoshow{};
 };
@@ -37,10 +36,7 @@ class Engine {
 	void shutdown();
 	bool is_running() const;
 	Frame next_frame();
-	void render(GraphicsRenderer& renderer, Rgba clear = black_v);
-
-	Camera camera{};
-	Lights lights{};
+	void render(GraphicsRenderer& renderer, Camera const& camera, Lights const& lights, Rgba clear = black_v);
 
   private:
 	struct Impl;

@@ -70,15 +70,6 @@ Rgba to_rgba(std::string_view hex, float intensity) {
 	return ret;
 }
 
-dj::Json make_json(Rgba const& rgba) {
-	auto ret = dj::Json{};
-	ret["hex"] = to_hex(rgba);
-	ret["intensity"] = rgba.intensity;
-	return ret;
-}
-
-Rgba make_rgba(dj::Json const& json) { return to_rgba(json["hex"].as_string(), json["intensity"].as<float>(1.0f)); }
-
 RenderMode make_render_mode(dj::Json const& json) {
 	auto ret = RenderMode{};
 	ret.line_width = json["line_width"].as<float>(ret.line_width);
@@ -101,37 +92,6 @@ void add_to(dj::Json& out, glm::vec<Dim, float> const& vec) {
 	if constexpr (Dim > 1) { out.push_back(vec.y); }
 	if constexpr (Dim > 2) { out.push_back(vec.z); }
 	if constexpr (Dim > 3) { out.push_back(vec.w); }
-}
-
-template <glm::length_t Dim, typename T = float>
-glm::vec<Dim, T> glm_vec_from_json(dj::Json const& json, glm::vec<Dim, T> const& fallback = {}, std::size_t offset = 0) {
-	auto ret = glm::vec<Dim, T>{};
-	ret.x = json[offset + 0].as<T>(fallback.x);
-	if constexpr (Dim > 1) { ret.y = json[offset + 1].as<T>(fallback.y); }
-	if constexpr (Dim > 2) { ret.z = json[offset + 2].as<T>(fallback.z); }
-	if constexpr (Dim > 3) { ret.w = json[offset + 3].as<T>(fallback.w); }
-	return ret;
-}
-
-glm::mat4 glm_mat_from_json(dj::Json const& json) {
-	auto ret = glm::mat4{};
-	ret[0] = glm_vec_from_json<4>(json);
-	ret[1] = glm_vec_from_json<4>(json, {}, 4);
-	ret[2] = glm_vec_from_json<4>(json, {}, 8);
-	ret[3] = glm_vec_from_json<4>(json, {}, 12);
-	return ret;
-}
-
-dj::Json make_json(glm::vec3 const& vec3) {
-	auto ret = dj::Json{};
-	add_to(ret, vec3);
-	return ret;
-}
-
-dj::Json make_json(glm::mat4 const& mat) {
-	auto ret = dj::Json{};
-	for (glm::length_t i = 0; i < 4; ++i) { add_to(ret, mat[i]); }
-	return ret;
 }
 
 template <typename T>
@@ -322,22 +282,46 @@ bool BinSkeletalAnimation::read(char const* path) {
 }
 } // namespace asset
 
-void asset::from_json(dj::Json const& json, Transform& out) {
-	auto const mat = glm_mat_from_json(json);
-	glm::vec3 scale{1.0f}, pos{}, skew{};
-	glm::vec4 persp{};
-	glm::quat orn{quat_identity_v};
-	glm::decompose(mat, scale, orn, pos, skew, persp);
-	out.set_position(pos);
-	out.set_orientation(orn);
-	out.set_scale(scale);
+void asset::from_json(dj::Json const& json, glm::quat& out, glm::quat const& fallback) {
+	auto vec = glm::vec4{};
+	from_json(json, vec, {fallback.x, fallback.y, fallback.z, fallback.w});
+	out = glm::quat{vec.w, vec.x, vec.y, vec.z};
 }
 
-void asset::to_json(dj::Json& out, Transform const& transform) { out = make_json(transform.matrix()); }
+void asset::to_json(dj::Json& out, glm::quat const& quat) {
+	auto const vec = glm::vec4{quat.x, quat.y, quat.z, quat.w};
+	to_json(out, vec);
+}
+
+void asset::from_json(dj::Json const& json, glm::mat4& out) {
+	out[0] = glm_vec_from_json<4>(json, out[0]);
+	out[1] = glm_vec_from_json<4>(json, out[1], 4);
+	out[2] = glm_vec_from_json<4>(json, out[2], 8);
+	out[3] = glm_vec_from_json<4>(json, out[3], 12);
+}
+
+void asset::to_json(dj::Json& out, glm::mat4 const& mat) {
+	for (glm::length_t i = 0; i < 4; ++i) { add_to(out, mat[i]); }
+}
+
+void asset::to_json(dj::Json& out, Rgba const& rgba) {
+	out["hex"] = to_hex(rgba);
+	out["intensity"] = rgba.intensity;
+}
+
+void asset::from_json(dj::Json const& json, Rgba& out) { out = to_rgba(json["hex"].as_string(), json["intensity"].as<float>(1.0f)); }
+
+void asset::from_json(dj::Json const& json, Transform& out) {
+	auto mat = glm::mat4{1.0f};
+	from_json(json, mat);
+	out.decompose(mat);
+}
+
+void asset::to_json(dj::Json& out, Transform const& transform) { to_json(out, transform.matrix()); }
 
 void asset::from_json(dj::Json const& json, asset::Material& out) {
 	assert(json["asset_type"].as_string() == "material");
-	out.albedo = make_rgba(json["albedo"]);
+	from_json(json["albedo"], out.albedo);
 	out.emissive_factor = glm_vec_from_json<3>(json["emissive_factor"], out.emissive_factor);
 	out.metallic = json["metallic"].as<float>(out.metallic);
 	out.roughness = json["roughness"].as<float>(out.roughness);
@@ -353,8 +337,8 @@ void asset::from_json(dj::Json const& json, asset::Material& out) {
 
 void asset::to_json(dj::Json& out, asset::Material const& asset) {
 	out["asset_type"] = "material";
-	out["albedo"] = make_json(asset.albedo);
-	out["emissive_factor"] = make_json(asset.emissive_factor);
+	to_json(out["albedo"], asset.albedo);
+	to_json(out["emissive_factor"], asset.emissive_factor);
 	out["metallic"] = asset.metallic;
 	out["roughness"] = asset.roughness;
 	if (!asset.base_colour.empty()) { out["base_colour"] = asset.base_colour; }
@@ -416,7 +400,7 @@ void asset::from_json(dj::Json const& json, Mesh& out) {
 		out.primitives.push_back(std::move(primitive));
 	}
 	out.skeleton = std::string{json["skeleton"].as_string()};
-	for (auto const& in_ibm : json["inverse_bind_matrices"].array_view()) { out.inverse_bind_matrices.push_back(glm_mat_from_json(in_ibm)); }
+	for (auto const& in_ibm : json["inverse_bind_matrices"].array_view()) { from_json(in_ibm, out.inverse_bind_matrices.emplace_back()); }
 	out.name = json["name"].as_string();
 }
 
@@ -424,21 +408,18 @@ void asset::to_json(dj::Json& out, Mesh const& asset) {
 	out["asset_type"] = "mesh";
 	out["type"] = asset.type == Mesh::Type::eSkinned ? "skinned" : "static";
 	if (!asset.primitives.empty()) {
-		auto primitives = dj::Json{};
+		auto& primitives = out["primitives"];
 		for (auto const& in_primitive : asset.primitives) {
-			auto out_primitive = dj::Json{};
+			auto& out_primitive = primitives.push_back({});
 			out_primitive["geometry"] = in_primitive.geometry.value();
 			if (!in_primitive.material.value().empty()) { out_primitive["material"] = in_primitive.material.value(); }
-			primitives.push_back(std::move(out_primitive));
 		}
-		out["primitives"] = std::move(primitives);
 	}
 	if (!asset.skeleton.value().empty()) {
 		out["skeleton"] = asset.skeleton.value();
 		assert(!asset.inverse_bind_matrices.empty());
-		auto ibm = dj::Json{};
-		for (auto const& in_ibm : asset.inverse_bind_matrices) { ibm.push_back(make_json(in_ibm)); }
-		out["inverse_bind_matrices"] = std::move(ibm);
+		auto& ibm = out["inverse_bind_matrices"];
+		for (auto const& in_ibm : asset.inverse_bind_matrices) { to_json(ibm.push_back({}), in_ibm); }
 	}
 	out["name"] = asset.name;
 }

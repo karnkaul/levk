@@ -7,8 +7,8 @@ namespace levk {
 namespace {
 void add_serializer_bindings() {
 	auto& serializer = Service<Serializer>::locate();
-	serializer.bind_to<SkeletonController>("SkeletonController");
-	serializer.bind_to<MeshRenderer>("MeshRenderer");
+	serializer.bind<SkeletonController>();
+	serializer.bind<MeshRenderer>();
 }
 } // namespace
 
@@ -38,8 +38,6 @@ Engine::Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& creat
 	Service<Window>::provide(&m_impl->window);
 	Service<GraphicsDevice>::provide(&m_impl->graphics_device);
 
-	camera.transform.set_position(create_info.camera_position);
-
 	add_serializer_bindings();
 
 	if (create_info.autoshow) { m_impl->window.show(); }
@@ -61,7 +59,7 @@ Frame Engine::next_frame() {
 	return {.state = m_impl->window.state(), .dt = m_impl->dt()};
 }
 
-void Engine::render(GraphicsRenderer& renderer, Rgba clear) {
+void Engine::render(GraphicsRenderer& renderer, Camera const& camera, Lights const& lights, Rgba clear) {
 	m_impl->graphics_device.render(renderer, camera, lights, m_impl->window.framebuffer_extent(), clear);
 }
 } // namespace levk

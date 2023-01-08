@@ -27,7 +27,7 @@ struct SkeletonController : Component {
 	void change_animation(std::optional<Id<Skeleton::Animation>> index);
 	void tick(Time dt) override;
 
-	std::string_view type_name() const override { return "skeleton_controller"; }
+	std::string_view type_name() const override { return "SkeletonController"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
 };
@@ -49,7 +49,7 @@ struct MeshRenderer : Entity::Renderer {
 
 	void render(Entity const& entity) const override;
 
-	std::string_view type_name() const override { return "mesh_renderer"; }
+	std::string_view type_name() const override { return "MeshRenderer"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
 };
@@ -86,6 +86,8 @@ class Scene : public GraphicsRenderer, public ISerializable {
 	bool deserialize(dj::Json const& json) override;
 
 	std::string name{};
+	Camera camera{};
+	Lights lights{};
 
   private:
 	Node::Tree m_nodes{};

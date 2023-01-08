@@ -1,6 +1,6 @@
 #pragma once
 #include <levk/component.hpp>
-#include <levk/serializable.hpp>
+#include <levk/util/bool.hpp>
 #include <levk/util/type_id.hpp>
 #include <levk/util/unique_task.hpp>
 #include <memory>
@@ -34,15 +34,16 @@ class Serializer {
 		return std::unique_ptr<To>{dynamic_cast<To*>(in.release())};
 	}
 
-	template <typename Type>
+	template <std::derived_from<ISerializable> Type>
 		requires(std::is_default_constructible_v<Type>)
-	void bind_to(std::string type_name) {
-		bind_to<Type>(std::move(type_name), [] { return std::make_unique<Type>(); });
+	void bind() {
+		bind_to<Type>(Type{}.type_name(), [] { return std::make_unique<Type>(); });
 	}
 
-	template <typename Type>
-	void bind_to(std::string type_name, Factory<Type> factory) {
-		bind_to(std::move(type_name), TypeId::make<Type>(), std::move(factory), std::derived_from<Type, Component>);
+	template <std::derived_from<ISerializable> Type>
+	void bind_to(Factory<Type> factory) {
+		auto const type_name = factory()->type_name();
+		bind_to(type_name, std::move(factory));
 	}
 
 	dj::Json serialize(ISerializable const& serializable) const;
@@ -60,7 +61,12 @@ class Serializer {
 	Map const& entries() const { return m_entries; }
 
   private:
-	void bind_to(std::string&& type_name, TypeId type_id, Factory<ISerializable>&& factory, bool is_component);
+	template <typename Type>
+	void bind_to(std::string_view type_name, Factory<Type> factory) {
+		bind_to(std::string{type_name}, TypeId::make<Type>(), std::move(factory), {std::derived_from<Type, Component>});
+	}
+
+	void bind_to(std::string&& type_name, TypeId type_id, Factory<ISerializable>&& factory, Bool is_component);
 
 	Map m_entries{};
 };

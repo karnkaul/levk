@@ -44,7 +44,7 @@ Ptr<Serializer::Entry const> Serializer::find_entry(std::string const& type_name
 	return {};
 }
 
-void Serializer::bind_to(std::string&& type_name, TypeId type_id, Factory<ISerializable>&& factory, bool is_component) {
+void Serializer::bind_to(std::string&& type_name, TypeId type_id, Factory<ISerializable>&& factory, Bool is_component) {
 	if (type_name.empty()) {
 		logger::warn("[Serializer] Ignoring attempt to bind empty type_name");
 		return;
@@ -57,6 +57,6 @@ void Serializer::bind_to(std::string&& type_name, TypeId type_id, Factory<ISeria
 		logger::warn("[Serializer] Ignoring attempt to bind null TypeId to type_name [{}]", type_name);
 		return;
 	}
-	m_entries.insert_or_assign(std::move(type_name), Entry{std::move(factory), type_id, is_component});
+	m_entries.insert_or_assign(std::move(type_name), Entry{std::move(factory), type_id, is_component.value});
 }
 } // namespace levk

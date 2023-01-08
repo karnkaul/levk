@@ -243,7 +243,7 @@ void run(fs::path data_path) {
 
 		// tick
 		scene->tick(frame.dt);
-		free_cam.tick(engine.camera.transform, frame.state.input, frame.dt);
+		free_cam.tick(scene->camera.transform, frame.state.input, frame.dt);
 		if constexpr (debug_v) {
 			static bool show_demo{true};
 			if (show_demo) { ImGui::ShowDemoWindow(&show_demo); }
@@ -253,7 +253,9 @@ void run(fs::path data_path) {
 		if (frame.state.input.chord(Key::eS, Key::eLeftControl)) {
 			auto json = dj::Json{};
 			scene->serialize(json);
-			json.to_file((data_path / "test_scene.json").string().c_str());
+			auto filename = "test_scene.json";
+			json.to_file((data_path / filename).string().c_str());
+			logger::debug("Scene saved to {}", filename);
 		}
 		// test code
 
@@ -271,7 +273,7 @@ void run(fs::path data_path) {
 			if (!show_inspector) { inspect = {}; }
 		}
 
-		engine.render(*scene, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
+		engine.render(*scene, scene->camera, scene->lights, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
 	}
 }
 } // namespace

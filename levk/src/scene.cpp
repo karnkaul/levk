@@ -132,13 +132,8 @@ bool MeshRenderer::serialize(dj::Json& out) const {
 		[&](StaticMeshRenderer const& smr) {
 			out["type"] = "static";
 			out["mesh"] = smr.asset_id.uri.value();
-			auto instances = dj::Json{};
-			for (auto const& in_instance : smr.instances) {
-				auto out_instance = dj::Json{};
-				asset::to_json(out_instance, in_instance);
-				instances.push_back(std::move(out_instance));
-			}
-			out["instances"] = std::move(instances);
+			auto& instances = out["instances"];
+			for (auto const& in_instance : smr.instances) { asset::to_json(instances.push_back({}), in_instance); }
 		},
 		[&](SkinnedMeshRenderer const& smr) {
 			out["type"] = "skinned";
@@ -320,9 +315,7 @@ bool Scene::serialize(dj::Json& out) const {
 	for (auto const& [id, in_node] : m_nodes.map()) {
 		auto out_node = dj::Json{};
 		out_node["name"] = in_node.name;
-		auto out_transform = dj::Json{};
-		asset::to_json(out_transform, in_node.transform);
-		out_node["transform"] = std::move(out_transform);
+		asset::to_json(out_node["transform"], in_node.transform);
 		out_node["id"] = in_node.id().value();
 		out_node["parent"] = in_node.parent().value();
 		auto out_children = dj::Json{};
@@ -359,6 +352,18 @@ bool Scene::serialize(dj::Json& out) const {
 	};
 	m_entities.for_each(func);
 	out["entities"] = std::move(out_entities);
+	auto& out_camera = out["camera"];
+	out_camera["name"] = camera.name;
+	asset::to_json(out_camera["transform"], camera.transform);
+	out_camera["exposure"] = camera.exposure;
+	// TODO: camera type
+	auto& out_lights = out["lights"];
+	auto& out_dir_lights = out_lights["dir_lights"];
+	for (auto const& in_dir_light : lights.dir_lights) {
+		auto& out_dir_light = out_dir_lights.push_back({});
+		asset::to_json(out_dir_light["direction"], in_dir_light.direction);
+		asset::to_json(out_dir_light["rgb"], in_dir_light.rgb);
+	}
 	return true;
 }
 
@@ -408,6 +413,19 @@ bool Scene::deserialize(dj::Json const& json) {
 		out_entities.insert_or_assign(id, std::move(out_entity));
 	}
 	m_entities.import_map(std::move(out_entities));
+	auto const& in_camera = json["camera"];
+	camera.name = in_camera["name"].as<std::string>();
+	asset::from_json(in_camera["transform"], camera.transform);
+	camera.exposure = in_camera["exposure"].as<float>(camera.exposure);
+	// TODO: camera type
+	auto const& in_lights = json["lights"];
+	auto const& in_dir_lights = in_lights["dir_lights"];
+	if (!in_dir_lights.array_view().empty()) { lights.dir_lights.clear(); }
+	for (auto const& in_dir_light : in_dir_lights.array_view()) {
+		auto& out_dir_light = lights.dir_lights.emplace_back();
+		asset::from_json(in_dir_light["direction"], out_dir_light.direction);
+		asset::from_json(in_dir_light["rgb"], out_dir_light.rgb);
+	}
 	return true;
 }
 
