@@ -1,10 +1,13 @@
+#include <imgui.h>
 #include <levk/asset/asset_loader.hpp>
 #include <levk/asset/common.hpp>
 #include <levk/asset/gltf_importer.hpp>
+#include <levk/imcpp/common.hpp>
 #include <levk/scene.hpp>
 #include <levk/serializer.hpp>
 #include <levk/service.hpp>
 #include <levk/util/enumerate.hpp>
+#include <levk/util/fixed_string.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/visitor.hpp>
 #include <charconv>
@@ -94,6 +97,34 @@ bool SkeletonController::deserialize(dj::Json const& json) {
 	return true;
 }
 
+void SkeletonController::inspect(imcpp::OpenWindow) {
+	auto const* mesh_renderer = entity().renderer_as<MeshRenderer>();
+	if (!mesh_renderer) { return; }
+	auto const* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
+	if (!skinned_mesh_renderer) { return; }
+	auto const& skeleton = Service<Resources>::locate().render.skeletons.get(skinned_mesh_renderer->skeleton.source);
+	auto const preview = enabled ? FixedString{"{}", enabled->value()} : FixedString{"[None]"};
+	if (imcpp::Combo{"Active", preview.c_str()}) {
+		if (ImGui::Selectable("[None]")) {
+			change_animation({});
+		} else {
+			for (std::size_t i = 0; i < skinned_mesh_renderer->skeleton.animations.size(); ++i) {
+				if (ImGui::Selectable(FixedString{"{}", i}.c_str(), enabled && i == enabled->value())) {
+					change_animation(i);
+					break;
+				}
+			}
+		}
+	}
+	if (enabled) {
+		auto& animation = skinned_mesh_renderer->skeleton.animations[*enabled];
+		auto const& source = skeleton.animation_sources[animation.source];
+		ImGui::Text("%s", FixedString{"Duration: {:.1f}s", source.animation.duration().count()}.c_str());
+		float const progress = elapsed / source.animation.duration();
+		ImGui::ProgressBar(progress);
+	}
+}
+
 void StaticMeshRenderer::render(Entity const& entity) const {
 	if (!asset_id) { return; }
 	auto const& tree = entity.scene().nodes();
@@ -175,6 +206,21 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 		return false;
 	}
 	return true;
+}
+
+void MeshRenderer::inspect(imcpp::OpenWindow) {
+	auto const visitor = Visitor{
+		[&](StaticMeshRenderer& smr) {
+			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.asset_id.id).name}.c_str());
+		},
+		[&](SkinnedMeshRenderer& smr) {
+			auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.asset_id.id);
+			auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
+			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
+			imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
+		},
+	};
+	std::visit(visitor, renderer);
 }
 
 bool Scene::import_gltf(char const* in_path, std::string_view dest_dir) {
@@ -414,6 +460,7 @@ bool Scene::deserialize(dj::Json const& json) {
 	auto const& in_camera = json["camera"];
 	camera.name = in_camera["name"].as<std::string>();
 	asset::from_json(in_camera["transform"], camera.transform);
+	camera.transform.recompute();
 	camera.exposure = in_camera["exposure"].as<float>(camera.exposure);
 	// TODO: camera type
 	auto const& in_lights = json["lights"];

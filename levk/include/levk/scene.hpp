@@ -30,6 +30,7 @@ struct SkeletonController : Component {
 	std::string_view type_name() const override { return "SkeletonController"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
+	void inspect(imcpp::OpenWindow) override;
 };
 
 struct SkinnedMeshRenderer {
@@ -52,6 +53,7 @@ struct MeshRenderer : Entity::Renderer {
 	std::string_view type_name() const override { return "MeshRenderer"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
+	void inspect(imcpp::OpenWindow) override;
 };
 
 class Scene : public GraphicsRenderer, public ISerializable {

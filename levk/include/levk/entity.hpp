@@ -10,13 +10,11 @@
 
 namespace levk {
 class Node;
-}
 
-namespace levk {
 template <typename T>
 concept ComponentT = std::derived_from<T, Component>;
 
-class Entity {
+class Entity final : public imcpp::IInspectable {
   public:
 	///
 	/// \brief Each Entity can have zero or one (concrete) Renderer instances attached.
@@ -73,6 +71,8 @@ class Entity {
 	void tick(Time dt);
 
 	Scene& scene() const;
+
+	void inspect(imcpp::NotClosed<imcpp::Window>) final;
 
   private:
 	void init(Component& out) const;
