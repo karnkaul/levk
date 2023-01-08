@@ -50,7 +50,7 @@ Skeleton::Instance to_skeleton_instance(dj::Json const& json, Id<Skeleton> skele
 
 void SkeletonController::change_animation(std::optional<Id<Skeleton::Animation>> index) {
 	if (index != enabled) {
-		auto* mesh_renderer = dynamic_cast<MeshRenderer*>(entity().renderer());
+		auto* mesh_renderer = entity().renderer_as<MeshRenderer>();
 		if (!mesh_renderer) { return; }
 		auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 		if (!skinned_mesh_renderer) { return; }
@@ -62,7 +62,7 @@ void SkeletonController::change_animation(std::optional<Id<Skeleton::Animation>>
 
 void SkeletonController::tick(Time dt) {
 	if (!enabled || dt == Time{}) { return; }
-	auto* mesh_renderer = dynamic_cast<MeshRenderer*>(entity().renderer());
+	auto* mesh_renderer = entity().renderer_as<MeshRenderer>();
 	if (!mesh_renderer) { return; }
 	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 	if (!skinned_mesh_renderer) { return; }
@@ -123,8 +123,8 @@ void SkinnedMeshRenderer::render(Entity const& entity) const {
 	Service<GraphicsDevice>::locate().render(m, resources.render, joint_matrices.span());
 }
 
-void MeshRenderer::render(Entity const& entity) const {
-	std::visit([&](auto const& smr) { smr.render(entity); }, renderer);
+void MeshRenderer::render() const {
+	std::visit([&](auto const& smr) { smr.render(entity()); }, renderer);
 }
 
 bool MeshRenderer::serialize(dj::Json& out) const {
@@ -293,12 +293,10 @@ Node& Scene::spawn(Entity entity, Node::CreateInfo const& node_create_info) {
 }
 
 void Scene::tick(Time dt) {
-	m_sorted.clear();
-	m_sorted.reserve(m_entities.size());
-	auto populate = [&](Id<Entity>, Entity& value) { m_sorted.push_back(&value); };
-	m_entities.for_each(populate);
-	std::sort(m_sorted.begin(), m_sorted.end(), [](Ptr<Entity> a, Ptr<Entity> b) { return a->id() < b->id(); });
-	for (auto* entity : m_sorted) { entity->tick(dt); }
+	m_entity_refs.clear();
+	m_entities.fill_to(m_entity_refs);
+	std::sort(m_entity_refs.begin(), m_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
+	for (Entity& entity : m_entity_refs) { entity.tick(dt); }
 }
 
 bool Scene::from_json(char const* path) {
@@ -407,7 +405,7 @@ bool Scene::deserialize(dj::Json const& json) {
 		}
 		if (auto const& in_renderer = in_entity["renderer"]) {
 			auto result = serializer.deserialize_as<Entity::Renderer>(in_renderer);
-			out_entity.m_renderer = std::move(result.value);
+			out_entity.attach(std::move(result.value));
 			if (!out_entity.m_renderer) { logger::error("[Scene] Failed to obtain Renderer for Entity [{}]", id); }
 		}
 		out_entities.insert_or_assign(id, std::move(out_entity));
@@ -430,9 +428,10 @@ bool Scene::deserialize(dj::Json const& json) {
 }
 
 void Scene::render_3d() {
-	auto const func = [](Id<Entity>, Entity const& entity) {
-		if (entity.m_renderer) { entity.m_renderer->render(entity); }
+	m_entity_refs.clear();
+	m_entities.fill_to(m_entity_refs);
+	for (Entity const& entity : m_entity_refs) {
+		if (entity.m_renderer) { entity.m_renderer->render(); }
 	};
-	m_entities.for_each(func);
 }
 } // namespace levk

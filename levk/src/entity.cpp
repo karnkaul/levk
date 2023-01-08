@@ -15,9 +15,18 @@ Scene& Entity::scene() const {
 	return *m_scene;
 }
 
+void Entity::init(Component& out) const {
+	out.m_entity = m_id;
+	out.m_scene = m_scene;
+}
+
 void Entity::attach(TypeId::value_type type_id, std::unique_ptr<Component>&& out) {
-	out->m_entity = m_id;
-	out->m_scene = m_scene;
+	init(*out);
 	m_components.insert_or_assign(type_id, std::move(out));
+}
+
+void Entity::set_renderer(std::unique_ptr<Renderer>&& renderer) {
+	init(*renderer);
+	m_renderer = std::move(renderer);
 }
 } // namespace levk

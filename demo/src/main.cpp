@@ -88,7 +88,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, Scene& scene, Id<Node> id
 	if (!entity) { return; }
 	auto inspect_skeleton_controller = [&](SkeletonController& controller, SkinnedMeshRenderer const& renderer) {
 		if (renderer.skeleton.animations.empty()) { return; }
-		if (auto tn = imcpp::TreeNode("Animation", ImGuiTreeNodeFlags_Framed)) {
+		if (auto tn = imcpp::TreeNode(FixedString{controller.type_name()}.c_str(), ImGuiTreeNodeFlags_Framed)) {
 			auto const preview = controller.enabled ? FixedString{"{}", controller.enabled->value()} : FixedString{"[None]"};
 			if (ImGui::BeginCombo("Active", preview.c_str())) {
 				if (ImGui::Selectable("[None]")) {
@@ -113,7 +113,7 @@ void draw_inspector(imcpp::NotClosed<imcpp::Window> w, Scene& scene, Id<Node> id
 			}
 		}
 	};
-	auto* mesh_renderer = dynamic_cast<MeshRenderer*>(entity->renderer());
+	auto* mesh_renderer = entity->renderer_as<MeshRenderer>();
 	if (mesh_renderer) {
 		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
 			auto const visitor = Visitor{

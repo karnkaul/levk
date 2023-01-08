@@ -47,7 +47,7 @@ struct MeshRenderer : Entity::Renderer {
 
 	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer = StaticMeshRenderer{}) : renderer(std::move(renderer)) {}
 
-	void render(Entity const& entity) const override;
+	void render() const override;
 
 	std::string_view type_name() const override { return "MeshRenderer"; }
 	bool serialize(dj::Json& out) const override;
@@ -92,6 +92,6 @@ class Scene : public GraphicsRenderer, public ISerializable {
   private:
 	Node::Tree m_nodes{};
 	MonotonicMap<Entity> m_entities{};
-	std::vector<Ptr<Entity>> m_sorted{};
+	std::vector<std::reference_wrapper<Entity>> m_entity_refs{};
 };
 } // namespace levk
