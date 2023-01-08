@@ -189,4 +189,17 @@ class Combo : public Openable {
 
 	bool item(char const* label, Bool selected, int flags = {}, glm::vec2 size = {}) const { return selectable(label, selected, flags, size); }
 };
+
+class DragDropSource : public Openable {
+  public:
+	explicit DragDropSource(int flags = {});
+
+	static bool is_active();
+	static bool is_being_accepted();
+};
+
+class DragDropTarget : public Openable {
+  public:
+	explicit DragDropTarget();
+};
 } // namespace levk::imcpp

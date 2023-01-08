@@ -1,4 +1,5 @@
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <levk/imcpp/common.hpp>
 #include <cassert>
 
@@ -83,4 +84,11 @@ TabBar::TabBar(char const* label, int flags) : Openable(ImGui::BeginTabBar(label
 TabBar::Item::Item(NotClosed<TabBar>, char const* label, bool* open, int flags) : Openable(ImGui::BeginTabItem(label, open, flags), &ImGui::EndTabItem) {}
 
 Combo::Combo(char const* label, char const* preview) : Openable(ImGui::BeginCombo(label, preview), &ImGui::EndCombo) {}
+
+DragDropSource::DragDropSource(int flags) : Openable(ImGui::BeginDragDropSource(flags), &ImGui::EndDragDropSource) {}
+
+bool DragDropSource::is_active() { return ImGui::IsDragDropActive(); }
+bool DragDropSource::is_being_accepted() { return ImGui::IsDragDropPayloadBeingAccepted(); }
+
+DragDropTarget::DragDropTarget() : Openable(ImGui::BeginDragDropTarget(), &ImGui::EndDragDropTarget) {}
 } // namespace levk::imcpp

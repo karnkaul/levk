@@ -61,22 +61,21 @@ void add_camera_node(Inspect& inspect) {
 bool walk_node(Node::Locator& node_locator, Node& node, Inspect& inspect) {
 	auto flags = int{};
 	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
-	if (inspect.type == Inspect::Type::eEntity && inspect.entity == node.entity) { flags |= ImGuiTreeNodeFlags_Selected; }
+	if (inspect && inspect.type == Inspect::Type::eEntity && inspect.entity == node.entity) { flags |= ImGuiTreeNodeFlags_Selected; }
 	if (node.children().empty()) { flags |= ImGuiTreeNodeFlags_Leaf; }
 	auto tn = imcpp::TreeNode{node.name.c_str(), flags};
 	if (ImGui::IsItemClicked()) { inspect = {node.entity, Inspect::Type::eEntity}; }
 	auto const id = node.id().value();
-	if (ImGui::BeginDragDropSource()) {
+	if (auto source = imcpp::DragDropSource{}) {
 		ImGui::SetDragDropPayload("node", &id, sizeof(id));
-		ImGui::EndDragDropSource();
+		ImGui::Text("%s", node.name.c_str());
 	}
-	if (ImGui::BeginDragDropTarget()) {
+	if (auto target = imcpp::DragDropTarget{}) {
 		if (auto const* payload = ImGui::AcceptDragDropPayload("node")) {
 			auto const child = *static_cast<std::size_t const*>(payload->Data);
 			node_locator.reparent(node_locator.get(child), id);
 			return false;
 		}
-		ImGui::EndDragDropTarget();
 	}
 	if (tn) {
 		for (auto& id : node.children()) {
@@ -236,12 +235,26 @@ void run(fs::path data_path) {
 		// test code
 
 		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
-		if (auto w = imcpp::Window{"Scene"}) {
-			float scale = engine.device().info().render_scale;
-			if (ImGui::DragFloat("Render Scale", &scale, 0.05f, render_scale_limit_v[0], render_scale_limit_v[1])) { engine.device().set_render_scale(scale); }
-			ImGui::Separator();
-			add_camera_node(inspect);
-			draw_scene_tree(w, scene->node_locator(), inspect);
+		{
+			if (auto w = imcpp::Window{"Scene"}) {
+				float scale = engine.device().info().render_scale;
+				if (ImGui::DragFloat("Render Scale", &scale, 0.05f, render_scale_limit_v[0], render_scale_limit_v[1])) {
+					engine.device().set_render_scale(scale);
+				}
+				ImGui::Separator();
+				add_camera_node(inspect);
+				draw_scene_tree(w, scene->node_locator(), inspect);
+				if (imcpp::DragDropSource::is_active()) {
+					imcpp::TreeNode::leaf("(Unparent)");
+					if (auto target = imcpp::DragDropTarget{}) {
+						if (auto const* payload = ImGui::AcceptDragDropPayload("node")) {
+							auto const child = *static_cast<std::size_t const*>(payload->Data);
+							auto node_locator = scene->node_locator();
+							node_locator.reparent(node_locator.get(child), {});
+						}
+					}
+				}
+			}
 		}
 		if (bool show_inspector = static_cast<bool>(inspect)) {
 			ImGui::SetNextWindowPos({ImGui::GetIO().DisplaySize.x - 500.0f, 0.0f});
