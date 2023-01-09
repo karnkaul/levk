@@ -47,7 +47,10 @@ struct Inspect {
 	Id<Entity> entity{};
 	Type type{};
 
-	explicit operator bool() const { return type != Type::eEntity || entity != Id<Entity>{}; }
+	explicit constexpr operator bool() const { return type != Type::eEntity || entity != Id<Entity>{}; }
+
+	constexpr bool operator==(Id<Entity> id) const { return type == Type::eEntity && id == entity; }
+	constexpr bool operator==(Type desired) const { return type == desired; }
 };
 
 void add_camera_node(Inspect& inspect) {
@@ -61,10 +64,10 @@ void add_camera_node(Inspect& inspect) {
 bool walk_node(Node::Locator& node_locator, Node& node, Inspect& inspect) {
 	auto flags = int{};
 	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
-	if (inspect && inspect.type == Inspect::Type::eEntity && inspect.entity == node.entity) { flags |= ImGuiTreeNodeFlags_Selected; }
+	if (node.entity && inspect == node.entity) { flags |= ImGuiTreeNodeFlags_Selected; }
 	if (node.children().empty()) { flags |= ImGuiTreeNodeFlags_Leaf; }
 	auto tn = imcpp::TreeNode{node.name.c_str(), flags};
-	if (ImGui::IsItemClicked()) { inspect = {node.entity, Inspect::Type::eEntity}; }
+	if (ImGui::IsItemClicked() && node.entity) { inspect = {node.entity, Inspect::Type::eEntity}; }
 	auto const id = node.id().value();
 	if (auto source = imcpp::DragDropSource{}) {
 		ImGui::SetDragDropPayload("node", &id, sizeof(id));
