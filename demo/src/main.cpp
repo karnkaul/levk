@@ -71,14 +71,10 @@ bool walk_node(Node::Locator& node_locator, Node& node, Inspect& inspect) {
 	auto tn = imcpp::TreeNode{node.name.c_str(), flags};
 	if (ImGui::IsItemClicked() && node.entity) { inspect = {node.entity, Inspect::Type::eEntity}; }
 	auto const id = node.id().value();
-	if (auto source = imcpp::DragDropSource{}) {
-		ImGui::SetDragDropPayload("node", &id, sizeof(id));
-		ImGui::Text("%s", node.name.c_str());
-	}
-	if (auto target = imcpp::DragDropTarget{}) {
-		if (auto const* payload = ImGui::AcceptDragDropPayload("node")) {
-			auto const child = *static_cast<std::size_t const*>(payload->Data);
-			node_locator.reparent(node_locator.get(child), id);
+	if (auto source = imcpp::DragDrop::Source{}) { imcpp::DragDrop::set<std::size_t>("node", id, node.name); }
+	if (auto target = imcpp::DragDrop::Target{}) {
+		if (auto const* node_id = imcpp::DragDrop::accept<std::size_t>("node")) {
+			node_locator.reparent(node_locator.get(*node_id), id);
 			return false;
 		}
 	}
@@ -272,11 +268,10 @@ void run(fs::path data_path) {
 				draw_scene_tree(w, scene->node_locator(), inspect);
 				if (auto* payload = ImGui::GetDragDropPayload(); payload && payload->IsDataType("node")) {
 					imcpp::TreeNode::leaf("(Unparent)");
-					if (auto target = imcpp::DragDropTarget{}) {
-						if (auto const* payload = ImGui::AcceptDragDropPayload("node")) {
-							auto const child = *static_cast<std::size_t const*>(payload->Data);
+					if (auto target = imcpp::DragDrop::Target{}) {
+						if (auto const* node_id = imcpp::DragDrop::accept<std::size_t>("node")) {
 							auto node_locator = scene->node_locator();
-							node_locator.reparent(node_locator.get(child), {});
+							node_locator.reparent(node_locator.get(*node_id), {});
 						}
 					}
 				}

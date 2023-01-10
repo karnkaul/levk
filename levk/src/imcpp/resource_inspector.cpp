@@ -31,11 +31,7 @@ struct Inspector {
 	void operator()(Uri const& uri, Texture& texture) const {
 		auto const extent = texture.extent();
 		TreeNode::leaf(FixedString{"{}", uri.value()}.c_str());
-		if (auto drag = DragDropSource{}) {
-			auto str = uri.value();
-			ImGui::SetDragDropPayload("texture", str.data(), str.size());
-			ImGui::Text("%s", str.data());
-		}
+		if (auto drag = DragDrop::Source{}) { DragDrop::set_string("texture", uri.value()); }
 		ImGui::Text("%s", FixedString{"Extent: {}x{}", extent.x, extent.y}.c_str());
 		ImGui::Text("%s", FixedString{"Mip levels: {}", texture.mip_levels()}.c_str());
 		ImGui::Text("%s", FixedString{"Colour Space: {}", texture.colour_space() == ColourSpace::eLinear ? "linear" : "sRGB"}.c_str());
@@ -47,20 +43,14 @@ struct Inspector {
 		if (auto* lit = material.as<LitMaterial>()) {
 			for (auto [texture, index] : enumerate(lit->textures.textures)) {
 				if (auto tn = TreeNode{FixedString{"texture[{}]", index}.c_str()}) {
-					auto& uri = lit->textures.textures[index].uri;
-					std::string_view const label = uri ? uri.value() : "[None]";
+					auto& tex_uri = lit->textures.textures[index].uri;
+					std::string_view const label = tex_uri ? tex_uri.value() : "[None]";
 					TreeNode::leaf(label.data());
-					if (uri) {
-						if (auto drag = DragDropSource{}) {
-							auto str = uri.value();
-							ImGui::SetDragDropPayload("texture", str.data(), str.size());
-							ImGui::Text("%s", str.data());
-						}
+					if (tex_uri) {
+						if (auto drag = DragDrop::Source{}) { DragDrop::set_string("texture", tex_uri.value()); }
 					}
-					if (auto drop = DragDropTarget{}) {
-						if (auto const* payload = ImGui::AcceptDragDropPayload("texture")) {
-							uri = std::string{static_cast<char const*>(payload->Data), static_cast<std::size_t>(payload->DataSize)};
-						}
+					if (auto drop = DragDrop::Target{}) {
+						if (auto tex = DragDrop::accept_string("texture"); !tex.empty()) { tex_uri = tex; }
 					}
 				}
 			}
@@ -76,15 +66,9 @@ struct Inspector {
 				ImGui::Text("%s", FixedString{"Vertices: {}", primitive.geometry.vertex_count()}.c_str());
 				if (primitive.material) {
 					TreeNode::leaf(FixedString{"Material: {}", primitive.material.value()}.c_str());
-					if (auto drag = DragDropSource{}) {
-						auto str = uri.value();
-						ImGui::SetDragDropPayload("material", str.data(), str.size());
-						ImGui::Text("%s", str.data());
-					}
-					if (auto drop = DragDropTarget{}) {
-						if (auto const* payload = ImGui::AcceptDragDropPayload("material")) {
-							primitive.material = std::string{static_cast<char const*>(payload->Data), static_cast<std::size_t>(payload->DataSize)};
-						}
+					if (auto drag = DragDrop::Source{}) { DragDrop::set_string("material", uri.value()); }
+					if (auto drop = DragDrop::Target{}) {
+						if (auto const mat = DragDrop::accept_string("material"); !mat.empty()) { primitive.material = mat; }
 					}
 				}
 			}
@@ -98,17 +82,10 @@ struct Inspector {
 		std::string_view const label = mesh.skeleton ? mesh.skeleton.value() : "[None]";
 		TreeNode::leaf(FixedString<128>{"Skeleton: {}", label}.c_str());
 		if (uri) {
-			if (auto drag = DragDropSource{}) {
-				auto str = uri.value();
-				ImGui::SetDragDropPayload("skeleton", str.data(), str.size());
-				ImGui::Text("%s", str.data());
-			}
+			if (auto drag = DragDrop::Source{}) { DragDrop::set_string("skeleton", uri.value()); }
 		}
-		if (auto drop = DragDropTarget{}) {
+		if (auto drop = DragDrop::Target{}) {
 			// TODO: verify skeleton compatibility
-			// if (auto const* payload = ImGui::AcceptDragDropPayload("skeleton")) {
-			// mesh.skeleton = std::string{static_cast<char const*>(payload->Data), static_cast<std::size_t>(payload->DataSize)};
-			// }
 		}
 	}
 
@@ -192,10 +169,7 @@ bool ResourceInspector::walk(std::string_view type_name, PathTree const& path_tr
 			m_interact.interacted = path_tree.path;
 			return true;
 		}
-		if (auto drag = DragDropSource{}) {
-			ImGui::SetDragDropPayload(type_name.data(), path_tree.path.c_str(), path_tree.path.size());
-			ImGui::Text("%s", path_tree.path.c_str());
-		}
+		if (auto drag = DragDrop::Source{}) { DragDrop::set_string(type_name.data(), path_tree.path); }
 	}
 	return false;
 }
