@@ -19,9 +19,17 @@ class ResourceInspector {
 	TypeId resource_type{};
 
   private:
+	struct Interact {
+		std::string interacted{};
+		bool right_clicked{};
+		bool double_clicked{};
+	};
+
 	template <typename T>
 	void list_resources(std::string_view type_name, ResourceMap<T>& map, PathTree& out_tree, std::uint64_t signature);
 	void list_resources(Resources& resources, TypeId type);
+
+	bool walk(std::string_view type_name, PathTree const& path_tree);
 
 	struct {
 		PathTree textures{};
@@ -30,7 +38,7 @@ class ResourceInspector {
 		PathTree skinned_meshes{};
 		PathTree skeletons{};
 	} m_trees{};
-	std::string m_right_clicked{};
+	Interact m_interact{};
 	std::uint64_t m_signature{};
 };
 } // namespace levk::imcpp

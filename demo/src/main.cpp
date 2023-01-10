@@ -270,7 +270,7 @@ void run(fs::path data_path) {
 				ImGui::Separator();
 				add_camera_node(inspect);
 				draw_scene_tree(w, scene->node_locator(), inspect);
-				if (imcpp::DragDropSource::is_active()) {
+				if (auto* payload = ImGui::GetDragDropPayload(); payload && payload->IsDataType("node")) {
 					imcpp::TreeNode::leaf("(Unparent)");
 					if (auto target = imcpp::DragDropTarget{}) {
 						if (auto const* payload = ImGui::AcceptDragDropPayload("node")) {
