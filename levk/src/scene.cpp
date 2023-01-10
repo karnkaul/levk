@@ -104,7 +104,7 @@ void SkeletonController::inspect(imcpp::OpenWindow) {
 	if (!skinned_mesh_renderer) { return; }
 	auto const& skeleton = Service<Resources>::locate().render.skeletons.get(skinned_mesh_renderer->skeleton.source);
 	auto const preview = enabled ? FixedString{"{}", enabled->value()} : FixedString{"[None]"};
-	if (imcpp::Combo{"Active", preview.c_str()}) {
+	if (auto combo = imcpp::Combo{"Active", preview.c_str()}) {
 		if (ImGui::Selectable("[None]")) {
 			change_animation({});
 		} else {

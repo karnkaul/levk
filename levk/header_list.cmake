@@ -17,6 +17,7 @@ set(util_headers
   include/levk/util/logger.hpp
   include/levk/util/monotonic_map.hpp
   include/levk/util/nvec3.hpp
+  include/levk/util/path_tree.hpp
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
   include/levk/util/reader.hpp

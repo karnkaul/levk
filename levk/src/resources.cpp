@@ -40,6 +40,7 @@ Ptr<T> Resources::load(Uri const& uri, std::string_view const type, Map& map, F 
 		logger::error("[Resources] Failed to load {} [{}]", type, uri.value());
 		return {};
 	}
+	++m_signature;
 	map.add(uri, std::move(*ret));
 	return ret;
 }
@@ -48,6 +49,7 @@ template <typename T, typename Map>
 bool Resources::unload(Uri const& uri, Map& out) {
 	if (!out.contains(uri)) { return false; }
 	out.remove(uri);
+	++m_signature;
 	return true;
 }
 } // namespace levk

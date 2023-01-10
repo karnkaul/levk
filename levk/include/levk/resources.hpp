@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/render_resources.hpp>
 #include <levk/util/type_id.hpp>
+#include <atomic>
 
 namespace levk {
 class Resources {
@@ -16,6 +17,8 @@ class Resources {
 	std::string_view root_dir() const { return m_root_dir; }
 	MeshType get_mesh_type(Uri const& uri) const;
 
+	std::uint64_t signature() const { return m_signature.load(); }
+
 	RenderResources render{};
 
   private:
@@ -26,5 +29,6 @@ class Resources {
 	bool unload(Uri const& uri, Map& out);
 
 	std::string m_root_dir{};
+	std::atomic_uint64_t m_signature{};
 };
 } // namespace levk
