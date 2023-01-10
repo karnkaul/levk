@@ -5,6 +5,22 @@
 
 namespace levk {
 namespace {
+struct Fps {
+	Clock::time_point start{Clock::now()};
+	int frames{};
+	int fps{};
+
+	void operator()() {
+		auto const now = Clock::now();
+		++frames;
+		if (now - start >= std::chrono::seconds{1}) {
+			fps = frames;
+			frames = 0;
+			start = now;
+		}
+	}
+};
+
 void add_serializer_bindings() {
 	auto& serializer = Service<Serializer>::locate();
 	serializer.bind<SkeletonController>();
@@ -19,6 +35,7 @@ struct Engine::Impl {
 	GraphicsDevice graphics_device;
 	Service<Serializer>::Instance serializer{};
 	DeltaTime dt{};
+	Fps fps{};
 
 	Impl(Window&& window, GraphicsDevice&& gd) : window(std::move(window)), graphics_device(std::move(gd)) {}
 };
@@ -58,10 +75,13 @@ bool Engine::is_running() const { return m_impl->window.is_open(); }
 
 Frame Engine::next_frame() {
 	m_impl->window.poll();
+	m_impl->fps();
 	return {.state = m_impl->window.state(), .dt = m_impl->dt()};
 }
 
 void Engine::render(GraphicsRenderer& renderer, Camera const& camera, Lights const& lights, Rgba clear) {
 	m_impl->graphics_device.render(renderer, camera, lights, m_impl->window.framebuffer_extent(), clear);
 }
+
+int Engine::framerate() const { return m_impl->fps.fps == 0 ? m_impl->fps.frames : m_impl->fps.fps; }
 } // namespace levk

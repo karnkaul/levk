@@ -1028,6 +1028,13 @@ struct VulkanDevice::Impl {
 
 	GraphicsDeviceInfo info{};
 	RenderMode default_render_mode{};
+
+	struct {
+		struct {
+			std::uint64_t draw_calls{};
+			std::uint64_t triangles{};
+		} per_frame{};
+	} stats{};
 };
 
 namespace {
@@ -2350,6 +2357,8 @@ void render_mesh(VulkanDevice const& device, RenderInfoT const& info, RenderCmd 
 			cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
 			vmg->impl->draw(cb, static_cast<std::uint32_t>(info.instances.size()));
 		}
+		if (auto verts = vmg->impl->info().vertices) { device.impl->stats.per_frame.triangles += verts / 3; }
+		++device.impl->stats.per_frame.draw_calls;
 	}
 }
 } // namespace
@@ -2445,6 +2454,8 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 			out.impl->pipelines.release_all(i);
 		}
 	};
+
+	out.impl->stats.per_frame = {};
 
 	auto const on_return = OnReturn{out};
 	if (info.extent.x == 0 || info.extent.y == 0) { return; }
@@ -2611,7 +2622,6 @@ void levk::gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info) {
 		return;
 	}
 	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
-	// TODO: update stats
 }
 
 void levk::gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info) {
@@ -2620,5 +2630,11 @@ void levk::gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info) {
 		return;
 	}
 	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
-	// TODO: update stats
+}
+
+levk::RenderStats levk::gfx_render_stats(VulkanDevice const& device) {
+	return {
+		device.impl->stats.per_frame.draw_calls,
+		device.impl->stats.per_frame.triangles,
+	};
 }

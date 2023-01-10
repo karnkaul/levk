@@ -16,9 +16,10 @@
 #include <levk/util/reader.hpp>
 #include <levk/util/visitor.hpp>
 #include <filesystem>
-#include <iostream>
 
+#include <levk/imcpp/engine_inspector.hpp>
 #include <levk/imcpp/resource_inspector.hpp>
+#include <levk/imcpp/scene_inspector.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -41,77 +42,6 @@ fs::path find_data(fs::path exe) {
 		exe = std::move(parent);
 	}
 	return {};
-}
-
-struct Inspect {
-	enum class Type { eEntity, eCamera, eLights };
-
-	Id<Entity> entity{};
-	Type type{};
-
-	explicit constexpr operator bool() const { return type != Type::eEntity || entity != Id<Entity>{}; }
-
-	constexpr bool operator==(Id<Entity> id) const { return type == Type::eEntity && id == entity; }
-	constexpr bool operator==(Type desired) const { return type == desired; }
-};
-
-void add_camera_node(Inspect& inspect) {
-	auto flags = int{};
-	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
-	if (inspect.type == Inspect::Type::eCamera) { flags |= ImGuiTreeNodeFlags_Selected; }
-	imcpp::TreeNode::leaf("Camera", flags);
-	if (ImGui::IsItemClicked()) { inspect.type = Inspect::Type::eCamera; }
-}
-
-bool walk_node(Node::Locator& node_locator, Node& node, Inspect& inspect) {
-	auto flags = int{};
-	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
-	if (node.entity && inspect == node.entity) { flags |= ImGuiTreeNodeFlags_Selected; }
-	if (node.children().empty()) { flags |= ImGuiTreeNodeFlags_Leaf; }
-	auto tn = imcpp::TreeNode{node.name.c_str(), flags};
-	if (ImGui::IsItemClicked() && node.entity) { inspect = {node.entity, Inspect::Type::eEntity}; }
-	auto const id = node.id().value();
-	if (auto source = imcpp::DragDrop::Source{}) { imcpp::DragDrop::set<std::size_t>("node", id, node.name); }
-	if (auto target = imcpp::DragDrop::Target{}) {
-		if (auto const* node_id = imcpp::DragDrop::accept<std::size_t>("node")) {
-			node_locator.reparent(node_locator.get(*node_id), id);
-			return false;
-		}
-	}
-	if (tn) {
-		for (auto& id : node.children()) {
-			if (!walk_node(node_locator, node_locator.get(id), inspect)) { return false; }
-		}
-	}
-	return true;
-}
-
-void draw_scene_tree(imcpp::OpenWindow, Node::Locator node_locator, Inspect& inspect) {
-	for (auto const& node : node_locator.roots()) {
-		if (!walk_node(node_locator, node_locator.get(node), inspect)) { return; }
-	}
-}
-
-void draw_inspector(imcpp::OpenWindow w, Scene& scene, Inspect inspect) {
-	switch (inspect.type) {
-	case Inspect::Type::eCamera: {
-		imcpp::TreeNode::leaf("Camera", ImGuiTreeNodeFlags_SpanFullWidth);
-		if (auto tn = imcpp::TreeNode{"Transform", ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen}) {
-			Bool unified_scaling{true};
-			imcpp::Reflector{w}(scene.camera.transform, unified_scaling, {});
-		}
-		break;
-	}
-	case Inspect::Type::eLights: {
-		break;
-	}
-	default: {
-		auto* entity = scene.find(inspect.entity);
-		if (!entity) { return; }
-		entity->inspect(w);
-		break;
-	}
-	}
 }
 
 struct FreeCam {
@@ -179,23 +109,6 @@ std::string trim_to_uri(std::string_view full, std::string_view data) {
 	return std::string{full};
 }
 
-struct Fps {
-	Clock::time_point start{Clock::now()};
-	int frames{};
-	int fps{};
-
-	int operator()() {
-		auto const now = Clock::now();
-		++frames;
-		if (now - start >= std::chrono::seconds{1}) {
-			fps = frames;
-			frames = 0;
-			start = now;
-		}
-		return fps == 0 ? frames : fps;
-	}
-};
-
 void run(fs::path data_path) {
 	auto reader = FileReader{};
 	reader.mount(data_path.generic_string());
@@ -205,10 +118,10 @@ void run(fs::path data_path) {
 	auto& engine = Service<Engine>::locate();
 	auto scene = std::make_unique<Scene>();
 	auto free_cam = FreeCam{&engine.window()};
-	auto inspect = Inspect{};
-	auto fps = Fps{};
 
 	auto resource_inspector = imcpp::ResourceInspector{};
+	auto scene_inspector = imcpp::SceneInspector{};
+	auto engine_inspector = imcpp::EngineInspector{};
 
 	engine.show();
 	while (engine.is_running()) {
@@ -256,36 +169,13 @@ void run(fs::path data_path) {
 		// test code
 
 		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
-		{
-			if (auto w = imcpp::Window{"Scene"}) {
-				ImGui::Text("%s", FixedString{"FPS: {}", fps()}.c_str());
-				float scale = engine.device().info().render_scale;
-				if (ImGui::DragFloat("Render Scale", &scale, 0.05f, render_scale_limit_v[0], render_scale_limit_v[1])) {
-					engine.device().set_render_scale(scale);
-				}
-				ImGui::Separator();
-				add_camera_node(inspect);
-				draw_scene_tree(w, scene->node_locator(), inspect);
-				if (auto* payload = ImGui::GetDragDropPayload(); payload && payload->IsDataType("node")) {
-					imcpp::TreeNode::leaf("(Unparent)");
-					if (auto target = imcpp::DragDrop::Target{}) {
-						if (auto const* node_id = imcpp::DragDrop::accept<std::size_t>("node")) {
-							auto node_locator = scene->node_locator();
-							node_locator.reparent(node_locator.get(*node_id), {});
-						}
-					}
-				}
-			}
-		}
-		if (bool show_inspector = static_cast<bool>(inspect)) {
-			ImGui::SetNextWindowPos({ImGui::GetIO().DisplaySize.x - 500.0f, 0.0f});
-			ImGui::SetNextWindowSize({500.0f, ImGui::GetIO().DisplaySize.y});
-			if (auto w = imcpp::Window{"Inspector", &show_inspector}) { draw_inspector(w, *scene, inspect); }
-			if (!show_inspector) { inspect = {}; }
-		}
+		if (auto w = imcpp::Window{"Scene"}) { scene_inspector.inspect(w, *scene); }
 
 		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
 		if (auto w = imcpp::Window{"Resources"}) { resource_inspector.inspect(w, Service<Resources>::locate()); }
+
+		ImGui::SetNextWindowSize({300.0f, 300.0f}, ImGuiCond_Once);
+		if (auto w = imcpp::Window{"Engine"}) { engine_inspector.inspect(w, Service<Engine>::locate(), frame.dt); }
 
 		engine.render(*scene, scene->camera, scene->lights, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
 	}

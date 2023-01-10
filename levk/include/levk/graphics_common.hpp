@@ -111,4 +111,9 @@ struct SkinnedMeshRenderInfo {
 	SkinnedMesh const& mesh;
 	std::span<glm::mat4 const> joints;
 };
+
+struct RenderStats {
+	std::uint64_t draw_calls{};
+	std::uint64_t triangles{};
+};
 } // namespace levk

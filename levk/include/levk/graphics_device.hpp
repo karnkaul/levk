@@ -37,6 +37,8 @@ class GraphicsDevice {
 	void render(StaticMesh const& mesh, RenderResources const& resources, std::span<Transform const> instances, glm::mat4 const& parent = matrix_identity_v);
 	void render(SkinnedMesh const& mesh, RenderResources const& resources, std::span<glm::mat4 const> joints);
 
+	RenderStats stats() const { return m_model->stats(); }
+
 	template <typename T>
 	Ptr<T> as() const {
 		if (auto* p = dynamic_cast<Model<T>*>(m_model.get())) { return &p->impl; }
@@ -61,6 +63,8 @@ class GraphicsDevice {
 
 		virtual void render(StaticMeshRenderInfo const&) = 0;
 		virtual void render(SkinnedMeshRenderInfo const&) = 0;
+
+		virtual RenderStats stats() const = 0;
 	};
 
 	template <typename T>
@@ -80,6 +84,8 @@ class GraphicsDevice {
 
 		void render(StaticMeshRenderInfo const& info) final { gfx_render(impl, info); }
 		void render(SkinnedMeshRenderInfo const& info) final { gfx_render(impl, info); }
+
+		RenderStats stats() const final { return gfx_render_stats(impl); }
 	};
 
 	std::unique_ptr<Base> m_model{};

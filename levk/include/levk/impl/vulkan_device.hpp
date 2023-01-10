@@ -65,4 +65,5 @@ std::uint32_t gfx_tex_mip_levels(VulkanTexture const& texture);
 
 void gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info);
 void gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info);
+RenderStats gfx_render_stats(VulkanDevice const& device);
 } // namespace levk
