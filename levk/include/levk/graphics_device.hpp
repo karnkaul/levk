@@ -38,6 +38,7 @@ class GraphicsDevice {
 	void render(refactor::StaticMesh const& mesh, refactor::RenderResources const& resources, std::span<Transform const> instances,
 				glm::mat4 const& parent = matrix_identity_v);
 	void render(SkinnedMesh const& mesh, RenderResources const& resources, std::span<glm::mat4 const> joints);
+	void render(refactor::SkinnedMesh const& mesh, refactor::RenderResources const& resources, std::span<glm::mat4 const> joints);
 
 	template <typename T>
 	Ptr<T> as() const {
@@ -64,6 +65,7 @@ class GraphicsDevice {
 		virtual void render(StaticMeshRenderInfo const&) = 0;
 		virtual void render(refactor::StaticMeshRenderInfo const&) = 0;
 		virtual void render(SkinnedMeshRenderInfo const&) = 0;
+		virtual void render(refactor::SkinnedMeshRenderInfo const&) = 0;
 	};
 
 	template <typename T>
@@ -84,6 +86,7 @@ class GraphicsDevice {
 		void render(StaticMeshRenderInfo const& info) final { gfx_render(impl, info); }
 		void render(refactor::StaticMeshRenderInfo const& info) final { gfx_render(impl, info); }
 		void render(SkinnedMeshRenderInfo const& info) final { gfx_render(impl, info); }
+		void render(refactor::SkinnedMeshRenderInfo const& info) final { gfx_render(impl, info); }
 	};
 
 	std::unique_ptr<Base> m_model{};

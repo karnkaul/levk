@@ -293,13 +293,13 @@ Ptr<Skeleton> AssetLoader::load_skeleton(Uri const& uri) const {
 		out_joint.self = in_joint.self;
 	}
 	for (auto const& in_animation : asset.animations) {
-		auto const in_animation_asset = open_json(dir_uri.append(in_animation.value()).c_str());
+		auto animation_uri = Uri{dir_uri.append(in_animation.value())};
+		auto const in_animation_asset = open_json(animation_uri.absolute_path(root_dir).c_str());
 		if (!in_animation_asset) {
 			logger::warn("[Load] Failed to load Skeletal animation JSON [{}]", in_animation.value());
 			continue;
 		}
 		auto out_animation_asset = asset::BinSkeletalAnimation{};
-		auto animation_uri = Uri{dir_uri.append(in_animation.value())};
 		if (!out_animation_asset.read(animation_uri.absolute_path(root_dir).c_str())) {
 			logger::warn("[Load] Failed to load SkeletalAnimation at: [{}]", in_animation.value());
 			continue;
@@ -311,6 +311,7 @@ Ptr<Skeleton> AssetLoader::load_skeleton(Uri const& uri) const {
 		for (auto const& in_sampler : out_animation_asset.samplers) { source.animation.samplers.push_back({in_sampler}); }
 		skeleton.animation_sources.push_back(std::move(source));
 	}
+	skeleton.self = uri;
 	logger::info("[Load] [{}] Skeleton loaded", asset.name);
 	return &render_resources.skeletons.add(uri, std::move(skeleton));
 }
@@ -353,6 +354,10 @@ Ptr<SkinnedMesh> AssetLoader::load_skinned_mesh(Uri const& uri, dj::Json const& 
 		mesh.primitives.push_back(MeshPrimitive{std::move(geometry), std::move(material_uri)});
 	}
 	mesh.inverse_bind_matrices = asset.inverse_bind_matrices;
+	if (auto const& skeleton = json["skeleton"]) {
+		auto const skeleton_uri = dir_uri.append(skeleton.as_string());
+		if (load_skeleton(skeleton_uri)) { mesh.skeleton = skeleton_uri; }
+	}
 	logger::info("[Load] [{}] SkinnedMesh loaded", mesh.name);
 	return &render_resources.skinned_meshes.add(uri, std::move(mesh));
 }

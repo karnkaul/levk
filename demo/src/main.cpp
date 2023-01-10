@@ -231,7 +231,7 @@ void run(fs::path data_path) {
 					auto const asset_type = AssetLoader::get_asset_type(drop.c_str());
 					if (asset_type == "mesh") {
 						// TODO: fix branch for static vs skinned
-						scene->load_static_mesh_into_tree(uri);
+						scene->load_skinned_mesh_into_tree(uri);
 					} else if (asset_type == "scene") {
 						scene->from_json(drop.c_str());
 					}

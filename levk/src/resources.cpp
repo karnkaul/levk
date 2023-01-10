@@ -90,10 +90,10 @@ Ptr<StaticMesh> Resources::load_static_mesh(Uri const& uri) {
 	return load<StaticMesh>(uri, "StaticMesh", render.static_meshes, func);
 }
 
-// Ptr<SkinnedMesh> Resources::load_skinned_mesh(Uri const& uri) {
-// 	auto const func = [](AssetLoader& loader, char const* path) { return loader.try_load_skinned_mesh(path); };
-// 	return load<SkinnedMesh>(uri, "SkinnedMesh", render.skinned_meshes, func);
-// }
+Ptr<SkinnedMesh> Resources::load_skinned_mesh(Uri const& uri) {
+	auto const func = [](AssetLoader& loader, Uri const& uri) { return loader.try_load_skinned_mesh(uri); };
+	return load<SkinnedMesh>(uri, "SkinnedMesh", render.skinned_meshes, func);
+}
 
 bool Resources::unload_static_mesh(Uri const& uri) { return unload<StaticMesh>(uri, render.static_meshes); }
 bool Resources::unload_skinned_mesh(Uri const& uri) { return unload<SkinnedMesh>(uri, render.skinned_meshes); }

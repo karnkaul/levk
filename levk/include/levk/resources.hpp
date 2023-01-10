@@ -53,7 +53,7 @@ class Resources {
 	Resources(std::string_view root_dir);
 
 	Ptr<StaticMesh> load_static_mesh(Uri const& uri);
-	// Ptr<SkinnedMesh> load_skinned_mesh(Uri const& uri);
+	Ptr<SkinnedMesh> load_skinned_mesh(Uri const& uri);
 
 	bool unload_static_mesh(Uri const& uri);
 	bool unload_skinned_mesh(Uri const& uri);

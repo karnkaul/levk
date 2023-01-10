@@ -2383,7 +2383,7 @@ void render_mesh2(VulkanDevice const& device, RenderInfoT const& info, RenderCmd
 		pipe.bind(cb, cmd.extent, line_width);
 		update_view(device, shader);
 		material.write_sets(shader, texture_fallback);
-		if constexpr (std::same_as<RenderInfoT, SkinnedMeshRenderInfo>) {
+		if constexpr (std::same_as<RenderInfoT, refactor::SkinnedMeshRenderInfo>) {
 			assert(primitive.geometry.has_joints());
 			auto joints_set = vmg->impl->joints_set();
 			assert(joints_set);
@@ -2674,5 +2674,14 @@ void levk::gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info) {
 		return;
 	}
 	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
+	// TODO: update stats
+}
+
+void levk::gfx_render(VulkanDevice& out, refactor::SkinnedMeshRenderInfo const& info) {
+	if (!out.impl->cmd_3d.cb) {
+		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
+		return;
+	}
+	render_mesh2(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
 	// TODO: update stats
 }

@@ -31,6 +31,15 @@ void GraphicsDevice::render(SkinnedMesh const& mesh, RenderResources const& reso
 	m_model->render(skri);
 }
 
+void GraphicsDevice::render(refactor::SkinnedMesh const& mesh, refactor::RenderResources const& resources, std::span<glm::mat4 const> joints) {
+	auto const skri = refactor::SkinnedMeshRenderInfo{
+		resources,
+		mesh,
+		joints,
+	};
+	m_model->render(skri);
+}
+
 void GraphicsDevice::render(GraphicsRenderer& renderer, Camera const& camera, Lights const& lights, glm::uvec2 extent, Rgba clear) {
 	auto const render_info = RenderInfo{renderer, camera, lights, extent, clear, default_render_mode};
 	m_model->render(render_info);
