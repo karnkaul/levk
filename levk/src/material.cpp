@@ -81,16 +81,29 @@ void LitMaterial::write_sets(Shader& shader, TextureFallback const& fallback) co
 	shader.write(2, 0, mat);
 }
 
-// TODO
-bool UnlitMaterial::serialize(dj::Json& out) const { return false; }
+bool UnlitMaterial::serialize(dj::Json& out) const {
+	textures.serialize(out["textures"]);
+	asset::to_json(out["tint"], tint);
+	asset::to_json(out["render_mode"], mode);
+	out["shader"] = shader;
+	out["name"] = name;
+	return true;
+}
 
-// TODO
-bool UnlitMaterial::deserialize(dj::Json const& json) { return false; }
+bool UnlitMaterial::deserialize(dj::Json const& json) {
+	textures.deserialize(json);
+	asset::from_json(json["tint"], tint);
+	asset::from_json(json["render_mode"], mode);
+	shader = json["shader"].as<std::string>();
+	name = json["name"].as<std::string>();
+	return true;
+}
 
 bool LitMaterial::serialize(dj::Json& out) const {
 	textures.serialize(out["textures"]);
 	asset::to_json(out["albedo"], albedo);
 	asset::to_json(out["emissive_factor"], emissive_factor);
+	asset::to_json(out["render_mode"], mode);
 	out["metallic"] = metallic;
 	out["roughness"] = roughness;
 	out["alpha_cutoff"] = alpha_cutoff;
@@ -105,6 +118,7 @@ bool LitMaterial::deserialize(dj::Json const& json) {
 	textures.deserialize(json["textures"]);
 	asset::from_json(json["albedo"], albedo);
 	asset::from_json(json["emissive_factor"], emissive_factor, emissive_factor);
+	asset::from_json(json["render_mode"], mode);
 	metallic = json["metallic"].as<float>(metallic);
 	roughness = json["roughness"].as<float>(roughness);
 	alpha_cutoff = json["alpha_cutoff"].as<float>(alpha_cutoff);

@@ -46,6 +46,9 @@ void to_json(dj::Json& out, Rgba const& rgba);
 void from_json(dj::Json const& json, Transform& out);
 void to_json(dj::Json& out, Transform const& transform);
 
+void from_json(dj::Json const& json, RenderMode& out);
+void to_json(dj::Json& out, RenderMode const& render_mode);
+
 struct Material {
 	MaterialTextures textures{};
 	Rgba albedo{white_v};

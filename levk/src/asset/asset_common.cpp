@@ -9,7 +9,7 @@
 
 namespace levk {
 namespace {
-constexpr RenderMode::Type to_render_mode(std::string_view const str) {
+constexpr RenderMode::Type to_render_mode_type(std::string_view const str) {
 	if (str == "fill") { return RenderMode::Type::eFill; }
 	if (str == "line") { return RenderMode::Type::eLine; }
 	if (str == "point") { return RenderMode::Type::ePoint; }
@@ -67,22 +67,6 @@ Rgba to_rgba(std::string_view hex, float intensity) {
 	ret.channels.z = to_channel(hex.substr(4, 2));
 	ret.channels.w = to_channel(hex.substr(6));
 	ret.intensity = intensity;
-	return ret;
-}
-
-RenderMode make_render_mode(dj::Json const& json) {
-	auto ret = RenderMode{};
-	ret.line_width = json["line_width"].as<float>(ret.line_width);
-	ret.type = to_render_mode(json["type"].as_string());
-	ret.depth_test = json["depth_test"].as<bool>();
-	return ret;
-}
-
-dj::Json make_json(RenderMode const& render_mode) {
-	auto ret = dj::Json{};
-	ret["line_width"] = render_mode.line_width;
-	ret["type"] = from(render_mode.type);
-	ret["depth_test"] = dj::Boolean{render_mode.depth_test};
 	return ret;
 }
 
@@ -319,6 +303,18 @@ void asset::from_json(dj::Json const& json, Transform& out) {
 
 void asset::to_json(dj::Json& out, Transform const& transform) { to_json(out, transform.matrix()); }
 
+void asset::from_json(dj::Json const& json, RenderMode& out) {
+	out.line_width = json["line_width"].as<float>(out.line_width);
+	out.type = to_render_mode_type(json["type"].as_string());
+	out.depth_test = json["depth_test"].as<bool>();
+}
+
+void asset::to_json(dj::Json& out, RenderMode const& render_mode) {
+	out["line_width"] = render_mode.line_width;
+	out["type"] = from(render_mode.type);
+	out["depth_test"] = dj::Boolean{render_mode.depth_test};
+}
+
 void asset::from_json(dj::Json const& json, asset::Material& out) {
 	assert(json["asset_type"].as_string() == "material");
 	out.textures.deserialize(json["textures"]);
@@ -326,7 +322,7 @@ void asset::from_json(dj::Json const& json, asset::Material& out) {
 	out.emissive_factor = glm_vec_from_json<3>(json["emissive_factor"], out.emissive_factor);
 	out.metallic = json["metallic"].as<float>(out.metallic);
 	out.roughness = json["roughness"].as<float>(out.roughness);
-	out.render_mode = make_render_mode(json["render_mode"]);
+	from_json(json["render_mode"], out.render_mode);
 	out.alpha_cutoff = json["alpha_cutoff"].as<float>(out.alpha_cutoff);
 	out.alpha_mode = to_alpha_mode(json["alpha_mode"].as_string());
 	out.shader = json["shader"].as_string(out.shader);
@@ -342,7 +338,7 @@ void asset::to_json(dj::Json& out, asset::Material const& asset) {
 	to_json(out["emissive_factor"], asset.emissive_factor);
 	out["metallic"] = asset.metallic;
 	out["roughness"] = asset.roughness;
-	out["render_mode"] = make_json(asset.render_mode);
+	to_json(out["render_mode"], asset.render_mode);
 	out["alpha_cutoff"] = asset.alpha_cutoff;
 	out["alpha_mode"] = from(asset.alpha_mode);
 	out["shader"] = asset.shader;
