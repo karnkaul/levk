@@ -9,8 +9,6 @@ void add_serializer_bindings() {
 	auto& serializer = Service<Serializer>::locate();
 	serializer.bind<SkeletonController>();
 	serializer.bind<MeshRenderer>();
-	serializer.bind<refactor::LitMaterial>();
-	serializer.bind<refactor::UnlitMaterial>();
 }
 } // namespace
 

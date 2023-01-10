@@ -112,22 +112,3 @@ struct SkinnedMeshRenderInfo {
 	std::span<glm::mat4 const> joints;
 };
 } // namespace levk
-
-namespace levk::refactor {
-struct StaticMesh;
-struct SkinnedMesh;
-struct RenderResources;
-
-struct StaticMeshRenderInfo {
-	RenderResources const& resources;
-	StaticMesh const& mesh;
-	glm::mat4 const& parent;
-	std::span<Transform const> instances;
-};
-
-struct SkinnedMeshRenderInfo {
-	RenderResources const& resources;
-	SkinnedMesh const& mesh;
-	std::span<glm::mat4 const> joints;
-};
-} // namespace levk::refactor

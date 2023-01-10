@@ -36,41 +36,8 @@ dj::Json make_json(Skeleton::Instance const& skeleton) {
 	return ret;
 }
 
-dj::Json make_json(refactor::Skeleton::Instance const& skeleton) {
-	auto ret = dj::Json{};
-	ret["root"] = skeleton.root.value();
-	auto out_joints = dj::Json{};
-	for (auto const in_joint : skeleton.joints) { out_joints.push_back(in_joint.value()); }
-	ret["joints"] = std::move(out_joints);
-	auto out_animations = dj::Json{};
-	for (auto const& in_animation : skeleton.animations) {
-		auto out_animation = dj::Json{};
-		out_animation["source"] = in_animation.source;
-		auto out_nodes = dj::Json{};
-		for (auto const in_node : in_animation.target_nodes) { out_nodes.push_back(in_node.value()); }
-		out_animation["target_nodes"] = std::move(out_nodes);
-		out_animations.push_back(std::move(out_animation));
-	}
-	ret["animations"] = std::move(out_animations);
-	return ret;
-}
-
-Skeleton::Instance to_skeleton_instance(dj::Json const& json, Id<Skeleton> skeleton) {
+Skeleton::Instance to_skeleton_instance(dj::Json const& json, TUri<Skeleton> const& skeleton) {
 	auto ret = Skeleton::Instance{};
-	ret.root = json["root"].as<std::size_t>();
-	ret.source = skeleton;
-	for (auto const& in_joint : json["joints"].array_view()) { ret.joints.push_back(in_joint.as<std::size_t>()); }
-	for (auto const& in_animation : json["animations"].array_view()) {
-		auto& out_animation = ret.animations.emplace_back();
-		out_animation.source = in_animation["source"].as<std::size_t>();
-		out_animation.skeleton = skeleton;
-		for (auto const& in_node : in_animation["target_nodes"].array_view()) { out_animation.target_nodes.push_back(in_node.as<std::size_t>()); }
-	}
-	return ret;
-}
-
-refactor::Skeleton::Instance to_skeleton_instance2(dj::Json const& json, TUri<Skeleton> const& skeleton) {
-	auto ret = refactor::Skeleton::Instance{};
 	ret.root = json["root"].as<std::size_t>();
 	ret.source = skeleton;
 	for (auto const& in_joint : json["joints"].array_view()) { ret.joints.push_back(in_joint.as<std::size_t>()); }
@@ -100,12 +67,12 @@ void SkeletonController::tick(Time dt) {
 	if (!enabled || dt == Time{}) { return; }
 	auto* mesh_renderer = entity().renderer_as<MeshRenderer>();
 	if (!mesh_renderer) { return; }
-	auto* skinned_mesh_renderer = std::get_if<refactor::SkinnedMeshRenderer>(&mesh_renderer->renderer);
+	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 	if (!skinned_mesh_renderer) { return; }
 	assert(*enabled < skinned_mesh_renderer->skeleton.animations.size());
 	elapsed += dt * time_scale;
 	auto const& animation = skinned_mesh_renderer->skeleton.animations[*enabled];
-	auto const& skeleton = Service<refactor::Resources>::get().render.skeletons.get(animation.skeleton);
+	auto const& skeleton = Service<Resources>::get().render.skeletons.get(animation.skeleton);
 	assert(animation.source < skeleton.animation_sources.size());
 	auto const& source = skeleton.animation_sources[animation.source];
 	animation.update_nodes(scene().node_locator(), elapsed, source);
@@ -159,18 +126,6 @@ void SkeletonController::inspect(imcpp::OpenWindow) {
 }
 
 void StaticMeshRenderer::render(Entity const& entity) const {
-	if (!asset_id) { return; }
-	auto const& tree = entity.scene().nodes();
-	auto const& resources = Service<Resources>::locate();
-	auto const& m = resources.render.static_meshes.get(asset_id.id);
-	if (m.primitives.empty()) { return; }
-	auto& device = Service<GraphicsDevice>::locate();
-	static auto const s_instance = Transform{};
-	auto const is = instances.empty() ? std::span{&s_instance, 1u} : std::span{instances};
-	device.render(m, resources.render, is, tree.global_transform(tree.get(entity.node_id())));
-}
-
-void refactor::StaticMeshRenderer::render(Entity const& entity) const {
 	if (!uri) { return; }
 	auto const& tree = entity.scene().nodes();
 	auto const& resources = Service<Resources>::locate();
@@ -182,33 +137,16 @@ void refactor::StaticMeshRenderer::render(Entity const& entity) const {
 	device.render(m, resources.render, is, tree.global_transform(tree.get(entity.node_id())));
 }
 
-void SkinnedMeshRenderer::set_mesh(AssetId<SkinnedMesh> asset_id_, Skeleton::Instance skeleton_) {
-	asset_id = std::move(asset_id_);
-	skeleton = std::move(skeleton_);
-	joint_matrices = DynArray<glm::mat4>{skeleton.joints.size()};
-}
-
-void SkinnedMeshRenderer::render(Entity const& entity) const {
-	if (!asset_id) { return; }
-	auto const& tree = entity.scene().nodes();
-	auto const& resources = Service<Resources>::locate();
-	auto const& m = resources.render.skinned_meshes.get(asset_id.id);
-	if (m.primitives.empty()) { return; }
-	assert(m.primitives[0].geometry.has_joints() && joint_matrices.size() == skeleton.joints.size());
-	for (auto const [id, index] : enumerate(skeleton.joints)) { joint_matrices[index] = tree.global_transform(tree.get(id)); }
-	Service<GraphicsDevice>::locate().render(m, resources.render, joint_matrices.span());
-}
-
-void refactor::SkinnedMeshRenderer::set_mesh(TUri<SkinnedMesh> uri_, Skeleton::Instance skeleton_) {
+void SkinnedMeshRenderer::set_mesh(TUri<SkinnedMesh> uri_, Skeleton::Instance skeleton_) {
 	uri = std::move(uri_);
 	skeleton = std::move(skeleton_);
 	joint_matrices = DynArray<glm::mat4>{skeleton.joints.size()};
 }
 
-void refactor::SkinnedMeshRenderer::render(Entity const& entity) const {
+void SkinnedMeshRenderer::render(Entity const& entity) const {
 	if (!uri) { return; }
 	auto const& tree = entity.scene().nodes();
-	auto const& resources = Service<refactor::Resources>::locate();
+	auto const& resources = Service<Resources>::locate();
 	auto const& m = resources.render.skinned_meshes.get(uri);
 	if (m.primitives.empty()) { return; }
 	assert(m.primitives[0].geometry.has_joints() && joint_matrices.size() == skeleton.joints.size());
@@ -224,22 +162,11 @@ bool MeshRenderer::serialize(dj::Json& out) const {
 	auto const visitor = Visitor{
 		[&](StaticMeshRenderer const& smr) {
 			out["type"] = "static";
-			out["mesh"] = smr.asset_id.uri.value();
-			auto& instances = out["instances"];
-			for (auto const& in_instance : smr.instances) { asset::to_json(instances.push_back({}), in_instance); }
-		},
-		[&](SkinnedMeshRenderer const& smr) {
-			out["type"] = "skinned";
-			out["mesh"] = smr.asset_id.uri.value();
-			out["skeleton"] = make_json(smr.skeleton);
-		},
-		[&](refactor::StaticMeshRenderer const& smr) {
-			out["type"] = "static";
 			out["mesh"] = smr.uri.value();
 			auto& instances = out["instances"];
 			for (auto const& in_instance : smr.instances) { asset::to_json(instances.push_back({}), in_instance); }
 		},
-		[&](refactor::SkinnedMeshRenderer const& smr) {
+		[&](SkinnedMeshRenderer const& smr) {
 			out["type"] = "skinned";
 			out["mesh"] = smr.uri.value();
 			out["skeleton"] = make_json(smr.skeleton);
@@ -251,15 +178,14 @@ bool MeshRenderer::serialize(dj::Json& out) const {
 
 bool MeshRenderer::deserialize(dj::Json const& json) {
 	auto const type = json["type"].as_string();
-	auto& resources = Service<refactor::Resources>::locate();
+	auto& resources = Service<Resources>::locate();
 	if (type == "static") {
-		// TODO: fix
 		auto uri = json["mesh"].as<std::string>();
 		if (!resources.load_static_mesh(uri)) {
 			logger::error("[MeshRenderer] Failed to load StaticMesh [{}]", uri);
 			return false;
 		}
-		auto smr = refactor::StaticMeshRenderer{.uri = std::move(uri)};
+		auto smr = StaticMeshRenderer{.uri = std::move(uri)};
 		for (auto const& in_instance : json["instances"].array_view()) {
 			auto& out_instance = smr.instances.emplace_back();
 			asset::from_json(in_instance, out_instance);
@@ -272,8 +198,8 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 			logger::error("[MeshRenderer] Failed to load SkinnedMesh [{}]", uri.value());
 			return false;
 		}
-		auto smr = refactor::SkinnedMeshRenderer{};
-		smr.set_mesh(std::move(uri), to_skeleton_instance2(json["skeleton"], mesh->skeleton));
+		auto smr = SkinnedMeshRenderer{};
+		smr.set_mesh(std::move(uri), to_skeleton_instance(json["skeleton"], mesh->skeleton));
 		renderer = std::move(smr);
 	} else {
 		logger::error("[MeshRenderer] Unrecognized Mesh type: [{}]", type);
@@ -285,20 +211,11 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 void MeshRenderer::inspect(imcpp::OpenWindow) {
 	auto const visitor = Visitor{
 		[&](StaticMeshRenderer& smr) {
-			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.asset_id.id).name}.c_str());
-		},
-		[&](refactor::StaticMeshRenderer& smr) {
-			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<refactor::Resources>::get().render.static_meshes.get(smr.uri).name}.c_str());
+			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.uri).name}.c_str());
 		},
 		[&](SkinnedMeshRenderer& smr) {
-			auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.asset_id.id);
+			auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.uri);
 			auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
-			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
-			imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
-		},
-		[&](refactor::SkinnedMeshRenderer& smr) {
-			auto const& mesh = Service<refactor::Resources>::get().render.skinned_meshes.get(smr.uri);
-			auto const& skeleton = Service<refactor::Resources>::get().render.skeletons.get(mesh.skeleton);
 			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
 			imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
 		},
@@ -344,104 +261,53 @@ bool Scene::import_gltf(char const* in_path, std::string_view dest_dir) {
 	mesh_uri = (fs::path{dest_dir} / mesh_uri.value()).generic_string();
 
 	if (is_skinned) {
-		return load_into_tree(asset::Uri<SkinnedMesh>{mesh_uri.value()});
+		return load_static_mesh_into_tree(mesh_uri.value());
 	} else {
-		return load_into_tree(asset::Uri<StaticMesh>{mesh_uri.value()});
+		return load_skinned_mesh_into_tree(mesh_uri.value());
 	}
 }
 
 bool Scene::load_mesh_into_tree(std::string_view uri) {
 	auto& resources = Service<Resources>::locate();
 	switch (resources.get_mesh_type(uri)) {
-	case MeshType::eStatic: return load_into_tree(asset::Uri<StaticMesh>{std::string{uri}});
-	case MeshType::eSkinned: return load_into_tree(asset::Uri<SkinnedMesh>{std::string{uri}});
+	case MeshType::eStatic: return load_static_mesh_into_tree(std::string{uri});
+	case MeshType::eSkinned: return load_skinned_mesh_into_tree(std::string{uri});
 	default: logger::error("[Scene] Failed to load Mesh [{}]", uri); return false;
 	}
 }
 
-bool Scene::load_into_tree(asset::Uri<StaticMesh> uri) {
-	auto id = Service<Resources>::get().load(uri);
-	if (!id) { return false; }
-	return add_to_tree(uri.value(), id);
-}
-
 bool Scene::load_static_mesh_into_tree(Uri const& uri) {
-	auto* mesh = Service<refactor::Resources>::locate().load_static_mesh(uri);
+	auto* mesh = Service<Resources>::locate().load_static_mesh(uri);
 	if (!mesh) { return false; }
 	return add_to_tree(uri, *mesh);
 }
 
 bool Scene::load_skinned_mesh_into_tree(Uri const& uri) {
-	auto* mesh = Service<refactor::Resources>::locate().load_skinned_mesh(uri);
+	auto* mesh = Service<Resources>::locate().load_skinned_mesh(uri);
 	if (!mesh) { return false; }
 	return add_to_tree(uri, *mesh);
 }
 
-bool Scene::load_into_tree(asset::Uri<SkinnedMesh> uri) {
-	auto id = Service<Resources>::get().load(uri);
-	if (!id) { return false; }
-	return add_to_tree(uri.value(), id);
-}
-
-bool Scene::add_to_tree(std::string_view uri, Id<SkinnedMesh> id) {
-	auto& render_resources = Service<Resources>::get().render;
-	auto const* mesh = render_resources.skinned_meshes.find(id);
-	if (!mesh) {
-		logger::warn("[Scene] Failed to find SkinnedMesh [{}]", id.value());
-		return false;
-	}
-	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
-	// TODO: fix
-	auto& entity = m_entities.get({node.entity.value()});
-	auto skeleton = Skeleton::Instance{};
-	auto enabled = std::optional<Id<Skeleton::Animation>>{};
-	if (mesh->skeleton) {
-		auto const& source_skeleton = render_resources.skeletons.get(mesh->skeleton);
-		skeleton = source_skeleton.instantiate(m_nodes, node.id());
-		if (!skeleton.animations.empty()) { enabled = 0; }
-	}
-	auto mesh_renderer = SkinnedMeshRenderer{};
-	mesh_renderer.set_mesh({std::string{uri}, id}, std::move(skeleton));
-	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
-	entity.attach(std::make_unique<SkeletonController>()).enabled = enabled;
-	return true;
-}
-
-bool Scene::add_to_tree(std::string_view uri, Id<StaticMesh> id) {
-	auto& render_resources = Service<Resources>::get().render;
-	auto const* mesh = render_resources.static_meshes.find(id);
-	if (!mesh) {
-		logger::warn("[Scene] Failed to find StaticMesh [{}]", id.value());
-		return false;
-	}
-	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh->name}.stem().string()});
-	// TODO: fix
-	auto& entity = m_entities.get({node.entity.value()});
-	auto mesh_renderer = StaticMeshRenderer{.asset_id = {std::string{uri}, id}};
-	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
-	return true;
-}
-
-bool Scene::add_to_tree(Uri const& uri, refactor::StaticMesh const& mesh) {
+bool Scene::add_to_tree(Uri const& uri, StaticMesh const& mesh) {
 	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
 	auto& entity = m_entities.get(node.entity);
-	auto mesh_renderer = std::make_unique<MeshRenderer>(refactor::StaticMeshRenderer{.uri = uri});
+	auto mesh_renderer = std::make_unique<MeshRenderer>(StaticMeshRenderer{.uri = uri});
 	entity.attach(std::move(mesh_renderer));
 	return true;
 }
 
-bool Scene::add_to_tree(Uri const& uri, refactor::SkinnedMesh const& mesh) {
-	auto& render_resources = Service<refactor::Resources>::get().render;
+bool Scene::add_to_tree(Uri const& uri, SkinnedMesh const& mesh) {
+	auto& render_resources = Service<Resources>::get().render;
 	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
 	auto& entity = m_entities.get(node.entity);
-	auto skeleton = refactor::Skeleton::Instance{};
+	auto skeleton = Skeleton::Instance{};
 	auto enabled = std::optional<Id<Skeleton::Animation>>{};
 	if (mesh.skeleton) {
 		auto const& source_skeleton = render_resources.skeletons.get(mesh.skeleton);
 		skeleton = source_skeleton.instantiate(m_nodes, node.id());
 		if (!skeleton.animations.empty()) { enabled = 0; }
 	}
-	auto skinned_mesh_renderer = refactor::SkinnedMeshRenderer{};
+	auto skinned_mesh_renderer = SkinnedMeshRenderer{};
 	skinned_mesh_renderer.set_mesh(uri, std::move(skeleton));
 	entity.attach(std::make_unique<MeshRenderer>(std::move(skinned_mesh_renderer)));
 	entity.attach(std::make_unique<SkeletonController>()).enabled = enabled;

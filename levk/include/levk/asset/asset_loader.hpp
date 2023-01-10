@@ -5,23 +5,6 @@
 
 namespace levk {
 struct AssetLoader {
-	GraphicsDevice& graphics_device;
-	RenderResources& render_resources;
-
-	Id<Texture> load_texture(char const* path, ColourSpace colour_space) const;
-	Id<StaticMesh> try_load_static_mesh(char const* path) const;
-	Id<StaticMesh> load_static_mesh(char const* path, dj::Json const& json) const;
-	Id<Skeleton> load_skeleton(char const* path) const;
-	Id<SkinnedMesh> try_load_skinned_mesh(char const* path) const;
-	Id<SkinnedMesh> load_skinned_mesh(char const* path, dj::Json const& json) const;
-
-	static std::string get_asset_type(char const* path);
-	static MeshType get_mesh_type(char const* path);
-};
-} // namespace levk
-
-namespace levk::refactor {
-struct AssetLoader {
 	std::string_view root_dir;
 	GraphicsDevice& graphics_device;
 	RenderResources& render_resources;
@@ -37,4 +20,4 @@ struct AssetLoader {
 	static std::string get_asset_type(char const* path);
 	static MeshType get_mesh_type(char const* path);
 };
-} // namespace levk::refactor
+} // namespace levk

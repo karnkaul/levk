@@ -171,7 +171,6 @@ struct FreeCam {
 struct Services {
 	std::optional<Service<Engine>::Instance> engine{};
 	std::optional<Service<Resources>::Instance> resources{};
-	std::optional<Service<refactor::Resources>::Instance> resources2{};
 };
 
 std::string trim_to_uri(std::string_view full, std::string_view data) {
@@ -205,7 +204,6 @@ void run(fs::path data_path) {
 	auto services = Services{};
 	services.engine.emplace(make_engine(reader));
 	services.resources.emplace(data_path.generic_string());
-	services.resources2.emplace(data_path.generic_string());
 	auto& engine = Service<Engine>::locate();
 	auto scene = std::make_unique<Scene>();
 	auto free_cam = FreeCam{&engine.window()};
@@ -230,8 +228,7 @@ void run(fs::path data_path) {
 				if (!uri.empty()) {
 					auto const asset_type = AssetLoader::get_asset_type(drop.c_str());
 					if (asset_type == "mesh") {
-						// TODO: fix branch for static vs skinned
-						scene->load_skinned_mesh_into_tree(uri);
+						scene->load_mesh_into_tree(uri);
 					} else if (asset_type == "scene") {
 						scene->from_json(drop.c_str());
 					}

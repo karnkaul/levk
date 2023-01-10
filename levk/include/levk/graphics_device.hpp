@@ -35,10 +35,7 @@ class GraphicsDevice {
 	Texture make_texture(Image::View image, Texture::CreateInfo create_info = {}) { return m_model->make_texture(image, std::move(create_info)); }
 
 	void render(StaticMesh const& mesh, RenderResources const& resources, std::span<Transform const> instances, glm::mat4 const& parent = matrix_identity_v);
-	void render(refactor::StaticMesh const& mesh, refactor::RenderResources const& resources, std::span<Transform const> instances,
-				glm::mat4 const& parent = matrix_identity_v);
 	void render(SkinnedMesh const& mesh, RenderResources const& resources, std::span<glm::mat4 const> joints);
-	void render(refactor::SkinnedMesh const& mesh, refactor::RenderResources const& resources, std::span<glm::mat4 const> joints);
 
 	template <typename T>
 	Ptr<T> as() const {
@@ -63,9 +60,7 @@ class GraphicsDevice {
 		virtual Texture make_texture(Image::View image, Texture::CreateInfo info) = 0;
 
 		virtual void render(StaticMeshRenderInfo const&) = 0;
-		virtual void render(refactor::StaticMeshRenderInfo const&) = 0;
 		virtual void render(SkinnedMeshRenderInfo const&) = 0;
-		virtual void render(refactor::SkinnedMeshRenderInfo const&) = 0;
 	};
 
 	template <typename T>
@@ -84,9 +79,7 @@ class GraphicsDevice {
 		Texture make_texture(Image::View image, Texture::CreateInfo create_info) final { return gfx_make_texture(impl, std::move(create_info), image); }
 
 		void render(StaticMeshRenderInfo const& info) final { gfx_render(impl, info); }
-		void render(refactor::StaticMeshRenderInfo const& info) final { gfx_render(impl, info); }
 		void render(SkinnedMeshRenderInfo const& info) final { gfx_render(impl, info); }
-		void render(refactor::SkinnedMeshRenderInfo const& info) final { gfx_render(impl, info); }
 	};
 
 	std::unique_ptr<Base> m_model{};
