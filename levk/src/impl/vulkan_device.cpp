@@ -2597,6 +2597,12 @@ levk::Texture levk::gfx_make_texture(VulkanDevice const& device, Texture::Create
 
 levk::TextureSampler const& levk::gfx_tex_sampler(VulkanTexture const& texture) { return texture.impl->sampler; }
 levk::ColourSpace levk::gfx_tex_colour_space(VulkanTexture const& texture) { return texture.impl->colour_space(); }
+
+levk::Extent2D levk::gfx_tex_extent(VulkanTexture const& texture) {
+	auto const view = texture.impl->view();
+	return {view.extent.width, view.extent.height};
+}
+
 std::uint32_t levk::gfx_tex_mip_levels(VulkanTexture const& texture) { return texture.impl->mip_levels(); }
 
 void levk::gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info) {

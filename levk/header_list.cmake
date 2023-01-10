@@ -41,6 +41,7 @@ set(imcpp_headers
   include/levk/imcpp/common.hpp
   include/levk/imcpp/inspectable.hpp
   include/levk/imcpp/reflector.hpp
+  include/levk/imcpp/resource_inspector.hpp
 )
 
 set(assets_headers

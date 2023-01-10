@@ -202,4 +202,9 @@ class DragDropTarget : public Openable {
   public:
 	explicit DragDropTarget();
 };
+
+class ListBox : public Openable {
+  public:
+	explicit ListBox(char const* label, glm::vec2 size = {});
+};
 } // namespace levk::imcpp

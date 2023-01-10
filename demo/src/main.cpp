@@ -18,6 +18,8 @@
 #include <filesystem>
 #include <iostream>
 
+#include <levk/imcpp/resource_inspector.hpp>
+
 namespace levk {
 namespace fs = std::filesystem;
 
@@ -210,6 +212,8 @@ void run(fs::path data_path) {
 	auto inspect = Inspect{};
 	auto fps = Fps{};
 
+	auto resource_inspector = imcpp::ResourceInspector{};
+
 	engine.show();
 	while (engine.is_running()) {
 		auto frame = engine.next_frame();
@@ -284,6 +288,9 @@ void run(fs::path data_path) {
 			if (auto w = imcpp::Window{"Inspector", &show_inspector}) { draw_inspector(w, *scene, inspect); }
 			if (!show_inspector) { inspect = {}; }
 		}
+
+		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
+		if (auto w = imcpp::Window{"Resources"}) { resource_inspector.inspect(w, Service<Resources>::locate()); }
 
 		engine.render(*scene, scene->camera, scene->lights, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
 	}

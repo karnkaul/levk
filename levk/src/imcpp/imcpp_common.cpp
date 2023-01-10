@@ -91,4 +91,6 @@ bool DragDropSource::is_active() { return ImGui::IsDragDropActive(); }
 bool DragDropSource::is_being_accepted() { return ImGui::IsDragDropPayloadBeingAccepted(); }
 
 DragDropTarget::DragDropTarget() : Openable(ImGui::BeginDragDropTarget(), &ImGui::EndDragDropTarget) {}
+
+ListBox::ListBox(char const* label, glm::vec2 size) : Openable(ImGui::BeginListBox(label, {size.x, size.y}), &ImGui::EndListBox) {}
 } // namespace levk::imcpp
