@@ -3,6 +3,7 @@
 
 namespace levk {
 struct Serializable {
+	virtual ~Serializable() = default;
 	///
 	/// \brief Type name for this type.
 	/// \returns Type name for this type

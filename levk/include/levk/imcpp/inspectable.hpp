@@ -2,7 +2,7 @@
 
 namespace levk::imcpp {
 template <typename T>
-class NotClosed;
+struct NotClosed;
 class Window;
 using OpenWindow = NotClosed<Window>;
 
