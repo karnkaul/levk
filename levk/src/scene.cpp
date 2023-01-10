@@ -137,6 +137,18 @@ void StaticMeshRenderer::render(Entity const& entity) const {
 	device.render(m, resources.render, is, tree.global_transform(tree.get(entity.node_id())));
 }
 
+void refactor::StaticMeshRenderer::render(Entity const& entity) const {
+	if (!uri) { return; }
+	auto const& tree = entity.scene().nodes();
+	auto const& resources = Service<Resources>::locate();
+	auto const& m = resources.render.static_meshes.get(uri);
+	if (m.primitives.empty()) { return; }
+	auto& device = Service<GraphicsDevice>::locate();
+	static auto const s_instance = Transform{};
+	auto const is = instances.empty() ? std::span{&s_instance, 1u} : std::span{instances};
+	device.render(m, resources.render, is, tree.global_transform(tree.get(entity.node_id())));
+}
+
 void SkinnedMeshRenderer::set_mesh(AssetId<SkinnedMesh> asset_id_, Skeleton::Instance skeleton_) {
 	asset_id = std::move(asset_id_);
 	skeleton = std::move(skeleton_);
@@ -171,6 +183,12 @@ bool MeshRenderer::serialize(dj::Json& out) const {
 			out["mesh"] = smr.asset_id.uri.value();
 			out["skeleton"] = make_json(smr.skeleton);
 		},
+		[&](refactor::StaticMeshRenderer const& smr) {
+			out["type"] = "static";
+			out["mesh"] = smr.uri.value();
+			auto& instances = out["instances"];
+			for (auto const& in_instance : smr.instances) { asset::to_json(instances.push_back({}), in_instance); }
+		},
 	};
 	std::visit(visitor, renderer);
 	return true;
@@ -180,12 +198,13 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 	auto const type = json["type"].as_string();
 	auto& resources = Service<Resources>::locate();
 	if (type == "static") {
-		auto asset_id = AssetId<StaticMesh>{.uri = json["mesh"].as<std::string>()};
-		if (asset_id.id = resources.load(asset_id.uri); !asset_id) {
-			logger::error("[MeshRenderer] Failed to load StaticMesh [{}]", asset_id.uri.value());
+		// TODO: fix
+		auto uri = json["mesh"].as<std::string>();
+		if (!Service<refactor::Resources>::locate().load_static_mesh(uri)) {
+			logger::error("[MeshRenderer] Failed to load StaticMesh [{}]", uri);
 			return false;
 		}
-		auto smr = StaticMeshRenderer{.asset_id = std::move(asset_id)};
+		auto smr = refactor::StaticMeshRenderer{.uri = std::move(uri)};
 		for (auto const& in_instance : json["instances"].array_view()) {
 			auto& out_instance = smr.instances.emplace_back();
 			asset::from_json(in_instance, out_instance);
@@ -212,6 +231,9 @@ void MeshRenderer::inspect(imcpp::OpenWindow) {
 	auto const visitor = Visitor{
 		[&](StaticMeshRenderer& smr) {
 			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.asset_id.id).name}.c_str());
+		},
+		[&](refactor::StaticMeshRenderer& smr) {
+			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<refactor::Resources>::get().render.static_meshes.get(smr.uri).name}.c_str());
 		},
 		[&](SkinnedMeshRenderer& smr) {
 			auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.asset_id.id);
@@ -282,6 +304,12 @@ bool Scene::load_into_tree(asset::Uri<StaticMesh> uri) {
 	return add_to_tree(uri.value(), id);
 }
 
+bool Scene::load_static_mesh_into_tree(Uri const& uri) {
+	auto* mesh = Service<refactor::Resources>::locate().load_static_mesh(uri);
+	if (!mesh) { return false; }
+	return add_to_tree(uri, *mesh);
+}
+
 bool Scene::load_into_tree(asset::Uri<SkinnedMesh> uri) {
 	auto id = Service<Resources>::get().load(uri);
 	if (!id) { return false; }
@@ -324,6 +352,14 @@ bool Scene::add_to_tree(std::string_view uri, Id<StaticMesh> id) {
 	auto& entity = m_entities.get({node.entity.value()});
 	auto mesh_renderer = StaticMeshRenderer{.asset_id = {std::string{uri}, id}};
 	entity.m_renderer = std::make_unique<MeshRenderer>(std::move(mesh_renderer));
+	return true;
+}
+
+bool Scene::add_to_tree(Uri const& uri, refactor::StaticMesh const& mesh) {
+	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
+	auto& entity = m_entities.get(node.entity);
+	auto mesh_renderer = std::make_unique<MeshRenderer>(refactor::StaticMeshRenderer{.uri = uri});
+	entity.attach(std::move(mesh_renderer));
 	return true;
 }
 

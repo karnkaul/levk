@@ -11,6 +11,17 @@ void GraphicsDevice::render(StaticMesh const& mesh, RenderResources const& resou
 	m_model->render(smri);
 }
 
+void GraphicsDevice::render(refactor::StaticMesh const& mesh, refactor::RenderResources const& resources, std::span<Transform const> instances,
+							glm::mat4 const& parent) {
+	auto const smri = refactor::StaticMeshRenderInfo{
+		resources,
+		mesh,
+		parent,
+		instances,
+	};
+	m_model->render(smri);
+}
+
 void GraphicsDevice::render(SkinnedMesh const& mesh, RenderResources const& resources, std::span<glm::mat4 const> joints) {
 	auto const skri = SkinnedMeshRenderInfo{
 		resources,

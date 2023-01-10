@@ -14,9 +14,9 @@
 #include <levk/util/fixed_string.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/reader.hpp>
-#include <levk/util/resource_map.hpp>
 #include <levk/util/visitor.hpp>
 #include <filesystem>
+#include <iostream>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -171,6 +171,7 @@ struct FreeCam {
 struct Services {
 	std::optional<Service<Engine>::Instance> engine{};
 	std::optional<Service<Resources>::Instance> resources{};
+	std::optional<Service<refactor::Resources>::Instance> resources2{};
 };
 
 std::string trim_to_uri(std::string_view full, std::string_view data) {
@@ -181,16 +182,35 @@ std::string trim_to_uri(std::string_view full, std::string_view data) {
 	return std::string{full};
 }
 
+struct Fps {
+	Clock::time_point start{Clock::now()};
+	int frames{};
+	int fps{};
+
+	int operator()() {
+		auto const now = Clock::now();
+		++frames;
+		if (now - start >= std::chrono::seconds{1}) {
+			fps = frames;
+			frames = 0;
+			start = now;
+		}
+		return fps == 0 ? frames : fps;
+	}
+};
+
 void run(fs::path data_path) {
 	auto reader = FileReader{};
 	reader.mount(data_path.generic_string());
 	auto services = Services{};
 	services.engine.emplace(make_engine(reader));
 	services.resources.emplace(data_path.generic_string());
+	services.resources2.emplace(data_path.generic_string());
 	auto& engine = Service<Engine>::locate();
 	auto scene = std::make_unique<Scene>();
 	auto free_cam = FreeCam{&engine.window()};
 	auto inspect = Inspect{};
+	auto fps = Fps{};
 
 	engine.show();
 	while (engine.is_running()) {
@@ -210,7 +230,8 @@ void run(fs::path data_path) {
 				if (!uri.empty()) {
 					auto const asset_type = AssetLoader::get_asset_type(drop.c_str());
 					if (asset_type == "mesh") {
-						scene->load_mesh_into_tree(uri);
+						// TODO: fix branch for static vs skinned
+						scene->load_static_mesh_into_tree(uri);
 					} else if (asset_type == "scene") {
 						scene->from_json(drop.c_str());
 					}
@@ -240,6 +261,7 @@ void run(fs::path data_path) {
 		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
 		{
 			if (auto w = imcpp::Window{"Scene"}) {
+				ImGui::Text("%s", FixedString{"FPS: {}", fps()}.c_str());
 				float scale = engine.device().info().render_scale;
 				if (ImGui::DragFloat("Render Scale", &scale, 0.05f, render_scale_limit_v[0], render_scale_limit_v[1])) {
 					engine.device().set_render_scale(scale);

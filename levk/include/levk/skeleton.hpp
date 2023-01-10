@@ -51,3 +51,55 @@ struct Skeleton {
 	void set_id(Id<Skeleton> id) { self = id; }
 };
 } // namespace levk
+
+#include <levk/uri.hpp>
+
+namespace levk::refactor {
+struct Skeleton {
+	template <typename T>
+	using Index = std::size_t;
+
+	struct Animation;
+
+	struct Instance {
+		Id<Node> root{};
+		std::vector<Id<Node>> joints{};
+		std::vector<Animation> animations{};
+		TUri<Skeleton> source{};
+	};
+
+	struct Joint {
+		Transform transform{};
+		Index<Joint> self{};
+		std::vector<Index<Joint>> children{};
+		std::optional<Index<Joint>> parent{};
+		std::string name{};
+	};
+
+	struct Animation {
+		template <typename T>
+		using Index = std::size_t;
+
+		struct Source {
+			TransformAnimation animation{};
+			std::vector<Index<Joint>> target_joints{};
+			std::string name{};
+		};
+
+		TUri<Skeleton> skeleton{};
+		Index<Source> source{};
+		std::vector<Id<Node>> target_nodes{};
+
+		void update_nodes(Node::Locator node_locator, Time time, Source const& source) const;
+	};
+
+	std::vector<Joint> joints{};
+	std::vector<Animation::Source> animation_sources{};
+	std::string name{};
+	TUri<Skeleton> self{};
+
+	Instance instantiate(Node::Tree& out, Id<Node> root) const;
+
+	void set_uri(TUri<Skeleton> uri) { self = std::move(uri); }
+};
+} // namespace levk::refactor

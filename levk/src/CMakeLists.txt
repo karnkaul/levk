@@ -23,4 +23,5 @@ target_sources(levk PRIVATE
   skeleton.cpp
   transform_animation.cpp
   transform.cpp
+  uri.cpp
 )

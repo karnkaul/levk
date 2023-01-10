@@ -20,7 +20,6 @@ set(util_headers
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
   include/levk/util/reader.hpp
-  include/levk/util/resource_map.hpp
   include/levk/util/thread_pool.hpp
   include/levk/util/time.hpp
   include/levk/util/type_id.hpp
@@ -76,6 +75,7 @@ set(levk_headers
   include/levk/node.hpp
   include/levk/pixel_map.hpp
   include/levk/render_resources.hpp
+  include/levk/resource_map.hpp
   include/levk/resources.hpp
   include/levk/rgba.hpp
   include/levk/scene.hpp
@@ -92,6 +92,7 @@ set(levk_headers
   include/levk/transform_animation.hpp
   include/levk/transform_controller.hpp
   include/levk/transform.hpp
+  include/levk/uri.hpp
   include/levk/window_common.hpp
   include/levk/window_state.hpp
   include/levk/window.hpp

@@ -12,3 +12,15 @@ struct MeshPrimitive {
 	Topology topology{Topology::eTriangleList};
 };
 } // namespace levk
+
+#include <levk/uri.hpp>
+
+namespace levk::refactor {
+class Material;
+
+struct MeshPrimitive {
+	MeshGeometry geometry;
+	TUri<Material> material{};
+	Topology topology{Topology::eTriangleList};
+};
+} // namespace levk::refactor

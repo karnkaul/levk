@@ -17,6 +17,15 @@ struct StaticMeshRenderer {
 	void render(Entity const& entity) const;
 };
 
+namespace refactor {
+struct StaticMeshRenderer {
+	std::vector<Transform> instances{};
+	TUri<StaticMesh> uri{};
+
+	void render(Entity const& entity) const;
+};
+} // namespace refactor
+
 struct SkeletonController : Component {
 	using Animation = Skeleton::Animation;
 
@@ -44,9 +53,10 @@ struct SkinnedMeshRenderer {
 };
 
 struct MeshRenderer : Entity::Renderer {
-	std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer{};
+	std::variant<StaticMeshRenderer, SkinnedMeshRenderer, refactor::StaticMeshRenderer> renderer{};
 
-	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer = StaticMeshRenderer{}) : renderer(std::move(renderer)) {}
+	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer, refactor::StaticMeshRenderer> renderer = StaticMeshRenderer{})
+		: renderer(std::move(renderer)) {}
 
 	void render() const override;
 
@@ -63,9 +73,11 @@ class Scene : public GraphicsRenderer, public Serializable {
 	bool import_gltf(char const* in_path, std::string_view dest_dir);
 	bool load_mesh_into_tree(std::string_view uri);
 	bool load_into_tree(asset::Uri<StaticMesh> uri);
+	bool load_static_mesh_into_tree(Uri const& uri);
 	bool load_into_tree(asset::Uri<SkinnedMesh> uri);
 	bool add_to_tree(std::string_view uri, Id<SkinnedMesh> id);
 	bool add_to_tree(std::string_view uri, Id<StaticMesh> id);
+	bool add_to_tree(Uri const& uri, refactor::StaticMesh const& static_mesh);
 
 	Node& spawn(Entity entity, Node::CreateInfo const& node_create_info = {});
 	void tick(Time dt);

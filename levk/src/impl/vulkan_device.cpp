@@ -2352,6 +2352,57 @@ void render_mesh(VulkanDevice const& device, RenderInfoT const& info, RenderCmd 
 		}
 	}
 }
+
+template <typename RenderInfoT>
+void render_mesh2(VulkanDevice const& device, RenderInfoT const& info, RenderCmd cmd, RenderPassView rp, RenderMode drm) {
+	static refactor::Material const s_default_mat{std::make_unique<refactor::UnlitMaterial>()};
+	auto const& limits = device.impl->gpu.properties.limits;
+	auto const texture_fallback = refactor::TextureFallback{info.resources.textures, *device.impl->white_texture, *device.impl->black_texture};
+	for (auto const& primitive : info.mesh.primitives) {
+		auto const* vmg = primitive.geometry.template as<VulkanMeshGeometry>();
+		assert(vmg);
+		if (!cmd.cb) {
+			logger::error("[GraphicsDevice] Attempt to call draw outside active render pass");
+			return;
+		}
+		auto const& material = info.resources.materials.get_or(primitive.material, s_default_mat);
+		drm = combine(material.render_mode(), drm);
+		auto const state = PipelineState{
+			.mode = from(drm.type),
+			.topology = from(primitive.topology),
+			.depth_test = drm.depth_test,
+		};
+		auto cb = cmd.cb;
+		auto const& vlayout = vmg->impl->vertex_layout();
+		auto const i = device.impl->buffered_index;
+		auto vert = device.impl->shaders.get(*device.impl->reader, vlayout.shader_uri);
+		auto frag = device.impl->shaders.get(*device.impl->reader, material.shader_id());
+		auto pipe = device.impl->pipelines.get(device.impl->vma, state, vlayout.input, rp, {vert, frag}, i);
+		auto shader = VulkanShader{pipe, device.impl->samplers};
+		auto const line_width = std::clamp(drm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
+		pipe.bind(cb, cmd.extent, line_width);
+		update_view(device, shader);
+		material.write_sets(shader, texture_fallback);
+		if constexpr (std::same_as<RenderInfoT, SkinnedMeshRenderInfo>) {
+			assert(primitive.geometry.has_joints());
+			auto joints_set = vmg->impl->joints_set();
+			assert(joints_set);
+			assert(info.mesh.inverse_bind_matrices.size() >= info.joints.size());
+			auto rewrite = [&](glm::mat4& out, std::size_t index) { out = info.joints[index] * info.mesh.inverse_bind_matrices[index]; };
+			auto const joint_mats = [&] { return device.impl->joints_vec.write(device.impl->vma, info.joints.size(), device.impl->buffered_index, rewrite); }();
+			shader.update(*joints_set, 0, joint_mats);
+			shader.bind(pipe.layout, cb);
+			vmg->impl->draw(cb);
+		} else {
+			shader.bind(pipe.layout, cb);
+			assert(!primitive.geometry.has_joints());
+			auto write_instances = [&](glm::mat4& out, std::size_t index) { out = info.parent * info.instances[index].matrix(); };
+			auto instance_buffer = device.impl->instance_vec.write(device.impl->vma, info.instances.size(), device.impl->buffered_index, write_instances);
+			cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
+			vmg->impl->draw(cb, static_cast<std::uint32_t>(info.instances.size()));
+		}
+	}
+}
 } // namespace
 } // namespace levk
 
@@ -2605,6 +2656,15 @@ void levk::gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info) {
 		return;
 	}
 	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
+	// TODO: update stats
+}
+
+void levk::gfx_render(VulkanDevice& out, refactor::StaticMeshRenderInfo const& info) {
+	if (!out.impl->cmd_3d.cb) {
+		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
+		return;
+	}
+	render_mesh2(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
 	// TODO: update stats
 }
 

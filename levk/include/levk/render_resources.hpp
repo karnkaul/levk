@@ -20,3 +20,21 @@ struct RenderResources {
 	}
 };
 } // namespace levk
+
+#include <levk/resource_map.hpp>
+
+namespace levk::refactor {
+struct RenderResources {
+	ResourceMap<Texture> textures{};
+	ResourceMap<Material> materials{};
+	ResourceMap<StaticMesh> static_meshes{};
+	ResourceMap<SkinnedMesh> skinned_meshes{};
+	ResourceMap<Skeleton> skeletons{};
+
+	Ptr<Skeleton const> find_skeleton(Uri const& mesh_uri) const {
+		auto const* mesh = skinned_meshes.find(mesh_uri);
+		if (!mesh) { return {}; }
+		return skeletons.find(mesh->skeleton);
+	}
+};
+} // namespace levk::refactor
