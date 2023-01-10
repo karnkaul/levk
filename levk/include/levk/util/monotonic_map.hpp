@@ -2,9 +2,11 @@
 #include <levk/util/id.hpp>
 #include <levk/util/ptr.hpp>
 #include <cassert>
+#include <functional>
 #include <mutex>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace levk {
 template <typename Type>
@@ -80,6 +82,18 @@ class MonotonicMap {
 	void for_each(F&& func) const {
 		auto lock = std::scoped_lock{m_mutex};
 		for (auto& [key, value] : m_map) { func(key, value); }
+	}
+
+	void fill_to(std::vector<std::reference_wrapper<Type>>& out) {
+		auto lock = std::scoped_lock{m_mutex};
+		out.reserve(out.size() + m_map.size());
+		for (auto& [key, value] : m_map) { out.push_back(value); }
+	}
+
+	void fill_to(std::vector<std::reference_wrapper<Type const>>& out) const {
+		auto lock = std::scoped_lock{m_mutex};
+		out.reserve(out.size() + m_map.size());
+		for (auto& [key, value] : m_map) { out.push_back(value); }
 	}
 
 	void import_map(std::unordered_map<id_underlying_t, Type> map) {

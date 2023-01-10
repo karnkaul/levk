@@ -236,9 +236,10 @@ struct GltfExporter {
 		material.alpha_mode = from(in.alpha_mode);
 		material.alpha_cutoff = in.alpha_cutoff;
 		material.name = in.name;
-		if (auto i = in.pbr.base_color_texture) { material.base_colour = copy_image(in_root.textures[i->texture], i->texture); }
-		if (auto i = in.pbr.metallic_roughness_texture) { material.roughness_metallic = copy_image(in_root.textures[i->texture], i->texture); }
-		if (auto i = in.emissive_texture) { material.emissive = copy_image(in_root.textures[i->texture], i->texture); }
+		auto& textures = material.textures.textures;
+		if (auto i = in.pbr.base_color_texture) { textures[0] = {copy_image(in_root.textures[i->texture], i->texture), ColourSpace::eSrgb}; }
+		if (auto i = in.pbr.metallic_roughness_texture) { textures[1] = {copy_image(in_root.textures[i->texture], i->texture), ColourSpace::eLinear}; }
+		if (auto i = in.emissive_texture) { textures[2] = {copy_image(in_root.textures[i->texture], i->texture), ColourSpace::eSrgb}; }
 		material.emissive_factor = {in.emissive_factor[0], in.emissive_factor[1], in.emissive_factor[2]};
 		auto uri = fmt::format("{}.json", av_material.asset_name);
 		auto json = dj::Json{};

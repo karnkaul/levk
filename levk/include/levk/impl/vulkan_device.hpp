@@ -60,6 +60,7 @@ bool gfx_mesh_has_joints(VulkanMeshGeometry const& mesh);
 Texture gfx_make_texture(VulkanDevice const& device, TextureCreateInfo create_info, Image::View image);
 TextureSampler const& gfx_tex_sampler(VulkanTexture const& texture);
 ColourSpace gfx_tex_colour_space(VulkanTexture const& texture);
+Extent2D gfx_tex_extent(VulkanTexture const& texture);
 std::uint32_t gfx_tex_mip_levels(VulkanTexture const& texture);
 
 void gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info);

@@ -14,9 +14,11 @@
 #include <levk/util/fixed_string.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/reader.hpp>
-#include <levk/util/resource_map.hpp>
 #include <levk/util/visitor.hpp>
 #include <filesystem>
+#include <iostream>
+
+#include <levk/imcpp/resource_inspector.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -41,25 +43,40 @@ fs::path find_data(fs::path exe) {
 	return {};
 }
 
-bool walk_node(Node::Locator& node_locator, Node& node, Id<Node>& inspect) {
+struct Inspect {
+	enum class Type { eEntity, eCamera, eLights };
+
+	Id<Entity> entity{};
+	Type type{};
+
+	explicit constexpr operator bool() const { return type != Type::eEntity || entity != Id<Entity>{}; }
+
+	constexpr bool operator==(Id<Entity> id) const { return type == Type::eEntity && id == entity; }
+	constexpr bool operator==(Type desired) const { return type == desired; }
+};
+
+void add_camera_node(Inspect& inspect) {
 	auto flags = int{};
 	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
-	if (inspect == node.id()) { flags |= ImGuiTreeNodeFlags_Selected; }
+	if (inspect.type == Inspect::Type::eCamera) { flags |= ImGuiTreeNodeFlags_Selected; }
+	imcpp::TreeNode::leaf("Camera", flags);
+	if (ImGui::IsItemClicked()) { inspect.type = Inspect::Type::eCamera; }
+}
+
+bool walk_node(Node::Locator& node_locator, Node& node, Inspect& inspect) {
+	auto flags = int{};
+	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
+	if (node.entity && inspect == node.entity) { flags |= ImGuiTreeNodeFlags_Selected; }
 	if (node.children().empty()) { flags |= ImGuiTreeNodeFlags_Leaf; }
 	auto tn = imcpp::TreeNode{node.name.c_str(), flags};
-	if (ImGui::IsItemClicked()) { inspect = node.id(); }
+	if (ImGui::IsItemClicked() && node.entity) { inspect = {node.entity, Inspect::Type::eEntity}; }
 	auto const id = node.id().value();
-	if (ImGui::BeginDragDropSource()) {
-		ImGui::SetDragDropPayload("node", &id, sizeof(id));
-		ImGui::EndDragDropSource();
-	}
-	if (ImGui::BeginDragDropTarget()) {
-		if (auto const* payload = ImGui::AcceptDragDropPayload("entity")) {
-			auto const child = *static_cast<std::size_t const*>(payload->Data);
-			node_locator.reparent(node_locator.get(Id<Node>{child}), id);
+	if (auto source = imcpp::DragDrop::Source{}) { imcpp::DragDrop::set<std::size_t>("node", id, node.name); }
+	if (auto target = imcpp::DragDrop::Target{}) {
+		if (auto const* node_id = imcpp::DragDrop::accept<std::size_t>("node")) {
+			node_locator.reparent(node_locator.get(*node_id), id);
 			return false;
 		}
-		ImGui::EndDragDropTarget();
 	}
 	if (tn) {
 		for (auto& id : node.children()) {
@@ -69,69 +86,31 @@ bool walk_node(Node::Locator& node_locator, Node& node, Id<Node>& inspect) {
 	return true;
 }
 
-void draw_scene_tree(imcpp::NotClosed<imcpp::Window>, Node::Locator node_locator, Id<Node>& inspect) {
+void draw_scene_tree(imcpp::OpenWindow, Node::Locator node_locator, Inspect& inspect) {
 	for (auto const& node : node_locator.roots()) {
 		if (!walk_node(node_locator, node_locator.get(node), inspect)) { return; }
 	}
 }
 
-void draw_inspector(imcpp::NotClosed<imcpp::Window> w, Scene& scene, Id<Node> id) {
-	if (!id) { return; }
-	auto* node = scene.node_locator().find(id);
-	if (!node) { return; }
-	imcpp::TreeNode::leaf(node->name.c_str());
-	if (auto tn = imcpp::TreeNode("Transform", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
-		auto unified_scaling = Bool{true};
-		imcpp::Reflector{w}(node->transform, unified_scaling, {true});
-	}
-	auto* entity = scene.find(Id<Entity>{node->entity});
-	if (!entity) { return; }
-	auto inspect_skeleton_controller = [&](SkeletonController& controller, SkinnedMeshRenderer const& renderer) {
-		if (renderer.skeleton.animations.empty()) { return; }
-		if (auto tn = imcpp::TreeNode("Animation", ImGuiTreeNodeFlags_Framed)) {
-			auto const preview = controller.enabled ? FixedString{"{}", controller.enabled->value()} : FixedString{"[None]"};
-			if (ImGui::BeginCombo("Active", preview.c_str())) {
-				if (ImGui::Selectable("[None]")) {
-					controller.change_animation({});
-				} else {
-					for (std::size_t i = 0; i < renderer.skeleton.animations.size(); ++i) {
-						if (ImGui::Selectable(FixedString{"{}", i}.c_str(), controller.enabled && i == controller.enabled->value())) {
-							controller.change_animation(i);
-							break;
-						}
-					}
-				}
-				ImGui::EndCombo();
-			}
-			if (controller.enabled) {
-				auto& animation = renderer.skeleton.animations[*controller.enabled];
-				auto const& skeleton = Service<Resources>::get().render.skeletons.get(animation.skeleton);
-				auto const& source = skeleton.animation_sources[animation.source];
-				ImGui::Text("%s", FixedString{"Duration: {:.1f}s", source.animation.duration().count()}.c_str());
-				float const progress = controller.elapsed / source.animation.duration();
-				ImGui::ProgressBar(progress);
-			}
+void draw_inspector(imcpp::OpenWindow w, Scene& scene, Inspect inspect) {
+	switch (inspect.type) {
+	case Inspect::Type::eCamera: {
+		imcpp::TreeNode::leaf("Camera", ImGuiTreeNodeFlags_SpanFullWidth);
+		if (auto tn = imcpp::TreeNode{"Transform", ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen}) {
+			Bool unified_scaling{true};
+			imcpp::Reflector{w}(scene.camera.transform, unified_scaling, {});
 		}
-	};
-	auto* mesh_renderer = dynamic_cast<MeshRenderer*>(entity->renderer());
-	if (mesh_renderer) {
-		if (auto tn = imcpp::TreeNode("Mesh Renderer", ImGuiTreeNodeFlags_Framed)) {
-			auto const visitor = Visitor{
-				[&](StaticMeshRenderer& smr) {
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.asset_id.id).name}.c_str());
-				},
-				[&](SkinnedMeshRenderer& smr) {
-					auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.asset_id.id);
-					auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
-					imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
-					imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
-				},
-			};
-			std::visit(visitor, mesh_renderer->renderer);
-		}
+		break;
 	}
-	if (auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer)) {
-		if (auto* skeleton_controller = entity->find<SkeletonController>()) { inspect_skeleton_controller(*skeleton_controller, *skinned_mesh_renderer); }
+	case Inspect::Type::eLights: {
+		break;
+	}
+	default: {
+		auto* entity = scene.find(inspect.entity);
+		if (!entity) { return; }
+		entity->inspect(w);
+		break;
+	}
 	}
 }
 
@@ -140,9 +119,8 @@ struct FreeCam {
 	glm::vec3 move_speed{10.0f};
 	float look_speed{0.3f};
 
-	glm::quat horz{glm::identity<glm::quat>()};
-	glm::quat vert{glm::identity<glm::quat>()};
 	glm::vec2 prev_cursor{};
+	glm::vec2 pitch_yaw{};
 
 	void tick(Transform& transform, Input const& input, Time dt) {
 		auto data = transform.data();
@@ -153,37 +131,35 @@ struct FreeCam {
 			if (window->cursor_mode() == CursorMode::eDisabled) { window->set_cursor_mode(CursorMode::eNormal); }
 		}
 
+		auto dxy = glm::vec2{};
 		if (window->cursor_mode() != CursorMode::eDisabled) {
 			prev_cursor = input.cursor;
-			return;
+			pitch_yaw = glm::eulerAngles(transform.orientation());
+		} else {
+			dxy = input.cursor - prev_cursor;
+			pitch_yaw -= look_speed * glm::vec2{glm::radians(dxy.y), glm::radians(dxy.x)};
+
+			auto dxyz = glm::vec3{};
+			auto front = data.orientation * front_v;
+			auto right = data.orientation * right_v;
+			auto up = data.orientation * up_v;
+
+			if (input.is_held(Key::eW) || input.is_held(Key::eUp)) { dxyz.z -= 1.0f; }
+			if (input.is_held(Key::eS) || input.is_held(Key::eDown)) { dxyz.z += 1.0f; }
+			if (input.is_held(Key::eA) || input.is_held(Key::eLeft)) { dxyz.x -= 1.0f; }
+			if (input.is_held(Key::eD) || input.is_held(Key::eRight)) { dxyz.x += 1.0f; }
+			if (input.is_held(Key::eQ)) { dxyz.y -= 1.0f; }
+			if (input.is_held(Key::eE)) { dxyz.y += 1.0f; }
+			if (std::abs(dxyz.x) > 0.0f || std::abs(dxyz.y) > 0.0f || std::abs(dxyz.z) > 0.0f) {
+				dxyz = glm::normalize(dxyz);
+				auto const factor = dt.count() * move_speed;
+				data.position += factor * front * dxyz.z;
+				data.position += factor * right * dxyz.x;
+				data.position += factor * up * dxyz.y;
+			}
 		}
 
-		auto const dxy = input.cursor - prev_cursor;
-		if (std::abs(dxy.x) > 0.0f) { horz = glm::rotate(horz, glm::radians(-dxy.x) * look_speed, up_v); }
-		if (std::abs(dxy.y) > 0.0f) { vert = glm::rotate(vert, glm::radians(-dxy.y) * look_speed, right_v); }
-
-		auto dxyz = glm::vec3{};
-		data.orientation = horz * vert;
-		auto front = data.orientation * front_v;
-		auto right = data.orientation * right_v;
-		auto up = data.orientation * up_v;
-
-		if (input.is_held(Key::eW) || input.is_held(Key::eUp)) { dxyz.z -= 1.0f; }
-		if (input.is_held(Key::eS) || input.is_held(Key::eDown)) { dxyz.z += 1.0f; }
-		if (input.is_held(Key::eA) || input.is_held(Key::eLeft)) { dxyz.x -= 1.0f; }
-		if (input.is_held(Key::eD) || input.is_held(Key::eRight)) { dxyz.x += 1.0f; }
-		if (input.is_held(Key::eQ)) { dxyz.y -= 1.0f; }
-		if (input.is_held(Key::eE)) { dxyz.y += 1.0f; }
-		if (std::abs(dxyz.x) > 0.0f || std::abs(dxyz.y) > 0.0f || std::abs(dxyz.z) > 0.0f) {
-			dxyz = glm::normalize(dxyz);
-			auto const factor = dt.count() * move_speed;
-			data.position += factor * front * dxyz.z;
-			data.position += factor * right * dxyz.x;
-			data.position += factor * up * dxyz.y;
-		}
-
-		data.orientation = data.orientation;
-
+		data.orientation = glm::vec3{pitch_yaw, 0.0f};
 		transform.set_data(data);
 
 		prev_cursor = input.cursor;
@@ -193,7 +169,6 @@ struct FreeCam {
 struct Services {
 	std::optional<Service<Engine>::Instance> engine{};
 	std::optional<Service<Resources>::Instance> resources{};
-	Service<Serializer>::Instance serializer{};
 };
 
 std::string trim_to_uri(std::string_view full, std::string_view data) {
@@ -204,6 +179,23 @@ std::string trim_to_uri(std::string_view full, std::string_view data) {
 	return std::string{full};
 }
 
+struct Fps {
+	Clock::time_point start{Clock::now()};
+	int frames{};
+	int fps{};
+
+	int operator()() {
+		auto const now = Clock::now();
+		++frames;
+		if (now - start >= std::chrono::seconds{1}) {
+			fps = frames;
+			frames = 0;
+			start = now;
+		}
+		return fps == 0 ? frames : fps;
+	}
+};
+
 void run(fs::path data_path) {
 	auto reader = FileReader{};
 	reader.mount(data_path.generic_string());
@@ -213,10 +205,10 @@ void run(fs::path data_path) {
 	auto& engine = Service<Engine>::locate();
 	auto scene = std::make_unique<Scene>();
 	auto free_cam = FreeCam{&engine.window()};
-	auto inspect = Id<Node>{};
+	auto inspect = Inspect{};
+	auto fps = Fps{};
 
-	services.serializer.get().bind_to<SkeletonController>("skeleton_controller");
-	services.serializer.get().bind_to<MeshRenderer>("mesh_renderer");
+	auto resource_inspector = imcpp::ResourceInspector{};
 
 	engine.show();
 	while (engine.is_running()) {
@@ -247,7 +239,7 @@ void run(fs::path data_path) {
 
 		// tick
 		scene->tick(frame.dt);
-		free_cam.tick(engine.camera.transform, frame.state.input, frame.dt);
+		free_cam.tick(scene->camera.transform, frame.state.input, frame.dt);
 		if constexpr (debug_v) {
 			static bool show_demo{true};
 			if (show_demo) { ImGui::ShowDemoWindow(&show_demo); }
@@ -257,25 +249,45 @@ void run(fs::path data_path) {
 		if (frame.state.input.chord(Key::eS, Key::eLeftControl)) {
 			auto json = dj::Json{};
 			scene->serialize(json);
-			json.to_file((data_path / "test_scene.json").string().c_str());
+			auto filename = "test_scene.json";
+			json.to_file((data_path / filename).string().c_str());
+			logger::debug("Scene saved to {}", filename);
 		}
 		// test code
 
 		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
-		if (auto w = imcpp::Window{"Scene"}) {
-			float scale = engine.device().info().render_scale;
-			if (ImGui::DragFloat("Render Scale", &scale, 0.05f, render_scale_limit_v[0], render_scale_limit_v[1])) { engine.device().set_render_scale(scale); }
-			ImGui::Separator();
-			draw_scene_tree(w, scene->node_locator(), inspect);
+		{
+			if (auto w = imcpp::Window{"Scene"}) {
+				ImGui::Text("%s", FixedString{"FPS: {}", fps()}.c_str());
+				float scale = engine.device().info().render_scale;
+				if (ImGui::DragFloat("Render Scale", &scale, 0.05f, render_scale_limit_v[0], render_scale_limit_v[1])) {
+					engine.device().set_render_scale(scale);
+				}
+				ImGui::Separator();
+				add_camera_node(inspect);
+				draw_scene_tree(w, scene->node_locator(), inspect);
+				if (auto* payload = ImGui::GetDragDropPayload(); payload && payload->IsDataType("node")) {
+					imcpp::TreeNode::leaf("(Unparent)");
+					if (auto target = imcpp::DragDrop::Target{}) {
+						if (auto const* node_id = imcpp::DragDrop::accept<std::size_t>("node")) {
+							auto node_locator = scene->node_locator();
+							node_locator.reparent(node_locator.get(*node_id), {});
+						}
+					}
+				}
+			}
 		}
-		if (bool show_inspector = inspect) {
+		if (bool show_inspector = static_cast<bool>(inspect)) {
 			ImGui::SetNextWindowPos({ImGui::GetIO().DisplaySize.x - 500.0f, 0.0f});
 			ImGui::SetNextWindowSize({500.0f, ImGui::GetIO().DisplaySize.y});
 			if (auto w = imcpp::Window{"Inspector", &show_inspector}) { draw_inspector(w, *scene, inspect); }
 			if (!show_inspector) { inspect = {}; }
 		}
 
-		engine.render(*scene, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
+		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
+		if (auto w = imcpp::Window{"Resources"}) { resource_inspector.inspect(w, Service<Resources>::locate()); }
+
+		engine.render(*scene, scene->camera, scene->lights, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
 	}
 }
 } // namespace

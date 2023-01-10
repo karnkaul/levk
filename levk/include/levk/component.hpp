@@ -1,4 +1,5 @@
 #pragma once
+#include <levk/imcpp/inspectable.hpp>
 #include <levk/serializable.hpp>
 #include <levk/util/id.hpp>
 #include <levk/util/ptr.hpp>
@@ -8,7 +9,7 @@ namespace levk {
 class Entity;
 class Scene;
 
-class Component : public ISerializable {
+class Component : public Serializable, public imcpp::Inspectable {
   public:
 	virtual ~Component() = default;
 

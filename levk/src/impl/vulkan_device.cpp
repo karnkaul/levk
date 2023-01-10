@@ -2304,7 +2304,7 @@ constexpr RenderMode combine(RenderMode const in, RenderMode def) {
 
 template <typename RenderInfoT>
 void render_mesh(VulkanDevice const& device, RenderInfoT const& info, RenderCmd cmd, RenderPassView rp, RenderMode drm) {
-	static Material const s_default_mat{UnlitMaterial{}};
+	static Material const s_default_mat{std::make_unique<UnlitMaterial>()};
 	auto const& limits = device.impl->gpu.properties.limits;
 	auto const texture_fallback = TextureFallback{info.resources.textures, *device.impl->white_texture, *device.impl->black_texture};
 	for (auto const& primitive : info.mesh.primitives) {
@@ -2597,6 +2597,12 @@ levk::Texture levk::gfx_make_texture(VulkanDevice const& device, Texture::Create
 
 levk::TextureSampler const& levk::gfx_tex_sampler(VulkanTexture const& texture) { return texture.impl->sampler; }
 levk::ColourSpace levk::gfx_tex_colour_space(VulkanTexture const& texture) { return texture.impl->colour_space(); }
+
+levk::Extent2D levk::gfx_tex_extent(VulkanTexture const& texture) {
+	auto const view = texture.impl->view();
+	return {view.extent.width, view.extent.height};
+}
+
 std::uint32_t levk::gfx_tex_mip_levels(VulkanTexture const& texture) { return texture.impl->mip_levels(); }
 
 void levk::gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info) {

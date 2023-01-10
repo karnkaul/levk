@@ -17,10 +17,10 @@ set(util_headers
   include/levk/util/logger.hpp
   include/levk/util/monotonic_map.hpp
   include/levk/util/nvec3.hpp
+  include/levk/util/path_tree.hpp
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
   include/levk/util/reader.hpp
-  include/levk/util/resource_map.hpp
   include/levk/util/thread_pool.hpp
   include/levk/util/time.hpp
   include/levk/util/type_id.hpp
@@ -40,7 +40,9 @@ set(impl_headers
 
 set(imcpp_headers
   include/levk/imcpp/common.hpp
+  include/levk/imcpp/inspectable.hpp
   include/levk/imcpp/reflector.hpp
+  include/levk/imcpp/resource_inspector.hpp
 )
 
 set(assets_headers
@@ -75,6 +77,7 @@ set(levk_headers
   include/levk/node.hpp
   include/levk/pixel_map.hpp
   include/levk/render_resources.hpp
+  include/levk/resource_map.hpp
   include/levk/resources.hpp
   include/levk/rgba.hpp
   include/levk/scene.hpp
@@ -91,6 +94,7 @@ set(levk_headers
   include/levk/transform_animation.hpp
   include/levk/transform_controller.hpp
   include/levk/transform.hpp
+  include/levk/uri.hpp
   include/levk/window_common.hpp
   include/levk/window_state.hpp
   include/levk/window.hpp

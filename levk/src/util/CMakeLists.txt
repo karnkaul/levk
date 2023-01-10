@@ -4,6 +4,7 @@ target_sources(levk PRIVATE
   env.cpp
   loader.cpp
   logger.cpp
+  path_tree.cpp
   reader.cpp
   thread_pool.cpp
 )

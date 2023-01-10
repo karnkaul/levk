@@ -1,5 +1,7 @@
 #include <levk/asset/asset_loader.hpp>
 #include <levk/asset/common.hpp>
+#include <levk/serializer.hpp>
+#include <levk/service.hpp>
 #include <levk/util/logger.hpp>
 #include <filesystem>
 
@@ -7,51 +9,14 @@ namespace levk {
 namespace {
 namespace fs = std::filesystem;
 
-std::string asset_path(fs::path const& dir, std::string_view const suffix) { return (dir / suffix).string(); };
-
-template <typename T>
-T make_mesh(dj::Json const& json, AssetLoader const& loader, fs::path const& dir) {
-	auto ret = T{};
-	ret.name = json["name"].as_string();
-	auto asset = asset::Mesh{};
-	asset::from_json(json, asset);
-	for (auto const& in_primitive : asset.primitives) {
-		assert(!in_primitive.geometry.value().empty());
-		auto bin_geometry = asset::BinGeometry{};
-		if (!bin_geometry.read(asset_path(dir, in_primitive.geometry.value()).c_str())) {
-			logger::error("[Load] Failed to read bin geometry [{}]", in_primitive.geometry.value());
-			continue;
-		}
-		auto asset_material = asset::Material{};
-		if (!in_primitive.material.value().empty()) {
-			auto json = dj::Json::from_file(asset_path(dir, in_primitive.material.value()).c_str());
-			if (!json) {
-				logger::error("[Load] Failed to open material JSON [{}]", in_primitive.material.value());
-			} else {
-				asset::from_json(json, asset_material);
-			}
-		}
-		auto material = LitMaterial{};
-		material.albedo = asset_material.albedo;
-		material.emissive_factor = asset_material.emissive_factor;
-		material.metallic = asset_material.metallic;
-		material.roughness = asset_material.roughness;
-		material.alpha_cutoff = asset_material.alpha_cutoff;
-		material.alpha_mode = asset_material.alpha_mode;
-		material.shader = asset_material.shader;
-		if (!asset_material.base_colour.empty()) {
-			material.base_colour = loader.load_texture(asset_path(dir, asset_material.base_colour).c_str(), ColourSpace::eSrgb);
-		}
-		if (!asset_material.emissive.empty()) { material.emissive = loader.load_texture(asset_path(dir, asset_material.emissive).c_str(), ColourSpace::eSrgb); }
-		if (!asset_material.roughness_metallic.empty()) {
-			material.roughness_metallic = loader.load_texture(asset_path(dir, asset_material.roughness_metallic).c_str(), ColourSpace::eLinear);
-		}
-		auto material_id = loader.render_resources.materials.add(std::move(material)).first;
-		auto geometry = loader.graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
-		ret.primitives.push_back(MeshPrimitive{std::move(geometry), material_id});
+std::unique_ptr<MaterialBase> to_material_base(Uri const& parent, dj::Json const& json) {
+	auto ret = Service<Serializer>::locate().deserialize_as<MaterialBase>(json);
+	if (!ret) { return {}; }
+	for (auto& info : ret.value->textures.textures) {
+		if (!info.uri) { continue; }
+		info.uri = parent.append(info.uri.value());
 	}
-	if constexpr (std::same_as<T, SkinnedMesh>) { ret.inverse_bind_matrices = asset.inverse_bind_matrices; }
-	return ret;
+	return std::move(ret.value);
 }
 
 dj::Json open_json(char const* path) {
@@ -61,64 +26,100 @@ dj::Json open_json(char const* path) {
 }
 } // namespace
 
-Id<Texture> AssetLoader::load_texture(char const* path, ColourSpace colour_space) const {
-	auto image = Image{path, fs::path{path}.filename().string()};
+Ptr<Texture> AssetLoader::load_texture(Uri const& uri, ColourSpace colour_space) const {
+	auto image = Image{uri.absolute_path(root_dir).c_str(), fs::path{uri.value()}.filename().string()};
 	if (!image) {
-		logger::error("[Load] Failed to load image [{}]", path);
+		logger::error("[Load] Failed to load image [{}]", uri.value());
 		return {};
 	}
 	auto const tci = TextureCreateInfo{
-		.name = fs::path{path}.filename().string(),
+		.name = std::string{image.name()},
 		.mip_mapped = colour_space == ColourSpace::eSrgb,
 		.colour_space = colour_space,
 	};
 	auto texture = graphics_device.make_texture(image, std::move(tci));
-	logger::info("[Load] [{}] Texture loaded", texture.name());
-	return render_resources.textures.add(std::move(texture)).first;
+	logger::info("[Load] [{}] Texture loaded", uri.value());
+	return &render_resources.textures.add(uri, std::move(texture));
 }
 
-Id<StaticMesh> AssetLoader::try_load_static_mesh(char const* path) const {
-	auto json = open_json(path);
+Ptr<Material> AssetLoader::load_material(Uri const& uri) const {
+	auto json = dj::Json::from_file(uri.absolute_path(root_dir).c_str());
+	if (!json) {
+		logger::error("[Load] Failed to load Material JSON [{}]", uri.value());
+		return {};
+	}
+	auto mat = to_material_base(uri.parent(), json);
+	if (!mat) {
+		logger::error("[Load] Failed to load Material [{}]", uri.value());
+		return {};
+	}
+	for (auto const& [tex_uri, colour_space] : mat->textures.textures) {
+		if (tex_uri) { load_texture(tex_uri, colour_space); }
+	}
+	logger::info("[Load] [{}] Material loaded", uri.value());
+	return &render_resources.materials.add(uri, Material{std::move(mat)});
+}
+
+Ptr<StaticMesh> AssetLoader::try_load_static_mesh(Uri const& uri) const {
+	auto const path = uri.absolute_path(root_dir);
+	auto json = open_json(path.c_str());
 	if (!json) { return {}; }
-	if (json["asset_type"].as_string() != "mesh") {
-		logger::error("[Load] JSON is not a Mesh [{}]", path);
-		return {};
-	}
-	if (json["type"].as_string() != "static") { return {}; }
-	return load_static_mesh(path, json);
+	if (json["asset_type"].as_string() != "mesh" || json["type"].as_string() != "static") { return {}; }
+	return load_static_mesh(uri, json);
 }
 
-Id<StaticMesh> AssetLoader::load_static_mesh(char const* path, dj::Json const& json) const {
+Ptr<StaticMesh> AssetLoader::load_static_mesh(Uri const& uri, dj::Json const& json) const {
 	if (json["type"].as_string() != "static") {
-		logger::error("[Load] JSON is not a StaticMesh [{}]", path);
+		logger::error("[Load] JSON is not a StaticMesh [{}]", uri.value());
 		return {};
 	}
-	auto mesh = make_mesh<StaticMesh>(json, *this, fs::path{path}.parent_path());
-	logger::info("[Load] [{}] StaticMesh loaded", mesh.name);
-	return render_resources.static_meshes.add(std::move(mesh)).first;
+	auto dir_uri = Uri{uri.parent()};
+	auto mesh = StaticMesh{};
+	mesh.name = json["name"].as_string();
+	auto asset = asset::Mesh{};
+	asset::from_json(json, asset);
+	for (auto const& in_primitive : asset.primitives) {
+		assert(!in_primitive.geometry.value().empty());
+		auto bin_geometry = asset::BinGeometry{};
+		auto bin_geometry_uri = Uri{dir_uri.append(in_primitive.geometry.value())};
+		if (!bin_geometry.read(bin_geometry_uri.absolute_path(root_dir).c_str())) {
+			logger::error("[Load] Failed to read bin geometry [{}]", bin_geometry_uri.value());
+			continue;
+		}
+		auto geometry = graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
+		auto material_uri = Uri{};
+		if (!in_primitive.material.value().empty()) {
+			material_uri = Uri{dir_uri}.append(in_primitive.material.value());
+			load_material(material_uri);
+		}
+		mesh.primitives.push_back(MeshPrimitive{std::move(geometry), std::move(material_uri)});
+	}
+	logger::info("[Load] [{}] StaticMesh loaded", uri.value());
+	return &render_resources.static_meshes.add(uri, std::move(mesh));
 }
 
-Id<levk::Skeleton> AssetLoader::load_skeleton(char const* path) const {
-	auto const json = open_json(path);
+Ptr<Skeleton> AssetLoader::load_skeleton(Uri const& uri) const {
+	auto const json = dj::Json::from_file(uri.absolute_path(root_dir).c_str());
 	if (!json) { return {}; }
 	if (json["asset_type"].as_string() != "skeleton") {
-		logger::error("[Load] JSON is not a Skeleton [{}]", path);
+		logger::error("[Load] JSON is not a Skeleton [{}]", uri.value());
 		return {};
 	}
 	auto asset = asset::Skeleton{};
 	asset::from_json(json, asset);
-	auto const parent_dir = fs::path{path}.parent_path();
+	auto dir_uri = Uri{uri.parent()};
 	auto skeleton = Skeleton{};
 	skeleton.name = std::string{json["name"].as_string()};
 	skeleton.joints = std::move(asset.joints);
 	for (auto const& in_animation : asset.animations) {
-		auto const in_animation_asset = open_json((parent_dir / in_animation.value()).generic_string().c_str());
+		auto animation_uri = Uri{dir_uri.append(in_animation.value())};
+		auto const in_animation_asset = open_json(animation_uri.absolute_path(root_dir).c_str());
 		if (!in_animation_asset) {
 			logger::warn("[Load] Failed to load Skeletal animation JSON [{}]", in_animation.value());
 			continue;
 		}
 		auto out_animation_asset = asset::BinSkeletalAnimation{};
-		if (!out_animation_asset.read((parent_dir / in_animation.value()).string().c_str())) {
+		if (!out_animation_asset.read(animation_uri.absolute_path(root_dir).c_str())) {
 			logger::warn("[Load] Failed to load SkeletalAnimation at: [{}]", in_animation.value());
 			continue;
 		}
@@ -129,40 +130,61 @@ Id<levk::Skeleton> AssetLoader::load_skeleton(char const* path) const {
 		for (auto const& in_sampler : out_animation_asset.samplers) { source.animation.samplers.push_back({in_sampler}); }
 		skeleton.animation_sources.push_back(std::move(source));
 	}
+	skeleton.self = uri;
 	logger::info("[Load] [{}] Skeleton loaded", asset.name);
-	return render_resources.skeletons.add(std::move(skeleton)).first;
+	return &render_resources.skeletons.add(uri, std::move(skeleton));
 }
 
-Id<SkinnedMesh> AssetLoader::try_load_skinned_mesh(char const* path) const {
-	auto const json = open_json(path);
+Ptr<SkinnedMesh> AssetLoader::try_load_skinned_mesh(Uri const& uri) const {
+	auto const json = open_json(uri.absolute_path(root_dir).c_str());
 	if (!json) { return {}; }
 	if (json["asset_type"].as_string() != "mesh") {
-		logger::error("[Load] JSON is not a Mesh [{}]", path);
+		logger::error("[Load] JSON is not a Mesh [{}]", uri.value());
 		return {};
 	}
 	if (json["type"].as_string() != "skinned") { return {}; }
-	return load_skinned_mesh(path, json);
+	return load_skinned_mesh(uri, json);
 }
 
-Id<SkinnedMesh> AssetLoader::load_skinned_mesh(char const* path, dj::Json const& json) const {
+Ptr<SkinnedMesh> AssetLoader::load_skinned_mesh(Uri const& uri, dj::Json const& json) const {
 	if (json["type"].as_string() != "skinned") {
-		logger::error("[Load] JSON is not a SkinnedMesh [{}]", path);
+		logger::error("[Load] JSON is not a SkinnedMesh [{}]", uri.value());
 		return {};
 	}
-	auto const dir = fs::path{path}.parent_path();
-	auto mesh = make_mesh<SkinnedMesh>(json, *this, dir);
+	auto dir_uri = Uri{uri.parent()};
+	auto mesh = SkinnedMesh{};
+	mesh.name = json["name"].as_string();
+	auto asset = asset::Mesh{};
+	asset::from_json(json, asset);
+	for (auto const& in_primitive : asset.primitives) {
+		assert(!in_primitive.geometry.value().empty());
+		auto bin_geometry = asset::BinGeometry{};
+		auto bin_geometry_uri = Uri{dir_uri.append(in_primitive.geometry.value())};
+		if (!bin_geometry.read(bin_geometry_uri.absolute_path(root_dir).c_str())) {
+			logger::error("[Load] Failed to read bin geometry [{}]", bin_geometry_uri.value());
+			continue;
+		}
+		auto geometry = graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
+		auto material_uri = Uri{};
+		if (!in_primitive.material.value().empty()) {
+			material_uri = Uri{dir_uri}.append(in_primitive.material.value());
+			load_material(material_uri);
+		}
+		mesh.primitives.push_back(MeshPrimitive{std::move(geometry), std::move(material_uri)});
+	}
+	mesh.inverse_bind_matrices = asset.inverse_bind_matrices;
 	if (auto const& skeleton = json["skeleton"]) {
-		auto const skeleton_uri = dir / skeleton.as_string();
-		mesh.skeleton = load_skeleton(skeleton_uri.string().c_str());
+		auto const skeleton_uri = dir_uri.append(skeleton.as_string());
+		if (load_skeleton(skeleton_uri)) { mesh.skeleton = skeleton_uri; }
 	}
 	logger::info("[Load] [{}] SkinnedMesh loaded", mesh.name);
-	return render_resources.skinned_meshes.add(std::move(mesh)).first;
+	return &render_resources.skinned_meshes.add(uri, std::move(mesh));
 }
 
-std::string AssetLoader::get_asset_type(char const* path) { return dj::Json::from_file(path)["asset_type"].as<std::string>(); }
+std::string AssetLoader::get_asset_type(char const* path) { return open_json(path)["asset_type"].as<std::string>(); }
 
 MeshType AssetLoader::get_mesh_type(char const* path) {
-	auto json = dj::Json::from_file(path);
+	auto json = open_json(path);
 	if (!json || json["asset_type"].as_string() != "mesh") { return MeshType::eNone; }
 	auto const type = json["type"].as_string();
 	if (type == "skinned") { return MeshType::eSkinned; }

@@ -5,6 +5,7 @@
 #include <levk/entity.hpp>
 #include <levk/resources.hpp>
 #include <levk/serializable.hpp>
+#include <levk/util/monotonic_map.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/time.hpp>
 #include <variant>
@@ -12,7 +13,7 @@
 namespace levk {
 struct StaticMeshRenderer {
 	std::vector<Transform> instances{};
-	AssetId<StaticMesh> asset_id{};
+	TUri<StaticMesh> uri{};
 
 	void render(Entity const& entity) const;
 };
@@ -27,18 +28,19 @@ struct SkeletonController : Component {
 	void change_animation(std::optional<Id<Skeleton::Animation>> index);
 	void tick(Time dt) override;
 
-	std::string_view type_name() const override { return "skeleton_controller"; }
+	std::string_view type_name() const override { return "SkeletonController"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
+	void inspect(imcpp::OpenWindow) override;
 };
 
 struct SkinnedMeshRenderer {
 	Skeleton::Instance skeleton{};
-	AssetId<SkinnedMesh> asset_id{};
+	TUri<SkinnedMesh> uri{};
 
 	DynArray<glm::mat4> joint_matrices{};
 
-	void set_mesh(AssetId<SkinnedMesh> asset_id, Skeleton::Instance skeleton);
+	void set_mesh(TUri<SkinnedMesh> uri, Skeleton::Instance skeleton);
 	void render(Entity const& entity) const;
 };
 
@@ -47,23 +49,24 @@ struct MeshRenderer : Entity::Renderer {
 
 	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer = StaticMeshRenderer{}) : renderer(std::move(renderer)) {}
 
-	void render(Entity const& entity) const override;
+	void render() const override;
 
-	std::string_view type_name() const override { return "mesh_renderer"; }
+	std::string_view type_name() const override { return "MeshRenderer"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
+	void inspect(imcpp::OpenWindow) override;
 };
 
-class Scene : public GraphicsRenderer, public ISerializable {
+class Scene : public GraphicsRenderer, public Serializable {
   public:
 	struct Renderer;
 
 	bool import_gltf(char const* in_path, std::string_view dest_dir);
 	bool load_mesh_into_tree(std::string_view uri);
-	bool load_into_tree(asset::Uri<StaticMesh> uri);
-	bool load_into_tree(asset::Uri<SkinnedMesh> uri);
-	bool add_to_tree(std::string_view uri, Id<SkinnedMesh> id);
-	bool add_to_tree(std::string_view uri, Id<StaticMesh> id);
+	bool load_static_mesh_into_tree(Uri const& uri);
+	bool load_skinned_mesh_into_tree(Uri const& uri);
+	bool add_to_tree(Uri const& uri, StaticMesh const& static_mesh);
+	bool add_to_tree(Uri const& uri, SkinnedMesh const& skinned_mesh);
 
 	Node& spawn(Entity entity, Node::CreateInfo const& node_create_info = {});
 	void tick(Time dt);
@@ -86,10 +89,12 @@ class Scene : public GraphicsRenderer, public ISerializable {
 	bool deserialize(dj::Json const& json) override;
 
 	std::string name{};
+	Camera camera{};
+	Lights lights{};
 
   private:
 	Node::Tree m_nodes{};
 	MonotonicMap<Entity> m_entities{};
-	std::vector<Ptr<Entity>> m_sorted{};
+	std::vector<std::reference_wrapper<Entity>> m_entity_refs{};
 };
 } // namespace levk

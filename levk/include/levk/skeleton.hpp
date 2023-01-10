@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/node.hpp>
 #include <levk/transform_animation.hpp>
+#include <levk/uri.hpp>
 
 namespace levk {
 struct Skeleton {
@@ -13,7 +14,7 @@ struct Skeleton {
 		Id<Node> root{};
 		std::vector<Id<Node>> joints{};
 		std::vector<Animation> animations{};
-		Id<Skeleton> source{};
+		TUri<Skeleton> source{};
 	};
 
 	struct Joint {
@@ -34,7 +35,7 @@ struct Skeleton {
 			std::string name{};
 		};
 
-		Id<Skeleton> skeleton{};
+		TUri<Skeleton> skeleton{};
 		Index<Source> source{};
 		std::vector<Id<Node>> target_nodes{};
 
@@ -44,10 +45,10 @@ struct Skeleton {
 	std::vector<Joint> joints{};
 	std::vector<Animation::Source> animation_sources{};
 	std::string name{};
-	Id<Skeleton> self{};
+	TUri<Skeleton> self{};
 
 	Instance instantiate(Node::Tree& out, Id<Node> root) const;
 
-	void set_id(Id<Skeleton> id) { self = id; }
+	void set_uri(TUri<Skeleton> uri) { self = std::move(uri); }
 };
 } // namespace levk

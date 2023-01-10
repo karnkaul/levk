@@ -23,6 +23,7 @@ class Texture {
 	TextureSampler const& sampler() const { return m_model->sampler(); }
 	ColourSpace colour_space() const { return m_model->colour_space(); }
 	std::uint32_t mip_levels() const { return m_model->mip_levels(); }
+	Extent2D extent() const { return m_model->extent(); }
 	std::string_view name() const { return m_name; }
 
 	template <typename T>
@@ -38,6 +39,7 @@ class Texture {
 		virtual TextureSampler const& sampler() const = 0;
 		virtual ColourSpace colour_space() const = 0;
 		virtual std::uint32_t mip_levels() const = 0;
+		virtual Extent2D extent() const = 0;
 	};
 
 	template <typename T>
@@ -48,6 +50,7 @@ class Texture {
 		TextureSampler const& sampler() const final { return gfx_tex_sampler(impl); }
 		ColourSpace colour_space() const final { return gfx_tex_colour_space(impl); }
 		std::uint32_t mip_levels() const final { return gfx_tex_mip_levels(impl); }
+		Extent2D extent() const final { return gfx_tex_extent(impl); }
 	};
 
 	std::unique_ptr<Base> m_model{};
