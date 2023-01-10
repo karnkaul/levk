@@ -1,5 +1,8 @@
 #include <levk/asset/common.hpp>
 #include <levk/material.hpp>
+#include <levk/resources.hpp>
+#include <levk/service.hpp>
+#include <levk/util/enumerate.hpp>
 #include <cstring>
 
 namespace levk {
@@ -27,15 +30,44 @@ float bit_cast_f(AlphaModeT const mode) {
 }
 } // namespace
 
+Texture const& MaterialTextures::get_or(std::size_t info_index, Texture const& fallback) const {
+	if (info_index >= textures.size() || !textures[info_index].uri) { return fallback; }
+	auto const& resources = Service<Resources>::locate();
+	auto const* ret = resources.render.textures.find(textures[info_index].uri);
+	return ret ? *ret : fallback;
+}
+
+bool MaterialTextures::serialize(dj::Json& out) const {
+	for (auto [info, index] : enumerate(textures)) {
+		if (!info.uri) { continue; }
+		auto& out_info = out.push_back({});
+		out_info["index"] = index;
+		out_info["uri"] = info.uri.value();
+		out_info["colour_space"] = info.colour_space == ColourSpace::eLinear ? "linear" : "sRGB";
+	}
+	return true;
+}
+
+bool MaterialTextures::deserialize(dj::Json const& json) {
+	for (auto const& in_info : json.array_view()) {
+		auto const index = in_info["index"].as<std::size_t>();
+		if (index >= textures.size()) { continue; }
+		auto& out_info = textures[index];
+		out_info.colour_space = in_info["colour_space"].as_string() == "linear" ? ColourSpace::eLinear : ColourSpace::eSrgb;
+		out_info.uri = in_info["uri"].as<std::string>();
+	}
+	return true;
+}
+
 void UnlitMaterial::write_sets(Shader& shader, TextureFallback const& fallback) const {
-	shader.update(1, 0, fallback.get_or(texture, fallback.white));
+	shader.update(1, 0, textures.get_or(0, fallback.white));
 	shader.write(2, 0, Rgba::to_srgb(tint.to_vec4()));
 }
 
 void LitMaterial::write_sets(Shader& shader, TextureFallback const& fallback) const {
-	shader.update(1, 0, fallback.get_or(base_colour, fallback.white));
-	shader.update(1, 1, fallback.get_or(roughness_metallic, fallback.white));
-	shader.update(1, 2, fallback.get_or(emissive, fallback.black));
+	shader.update(1, 0, textures.get_or(0, fallback.white));
+	shader.update(1, 1, textures.get_or(1, fallback.white));
+	shader.update(1, 2, textures.get_or(2, fallback.black));
 	struct MatUBO {
 		glm::vec4 albedo;
 		glm::vec4 m_r_aco_am;
@@ -55,20 +87,12 @@ bool UnlitMaterial::serialize(dj::Json& out) const { return false; }
 // TODO
 bool UnlitMaterial::deserialize(dj::Json const& json) { return false; }
 
-std::vector<MaterialBase::TextureInfo> UnlitMaterial::texture_infos() const {
-	return {
-		{texture},
-	};
-}
-
 bool LitMaterial::serialize(dj::Json& out) const {
+	textures.serialize(out["textures"]);
 	asset::to_json(out["albedo"], albedo);
 	asset::to_json(out["emissive_factor"], emissive_factor);
 	out["metallic"] = metallic;
 	out["roughness"] = roughness;
-	if (base_colour) { out["base_colour"] = base_colour.value(); }
-	if (roughness_metallic) { out["roughness_metallic"] = roughness_metallic.value(); }
-	if (emissive) { out["emissive"] = emissive.value(); }
 	out["alpha_cutoff"] = alpha_cutoff;
 	out["alpha_mode"] = from(alpha_mode);
 	out["shader"] = shader;
@@ -78,25 +102,15 @@ bool LitMaterial::serialize(dj::Json& out) const {
 
 bool LitMaterial::deserialize(dj::Json const& json) {
 	assert(json["type_name"].as_string() == type_name());
+	textures.deserialize(json["textures"]);
 	asset::from_json(json["albedo"], albedo);
 	asset::from_json(json["emissive_factor"], emissive_factor, emissive_factor);
 	metallic = json["metallic"].as<float>(metallic);
 	roughness = json["roughness"].as<float>(roughness);
-	base_colour = json["base_colour"].as<std::string>();
-	roughness_metallic = json["roughness_metallic"].as<std::string>();
-	emissive = json["emissive"].as<std::string>();
 	alpha_cutoff = json["alpha_cutoff"].as<float>(alpha_cutoff);
 	alpha_mode = to_alpha_mode(json["alpha_mode"].as_string());
 	shader = json["shader"].as_string(shader);
 	name = json["name"].as_string();
 	return true;
-}
-
-std::vector<MaterialBase::TextureInfo> LitMaterial::texture_infos() const {
-	return {
-		{base_colour},
-		{roughness_metallic, ColourSpace::eLinear},
-		{emissive},
-	};
 }
 } // namespace levk

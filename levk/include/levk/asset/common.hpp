@@ -47,13 +47,11 @@ void from_json(dj::Json const& json, Transform& out);
 void to_json(dj::Json& out, Transform const& transform);
 
 struct Material {
+	MaterialTextures textures{};
 	Rgba albedo{white_v};
 	glm::vec3 emissive_factor{0.0f};
 	float metallic{0.5f};
 	float roughness{0.5f};
-	std::string base_colour{};
-	std::string roughness_metallic{};
-	std::string emissive{};
 	RenderMode render_mode{};
 	float alpha_cutoff{};
 	AlphaMode alpha_mode{AlphaMode::eOpaque};

@@ -19,20 +19,37 @@ struct TextureFallback {
 
 enum class AlphaMode : std::uint32_t { eOpaque = 0, eBlend, eMask };
 
+inline constexpr std::size_t max_textures_v{8};
+
+struct MaterialTextureInfo {
+	Uri uri{};
+	ColourSpace colour_space{ColourSpace::eSrgb};
+};
+
+struct MaterialTextures : Serializable {
+	using TextureInfo = MaterialTextureInfo;
+
+	std::array<TextureInfo, max_textures_v> textures{};
+
+	Texture const& get_or(std::size_t info_index, Texture const& fallback) const;
+
+	std::string_view type_name() const override { return "MaterialTextures"; }
+	bool serialize(dj::Json& out) const override;
+	bool deserialize(dj::Json const& json) override;
+};
+
 class MaterialBase : public Serializable {
   public:
-	struct TextureInfo {
-		Uri uri{};
-		ColourSpace colour_space{ColourSpace::eSrgb};
-	};
-
 	virtual ~MaterialBase() = default;
 
 	virtual void write_sets(Shader& pipeline, TextureFallback const& fallback) const = 0;
 	virtual RenderMode const& render_mode() const = 0;
 	virtual std::string const& shader_id() const = 0;
 	virtual std::unique_ptr<MaterialBase> clone() const = 0;
-	virtual std::vector<TextureInfo> texture_infos() const = 0;
+
+	Texture const& texture_or(std::size_t info_index, Texture const& fallback) const;
+
+	MaterialTextures textures{};
 };
 
 class Material {
@@ -66,7 +83,6 @@ class Material {
 class UnlitMaterial : public MaterialBase {
   public:
 	Rgba tint{white_v};
-	TUri<Texture> texture{};
 	RenderMode mode{};
 	std::string shader{"shaders/unlit.frag"};
 	std::string name{"unlit"};
@@ -79,7 +95,6 @@ class UnlitMaterial : public MaterialBase {
 	std::string_view type_name() const override { return "UnlitMaterial"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
-	std::vector<TextureInfo> texture_infos() const override;
 };
 
 class LitMaterial : public MaterialBase {
@@ -88,9 +103,6 @@ class LitMaterial : public MaterialBase {
 	glm::vec3 emissive_factor{0.0f};
 	float metallic{0.5f};
 	float roughness{0.5f};
-	TUri<Texture> base_colour{};
-	TUri<Texture> roughness_metallic{};
-	TUri<Texture> emissive{};
 	RenderMode mode{};
 	float alpha_cutoff{};
 	AlphaMode alpha_mode{AlphaMode::eOpaque};
@@ -105,6 +117,5 @@ class LitMaterial : public MaterialBase {
 	std::string_view type_name() const override { return "LitMaterial"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
-	std::vector<TextureInfo> texture_infos() const override;
 };
 } // namespace levk

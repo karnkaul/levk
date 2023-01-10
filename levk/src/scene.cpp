@@ -261,9 +261,9 @@ bool Scene::import_gltf(char const* in_path, std::string_view dest_dir) {
 	mesh_uri = (fs::path{dest_dir} / mesh_uri.value()).generic_string();
 
 	if (is_skinned) {
-		return load_static_mesh_into_tree(mesh_uri.value());
-	} else {
 		return load_skinned_mesh_into_tree(mesh_uri.value());
+	} else {
+		return load_static_mesh_into_tree(mesh_uri.value());
 	}
 }
 
@@ -320,8 +320,7 @@ Node& Scene::spawn(Entity entity, Node::CreateInfo const& node_create_info) {
 	auto [i, e] = m_entities.add(std::move(entity));
 	e.m_id = i;
 	e.m_node = ret.id();
-	// TODO: fix
-	ret.entity = {e.m_id.value()};
+	ret.entity = e.m_id;
 	return ret;
 }
 

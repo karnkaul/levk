@@ -321,13 +321,11 @@ void asset::to_json(dj::Json& out, Transform const& transform) { to_json(out, tr
 
 void asset::from_json(dj::Json const& json, asset::Material& out) {
 	assert(json["asset_type"].as_string() == "material");
+	out.textures.deserialize(json["textures"]);
 	from_json(json["albedo"], out.albedo);
 	out.emissive_factor = glm_vec_from_json<3>(json["emissive_factor"], out.emissive_factor);
 	out.metallic = json["metallic"].as<float>(out.metallic);
 	out.roughness = json["roughness"].as<float>(out.roughness);
-	out.base_colour = std::string{json["base_colour"].as_string()};
-	out.roughness_metallic = std::string{json["roughness_metallic"].as_string()};
-	out.emissive = std::string{json["emissive"].as_string()};
 	out.render_mode = make_render_mode(json["render_mode"]);
 	out.alpha_cutoff = json["alpha_cutoff"].as<float>(out.alpha_cutoff);
 	out.alpha_mode = to_alpha_mode(json["alpha_mode"].as_string());
@@ -336,14 +334,14 @@ void asset::from_json(dj::Json const& json, asset::Material& out) {
 }
 
 void asset::to_json(dj::Json& out, asset::Material const& asset) {
+	static auto const s_type_name = LitMaterial{}.type_name();
+	out["type_name"] = s_type_name;
 	out["asset_type"] = "material";
+	asset.textures.serialize(out["textures"]);
 	to_json(out["albedo"], asset.albedo);
 	to_json(out["emissive_factor"], asset.emissive_factor);
 	out["metallic"] = asset.metallic;
 	out["roughness"] = asset.roughness;
-	if (!asset.base_colour.empty()) { out["base_colour"] = asset.base_colour; }
-	if (!asset.roughness_metallic.empty()) { out["roughness_metallic"] = asset.roughness_metallic; }
-	if (!asset.emissive.empty()) { out["emissive"] = asset.emissive; }
 	out["render_mode"] = make_json(asset.render_mode);
 	out["alpha_cutoff"] = asset.alpha_cutoff;
 	out["alpha_mode"] = from(asset.alpha_mode);

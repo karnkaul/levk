@@ -9,22 +9,14 @@ namespace levk {
 namespace {
 namespace fs = std::filesystem;
 
-std::unique_ptr<MaterialBase> temp_get_mat(std::string_view prefix, dj::Json const& json) {
-	auto ret = std::make_unique<LitMaterial>();
-	auto asset_material = asset::Material{};
-	asset::from_json(json, asset_material);
-	ret->albedo = asset_material.albedo;
-	ret->emissive_factor = asset_material.emissive_factor;
-	ret->metallic = asset_material.metallic;
-	ret->roughness = asset_material.roughness;
-	ret->alpha_cutoff = asset_material.alpha_cutoff;
-	ret->alpha_mode = static_cast<AlphaMode>(asset_material.alpha_mode);
-	ret->shader = asset_material.shader;
-	auto prefix_uri = Uri{prefix};
-	if (!asset_material.base_colour.empty()) { ret->base_colour = prefix_uri.append(asset_material.base_colour); }
-	if (!asset_material.roughness_metallic.empty()) { ret->roughness_metallic = prefix_uri.append(asset_material.roughness_metallic); }
-	if (!asset_material.emissive.empty()) { ret->emissive = prefix_uri.append(asset_material.emissive); }
-	return ret;
+std::unique_ptr<MaterialBase> to_material_base(Uri const& parent, dj::Json const& json) {
+	auto ret = Service<Serializer>::locate().deserialize_as<MaterialBase>(json);
+	if (!ret) { return {}; }
+	for (auto& info : ret.value->textures.textures) {
+		if (!info.uri) { continue; }
+		info.uri = parent.append(info.uri.value());
+	}
+	return std::move(ret.value);
 }
 
 dj::Json open_json(char const* path) {
@@ -56,15 +48,12 @@ Ptr<Material> AssetLoader::load_material(Uri const& uri) const {
 		logger::error("[Load] Failed to load Material JSON [{}]", uri.value());
 		return {};
 	}
-	// TODO: setup material serialization
-	// auto mat = Service<Serializer>::locate().deserialize_as<MaterialBase>(json);
-	auto dir_uri = uri.parent();
-	auto mat = temp_get_mat(dir_uri, json);
+	auto mat = to_material_base(uri.parent(), json);
 	if (!mat) {
 		logger::error("[Load] Failed to load Material [{}]", uri.value());
 		return {};
 	}
-	for (auto const& [tex_uri, colour_space] : mat->texture_infos()) {
+	for (auto const& [tex_uri, colour_space] : mat->textures.textures) {
 		if (tex_uri) { load_texture(tex_uri, colour_space); }
 	}
 	logger::info("[Load] [{}] Material loaded", uri.value());
@@ -121,16 +110,7 @@ Ptr<Skeleton> AssetLoader::load_skeleton(Uri const& uri) const {
 	auto dir_uri = Uri{uri.parent()};
 	auto skeleton = Skeleton{};
 	skeleton.name = std::string{json["name"].as_string()};
-	// TODO: fix
-	// skeleton.joints = std::move(asset.joints);
-	for (auto const& in_joint : asset.joints) {
-		auto& out_joint = skeleton.joints.emplace_back();
-		out_joint.children = std::move(in_joint.children);
-		out_joint.name = std::move(in_joint.name);
-		out_joint.transform = in_joint.transform;
-		out_joint.parent = in_joint.parent;
-		out_joint.self = in_joint.self;
-	}
+	skeleton.joints = std::move(asset.joints);
 	for (auto const& in_animation : asset.animations) {
 		auto animation_uri = Uri{dir_uri.append(in_animation.value())};
 		auto const in_animation_asset = open_json(animation_uri.absolute_path(root_dir).c_str());
