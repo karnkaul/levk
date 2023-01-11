@@ -21,8 +21,10 @@ class RingBuffer {
 	void set_capacity(std::size_t capacity) { m_capacity = capacity; }
 	std::size_t capacity() const { return m_capacity; }
 
-	std::span<Type> span() { return m_buffer; }
-	std::span<Type const> span() const { return m_buffer; }
+	std::span<Type> span() { return {m_buffer.data(), std::min(m_capacity, m_buffer.size())}; }
+	std::span<Type const> span() const { return {m_buffer.data(), std::min(m_capacity, m_buffer.size())}; }
+
+	void clear() { m_buffer.clear(); }
 
   private:
 	std::vector<Type> m_buffer{};
