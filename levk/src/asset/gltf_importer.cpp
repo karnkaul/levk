@@ -181,7 +181,7 @@ GltfAsset::List make_gltf_asset_view_list(dj::Json const& json) {
 }
 
 struct GltfExporter {
-	logger::Dispatch const& import_logger;
+	LogDispatch const& import_logger;
 	gltf2cpp::Root const& in_root;
 	fs::path in_dir;
 	fs::path out_dir;
@@ -430,7 +430,7 @@ struct GltfExporter {
 };
 } // namespace
 
-GltfImporter::List GltfImporter::peek(std::string gltf_path, logger::Dispatch const& import_logger) {
+GltfImporter::List GltfImporter::peek(std::string gltf_path, LogDispatch const& import_logger) {
 	auto ret = GltfImporter::List{};
 	ret.import_logger = import_logger;
 	if (!fs::is_regular_file(gltf_path)) {
@@ -440,6 +440,12 @@ GltfImporter::List GltfImporter::peek(std::string gltf_path, logger::Dispatch co
 	static_cast<GltfAsset::List&>(ret) = make_gltf_asset_view_list(dj::Json::from_file(gltf_path.c_str()));
 	ret.gltf_path = std::move(gltf_path);
 	return ret;
+}
+
+void LogDispatch::print(logger::Level level, std::string_view message) const {
+	if (silenced[static_cast<std::size_t>(level)]) { return; }
+	auto const pipe = level == logger::Level::eError ? logger::Pipe::eStdErr : logger::Pipe::eStdOut;
+	log_to(pipe, {format(level, message), level});
 }
 
 GltfImporter GltfImporter::List::importer(std::string dest_dir) const {

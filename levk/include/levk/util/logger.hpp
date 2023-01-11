@@ -149,40 +149,28 @@ void debug(fmt::format_string<Args...> fmt, Args const&... args) {
 	if constexpr (debug_v) { log_to(Pipe::eStdOut, {format(Level::eDebug, fmt, args...), Level::eDebug}); }
 }
 
-///
-/// \brief Logging dispatch that can be silenced.
-///
-struct Dispatch {
-	bool silenced[static_cast<std::size_t>(Level::eCOUNT_)]{};
-
+template <typename Type>
+struct CrtpDispatch {
 	template <typename... Args>
 	void error(fmt::format_string<Args...> fmt, Args const&... args) const {
-		if (silenced[static_cast<std::size_t>(Level::eError)]) { return; }
-		print(Level::eError, format(Level::eError, fmt, args...));
+		cast().print(Level::eError, format(Level::eError, fmt, args...));
 	}
 
 	template <typename... Args>
 	void warn(fmt::format_string<Args...> fmt, Args const&... args) const {
-		if (silenced[static_cast<std::size_t>(Level::eWarn)]) { return; }
-		print(Level::eWarn, format(Level::eWarn, fmt, args...));
+		cast().print(Level::eWarn, format(Level::eWarn, fmt, args...));
 	}
 
 	template <typename... Args>
 	void info(fmt::format_string<Args...> fmt, Args const&... args) const {
-		if (silenced[static_cast<std::size_t>(Level::eInfo)]) { return; }
-		print(Level::eInfo, format(Level::eInfo, fmt, args...));
+		cast().print(Level::eInfo, format(Level::eInfo, fmt, args...));
 	}
 
 	template <typename... Args>
 	void debug(fmt::format_string<Args...> fmt, Args const&... args) const {
-		if (silenced[static_cast<std::size_t>(Level::eDebug)]) { return; }
-		print(Level::eDebug, format(Level::eDebug, fmt, args...));
+		cast().print(Level::eDebug, format(Level::eDebug, fmt, args...));
 	}
 
-	void print(Level level, std::string_view message) const {
-		if (silenced[static_cast<std::size_t>(level)]) { return; }
-		auto const pipe = level == Level::eError ? Pipe::eStdErr : Pipe::eStdOut;
-		log_to(pipe, {format(level, message), level});
-	}
+	Type const& cast() const { return static_cast<Type const&>(*this); }
 };
 } // namespace levk::logger
