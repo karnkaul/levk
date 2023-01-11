@@ -74,6 +74,8 @@ class Entity final : public imcpp::Inspectable {
 
 	void inspect(imcpp::NotClosed<imcpp::Window>) final;
 
+	bool active{true};
+
   private:
 	void init(Component& out) const;
 	void attach(TypeId::value_type type_id, std::unique_ptr<Component>&& component);

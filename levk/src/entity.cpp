@@ -33,6 +33,7 @@ void Entity::inspect(imcpp::OpenWindow w) {
 	auto* node = scene().node_locator().find(m_node);
 	if (!node) { return; }
 	imcpp::TreeNode::leaf(node->name.c_str());
+	ImGui::Checkbox("Active", &active);
 	if (auto tn = imcpp::TreeNode("Transform", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
 		auto unified_scaling = Bool{true};
 		imcpp::Reflector{w}(node->transform, unified_scaling, {true});

@@ -211,16 +211,32 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 void MeshRenderer::inspect(imcpp::OpenWindow) {
 	auto const visitor = Visitor{
 		[&](StaticMeshRenderer& smr) {
-			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.uri).name}.c_str());
+			std::string_view label = "[None]";
+			if (smr.uri) { label = Service<Resources>::get().render.static_meshes.get(smr.uri).name; }
+			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", label}.c_str());
+			if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) { imcpp::Popup::open("static_mesh_renderer/right_click"); }
+			if (auto drop = imcpp::DragDrop::Target{}) {
+				if (auto const mesh = imcpp::DragDrop::accept_string("static_mesh"); !mesh.empty()) { smr.uri = mesh; }
+			}
 		},
 		[&](SkinnedMeshRenderer& smr) {
-			auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.uri);
-			auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
-			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
-			imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
+			if (smr.uri) {
+				auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.uri);
+				auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
+				imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
+				imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
+			} else {
+				imcpp::TreeNode::leaf(FixedString{"Mesh: [None]"}.c_str());
+			}
 		},
 	};
 	std::visit(visitor, renderer);
+	if (auto popup = imcpp::Popup{"static_mesh_renderer/right_click"}) {
+		if (ImGui::Selectable("Unset")) {
+			std::get<StaticMeshRenderer>(renderer).uri = {};
+			popup.close_current();
+		}
+	}
 }
 
 bool Scene::import_gltf(char const* in_path, std::string_view dest_dir) {
@@ -326,7 +342,7 @@ Node& Scene::spawn(Entity entity, Node::CreateInfo const& node_create_info) {
 
 void Scene::tick(Time dt) {
 	m_entity_refs.clear();
-	m_entities.fill_to(m_entity_refs);
+	fill_to_if(m_entities, m_entity_refs, [](Id<Entity>, Entity const& e) { return e.active; });
 	std::sort(m_entity_refs.begin(), m_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
 	for (Entity& entity : m_entity_refs) { entity.tick(dt); }
 }
@@ -380,7 +396,7 @@ bool Scene::serialize(dj::Json& out) const {
 		}
 		out_entities.push_back(std::move(out_entity));
 	};
-	m_entities.for_each(func);
+	for_each(m_entities, func);
 	out["entities"] = std::move(out_entities);
 	auto& out_camera = out["camera"];
 	out_camera["name"] = camera.name;
@@ -462,7 +478,7 @@ bool Scene::deserialize(dj::Json const& json) {
 
 void Scene::render_3d() {
 	m_entity_refs.clear();
-	m_entities.fill_to(m_entity_refs);
+	fill_to_if(m_entities, m_entity_refs, [](Id<Entity>, Entity const& e) { return e.active; });
 	for (Entity const& entity : m_entity_refs) {
 		if (entity.m_renderer) { entity.m_renderer->render(); }
 	};
