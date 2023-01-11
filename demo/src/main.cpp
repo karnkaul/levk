@@ -18,8 +18,10 @@
 #include <filesystem>
 
 #include <levk/imcpp/engine_inspector.hpp>
+#include <levk/imcpp/log_renderer.hpp>
 #include <levk/imcpp/resource_inspector.hpp>
 #include <levk/imcpp/scene_inspector.hpp>
+#include <main_menu.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -122,6 +124,14 @@ void run(fs::path data_path) {
 	auto resource_inspector = imcpp::ResourceInspector{};
 	auto scene_inspector = imcpp::SceneInspector{};
 	auto engine_inspector = imcpp::EngineInspector{};
+	auto log_renderer = imcpp::LogRenderer{};
+	auto main_menu = MainMenu{};
+
+	main_menu.windows = {
+		{.label = "Scene"}, {.label = "Resources"}, {.label = "Engine", .init_size = {300.0f, 300.0f}}, {.label = "Log", .init_size = {600.0f, 300.0f}},
+		{.label = "--"},
+	};
+	if constexpr (debug_v) { main_menu.windows.push_back({.label = "Dear ImGui Demo"}); }
 
 	engine.show();
 	while (engine.is_running()) {
@@ -153,10 +163,6 @@ void run(fs::path data_path) {
 		// tick
 		scene->tick(frame.dt);
 		free_cam.tick(scene->camera.transform, frame.state.input, frame.dt);
-		if constexpr (debug_v) {
-			static bool show_demo{true};
-			if (show_demo) { ImGui::ShowDemoWindow(&show_demo); }
-		}
 
 		// test code
 		if (frame.state.input.chord(Key::eS, Key::eLeftControl)) {
@@ -168,14 +174,20 @@ void run(fs::path data_path) {
 		}
 		// test code
 
-		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
-		if (auto w = imcpp::Window{"Scene"}) { scene_inspector.inspect(w, *scene); }
+		auto result = main_menu.display();
+		switch (result.action) {
+		case MainMenu::Action::eExit: engine.shutdown(); break;
+		default: break;
+		}
 
-		ImGui::SetNextWindowSize({400.0f, 300.0f}, ImGuiCond_Once);
-		if (auto w = imcpp::Window{"Resources"}) { resource_inspector.inspect(w, Service<Resources>::locate()); }
+		main_menu.windows[0].display([&](imcpp::OpenWindow w) { scene_inspector.inspect(w, *scene); });
+		main_menu.windows[1].display([&](imcpp::OpenWindow w) { resource_inspector.inspect(w, Service<Resources>::locate()); });
+		main_menu.windows[2].display([&](imcpp::OpenWindow w) { engine_inspector.inspect(w, Service<Engine>::locate(), frame.dt); });
+		main_menu.windows[3].display([&](imcpp::OpenWindow w) { log_renderer.display(w); });
 
-		ImGui::SetNextWindowSize({300.0f, 300.0f}, ImGuiCond_Once);
-		if (auto w = imcpp::Window{"Engine"}) { engine_inspector.inspect(w, Service<Engine>::locate(), frame.dt); }
+		if constexpr (debug_v) {
+			if (bool& show = main_menu.windows[5].show.value) { ImGui::ShowDemoWindow(&show); }
+		}
 
 		engine.render(*scene, scene->camera, scene->lights, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
 	}

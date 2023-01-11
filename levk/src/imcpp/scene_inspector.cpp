@@ -19,6 +19,9 @@ SceneInspector::Inspect SceneInspector::inspect(NotClosed<Window> w, Scene& scen
 	m_scene = &scene;
 	check_stale();
 
+	if (ImGui::SliderFloat("Inspector Width", &m_inspector_nwidth, 0.1f, 0.5f, "%.3f")) { m_inspector_nwidth = std::clamp(m_inspector_nwidth, 0.1f, 0.5f); }
+
+	ImGui::Separator();
 	camera_node();
 	draw_scene_tree(w);
 	if (auto* payload = ImGui::GetDragDropPayload(); payload && payload->IsDataType("node")) {
@@ -32,9 +35,10 @@ SceneInspector::Inspect SceneInspector::inspect(NotClosed<Window> w, Scene& scen
 	}
 
 	if (bool show_inspector = static_cast<bool>(m_inspecting)) {
-		ImGui::SetNextWindowPos({ImGui::GetIO().DisplaySize.x - 500.0f, 0.0f});
-		ImGui::SetNextWindowSize({500.0f, ImGui::GetIO().DisplaySize.y});
-		if (auto w = imcpp::Window{"Inspector", &show_inspector}) { draw_inspector(w); }
+		auto const width = ImGui::GetMainViewport()->Size.x * m_inspector_nwidth;
+		ImGui::SetNextWindowPos({ImGui::GetIO().DisplaySize.x - width, 0.0f});
+		ImGui::SetNextWindowSize({width, ImGui::GetIO().DisplaySize.y});
+		if (auto w = imcpp::Window{"Inspector", &show_inspector, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove}) { draw_inspector(w); }
 		if (!show_inspector) { m_inspecting = {}; }
 	}
 

@@ -42,6 +42,7 @@ set(imcpp_headers
   include/levk/imcpp/common.hpp
   include/levk/imcpp/engine_inspector.hpp
   include/levk/imcpp/inspectable.hpp
+  include/levk/imcpp/log_renderer.hpp
   include/levk/imcpp/reflector.hpp
   include/levk/imcpp/resource_inspector.hpp
   include/levk/imcpp/ring_buffer.hpp

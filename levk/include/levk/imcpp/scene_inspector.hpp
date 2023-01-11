@@ -30,5 +30,6 @@ class SceneInspector {
 	Inspect m_inspecting{};
 	Ptr<Scene> m_scene{};
 	void const* m_prev{};
+	float m_inspector_nwidth{0.35f};
 };
 } // namespace levk::imcpp

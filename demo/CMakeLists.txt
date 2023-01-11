@@ -11,6 +11,8 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL Clang OR CMAKE_CXX_COMPILER_ID STREQUAL GNU)
 endif()
 
 target_sources(levk-demo PRIVATE
+  src/main_menu.cpp
+  src/main_menu.hpp
   src/main.cpp
 )
 
