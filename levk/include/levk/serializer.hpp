@@ -1,6 +1,5 @@
 #pragma once
-#include <levk/component.hpp>
-#include <levk/util/bool.hpp>
+#include <levk/serializable.hpp>
 #include <levk/util/type_id.hpp>
 #include <levk/util/unique_task.hpp>
 #include <memory>
@@ -11,14 +10,6 @@ class Serializer {
   public:
 	template <std::derived_from<Serializable> Type>
 	using Factory = UniqueTask<std::unique_ptr<Type>()>;
-
-	struct Entry {
-		Factory<Serializable> factory{};
-		TypeId type_id{};
-		bool is_component{};
-	};
-
-	using Map = std::unordered_map<std::string, Entry>;
 
 	template <std::derived_from<Serializable> Type>
 	struct Result {
@@ -57,17 +48,19 @@ class Serializer {
 
 	TypeId type_id(std::string const& type_name) const;
 
-	Ptr<Entry const> find_entry(std::string const& type_name) const;
-	Map const& entries() const { return m_entries; }
-
   private:
+	struct Entry {
+		Factory<Serializable> factory{};
+		TypeId type_id{};
+	};
+
 	template <typename Type>
 	void bind_to(std::string_view type_name, Factory<Type> factory) {
-		bind_to(std::string{type_name}, TypeId::make<Type>(), std::move(factory), {std::derived_from<Type, Component>});
+		bind_to(std::string{type_name}, TypeId::make<Type>(), std::move(factory));
 	}
 
-	void bind_to(std::string&& type_name, TypeId type_id, Factory<Serializable>&& factory, Bool is_component);
+	void bind_to(std::string&& type_name, TypeId type_id, Factory<Serializable>&& factory);
 
-	Map m_entries{};
+	std::unordered_map<std::string, Entry> m_entries{};
 };
 } // namespace levk

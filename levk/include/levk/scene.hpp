@@ -90,8 +90,6 @@ class Scene : public GraphicsRenderer, public Serializable {
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
 
-	Ptr<Component> attach_to(Entity& out, std::string const& type_name) const;
-
 	std::string name{};
 	Camera camera{};
 	Lights lights{};

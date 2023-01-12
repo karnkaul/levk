@@ -497,20 +497,4 @@ bool Scene::deserialize(dj::Json const& json) {
 	}
 	return true;
 }
-
-Ptr<Component> Scene::attach_to(Entity& out, std::string const& type_name) const {
-	auto const* entry = Service<Serializer>::locate().find_entry(type_name);
-	if (!entry) { return {}; }
-	auto component = Serializer::dynamic_pointer_cast<Component>(entry->factory());
-	if (!component) { return {}; }
-	auto ret = component.get();
-	if (dynamic_cast<Entity::Renderer*>(component.get())) {
-		auto renderer = Serializer::dynamic_pointer_cast<Entity::Renderer>(std::move(component));
-		assert(renderer);
-		out.set_renderer(std::move(renderer));
-	} else {
-		out.attach(entry->type_id.value(), std::move(component));
-	}
-	return ret;
-}
 } // namespace levk

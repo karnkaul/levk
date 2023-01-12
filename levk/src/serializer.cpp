@@ -20,7 +20,7 @@ Serializer::Result<Serializable> Serializer::deserialize(dj::Json const& json) c
 		logger::warn("[Serializer] Failed to deserialize [{}]", type_name);
 		return {};
 	}
-	return {std::move(ret), entry.type_id, entry.is_component};
+	return {std::move(ret), entry.type_id};
 }
 
 dj::Json Serializer::serialize(Serializable const& serializable) const {
@@ -39,12 +39,7 @@ TypeId Serializer::type_id(std::string const& type_name) const {
 	return {};
 }
 
-Ptr<Serializer::Entry const> Serializer::find_entry(std::string const& type_name) const {
-	if (auto it = m_entries.find(type_name); it != m_entries.end()) { return &it->second; }
-	return {};
-}
-
-void Serializer::bind_to(std::string&& type_name, TypeId type_id, Factory<Serializable>&& factory, Bool is_component) {
+void Serializer::bind_to(std::string&& type_name, TypeId type_id, Factory<Serializable>&& factory) {
 	if (type_name.empty()) {
 		logger::warn("[Serializer] Ignoring attempt to bind empty type_name");
 		return;
@@ -57,6 +52,6 @@ void Serializer::bind_to(std::string&& type_name, TypeId type_id, Factory<Serial
 		logger::warn("[Serializer] Ignoring attempt to bind null TypeId to type_name [{}]", type_name);
 		return;
 	}
-	m_entries.insert_or_assign(std::move(type_name), Entry{std::move(factory), type_id, is_component.value});
+	m_entries.insert_or_assign(std::move(type_name), Entry{std::move(factory), type_id});
 }
 } // namespace levk
