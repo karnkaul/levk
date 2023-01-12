@@ -92,7 +92,7 @@ class MonotonicMap {
 
 	void import_map(std::unordered_map<id_underlying_t, Type> map) {
 		auto prev_id = id_underlying_t{};
-		for (auto const& [id, _] : map) { prev_id = std::max(id, m_prev_id); }
+		for (auto const& [id, _] : map) { prev_id = std::max(id, prev_id); }
 		auto lock = std::scoped_lock{m_mutex};
 		m_map = std::move(map);
 		m_prev_id = prev_id;

@@ -33,12 +33,19 @@ Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 	camera_node();
 	draw_scene_tree(w);
 	handle_popups();
-	if (auto* payload = ImGui::GetDragDropPayload(); payload && payload->IsDataType("node")) {
-		imcpp::TreeNode::leaf("(Unparent)");
-		if (auto target = imcpp::DragDrop::Target{}) {
-			if (auto const* node_id = imcpp::DragDrop::accept<std::size_t>("node")) {
-				auto node_locator = scene.node_locator();
-				node_locator.reparent(node_locator.get(*node_id), {});
+	if (auto* payload = ImGui::GetDragDropPayload()) {
+		if (payload->IsDataType("node")) {
+			imcpp::TreeNode::leaf("(Unparent)");
+			if (auto target = imcpp::DragDrop::Target{}) {
+				if (auto const* node_id = imcpp::DragDrop::accept<std::size_t>("node")) {
+					auto node_locator = scene.node_locator();
+					node_locator.reparent(node_locator.get(*node_id), {});
+				}
+			}
+		} else if (payload->IsDataType("skinned_mesh")) {
+			imcpp::TreeNode::leaf("(Instantiate skeleton)");
+			if (auto target = imcpp::DragDrop::Target{}) {
+				if (auto uri = imcpp::DragDrop::accept_string("skinned_mesh"); !uri.empty()) { scene.load_skinned_mesh_into_tree(uri); }
 			}
 		}
 	}
