@@ -27,4 +27,10 @@ class Component : public Serializable {
 
 	friend class Entity;
 };
+
+class RenderComponent : public Component {
+  public:
+	void tick(Time) override {}
+	virtual void render() const = 0;
+};
 } // namespace levk

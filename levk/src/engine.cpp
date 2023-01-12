@@ -1,3 +1,4 @@
+#include <levk/component_factory.hpp>
 #include <levk/engine.hpp>
 #include <levk/scene.hpp>
 #include <levk/serializer.hpp>
@@ -21,10 +22,11 @@ struct Fps {
 	}
 };
 
-void add_serializer_bindings() {
+void add_factory_bindings() {
+	auto& component_factory = Service<ComponentFactory>::locate();
+	component_factory.bind<SkeletonController>();
+	component_factory.bind<MeshRenderer>();
 	auto& serializer = Service<Serializer>::locate();
-	serializer.bind<SkeletonController>();
-	serializer.bind<MeshRenderer>();
 	serializer.bind<LitMaterial>();
 	serializer.bind<UnlitMaterial>();
 }
@@ -34,6 +36,7 @@ struct Engine::Impl {
 	Window window;
 	GraphicsDevice graphics_device;
 	Service<Serializer>::Instance serializer{};
+	Service<ComponentFactory>::Instance component_factory{};
 	DeltaTime dt{};
 	Fps fps{};
 
@@ -57,7 +60,7 @@ Engine::Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& creat
 	Service<Window>::provide(&m_impl->window);
 	Service<GraphicsDevice>::provide(&m_impl->graphics_device);
 
-	add_serializer_bindings();
+	add_factory_bindings();
 
 	if (create_info.autoshow) { m_impl->window.show(); }
 }

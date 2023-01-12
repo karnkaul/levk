@@ -1,4 +1,5 @@
 #include <imgui.h>
+#include <levk/component_factory.hpp>
 #include <levk/imcpp/inspector.hpp>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/scene.hpp>
@@ -40,13 +41,16 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 			auto unified_scaling = Bool{true};
 			imcpp::Reflector{w}(node->transform, unified_scaling, {true});
 		}
-		auto inspect_component = [w](Component& component) {
-			if (auto tn = imcpp::TreeNode{FixedString<128>{component.type_name()}.c_str(), ImGuiTreeNodeFlags_Framed}) { component.inspect(w); }
+		auto inspect_component = [&](TypeId::value_type type_id, Component& component) {
+			if (auto tn = imcpp::TreeNode{FixedString<128>{component.type_name()}.c_str(), ImGuiTreeNodeFlags_Framed}) {
+				component.inspect(w);
+				if (type_id) {
+					ImGui::Separator();
+					if (ImGui::Button("Detach")) { scene.detach_from(*entity, type_id); }
+				}
+			}
 		};
-		m_cache.clear();
-		entity->fill_components_to(m_cache);
-		for (auto const& component : m_cache) { inspect_component(component); }
-		if (auto* renderer = entity->renderer_as<Entity::Renderer>()) { inspect_component(*renderer); }
+		for (auto const& [type_id, component] : entity->component_map()) { inspect_component(type_id, *component); }
 		if (ImGui::Button("Attach...")) { Popup::open("inspector.attach"); }
 		break;
 	}
@@ -57,11 +61,11 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 		auto* entity = scene.find(target.entity);
 		assert(entity);
 		ImGui::Text("TODO...");
-		// auto const& serializer = Service<Serializer>::locate();
-		// auto const& map = serializer.entries();
-		// for (auto const& [type_name, entry] : map) {
-		// 	if (ImGui::Selectable(type_name.c_str())) { scene.attach_to(*entity, type_name); }
-		// }
+		auto const& component_factory = Service<ComponentFactory>::locate();
+		auto const& map = component_factory.entries();
+		for (auto const& [type_name, entry] : map) {
+			if (ImGui::Selectable(type_name.c_str())) { entity->attach(entry.factory()); }
+		}
 	}
 }
 } // namespace levk::imcpp

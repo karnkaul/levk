@@ -54,7 +54,7 @@ Skeleton::Instance to_skeleton_instance(dj::Json const& json, TUri<Skeleton> con
 
 void SkeletonController::change_animation(std::optional<Id<Skeleton::Animation>> index) {
 	if (index != enabled) {
-		auto* mesh_renderer = entity().renderer_as<MeshRenderer>();
+		auto* mesh_renderer = entity().find<MeshRenderer>();
 		if (!mesh_renderer) { return; }
 		auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 		if (!skinned_mesh_renderer) { return; }
@@ -66,7 +66,7 @@ void SkeletonController::change_animation(std::optional<Id<Skeleton::Animation>>
 
 void SkeletonController::tick(Time dt) {
 	if (!enabled || dt == Time{}) { return; }
-	auto* mesh_renderer = entity().renderer_as<MeshRenderer>();
+	auto* mesh_renderer = entity().find<MeshRenderer>();
 	if (!mesh_renderer) { return; }
 	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 	if (!skinned_mesh_renderer) { return; }
@@ -99,7 +99,7 @@ bool SkeletonController::deserialize(dj::Json const& json) {
 }
 
 void SkeletonController::inspect(imcpp::OpenWindow) {
-	auto const* mesh_renderer = entity().renderer_as<MeshRenderer>();
+	auto const* mesh_renderer = entity().find<MeshRenderer>();
 	if (!mesh_renderer) { return; }
 	auto const* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 	if (!skinned_mesh_renderer) { return; }
@@ -346,8 +346,15 @@ void Scene::tick(Time dt) {
 	fill_to_if(m_entities, m_entity_refs, [](Id<Entity>, Entity const& e) { return e.active; });
 	std::sort(m_entity_refs.begin(), m_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
 	for (Entity& entity : m_entity_refs) { entity.tick(dt); }
-	auto destroy_entity = [&](Node const& node) { m_entities.remove(node.entity); };
-	for (auto const id : m_to_destroy) { m_nodes.remove(id, destroy_entity); }
+	auto destroy_entity = [&](Node const& node) {
+		//
+		m_entities.remove(node.entity);
+	};
+	for (auto const id : m_to_destroy) {
+		auto* entity = m_entities.find(id);
+		if (!entity) { continue; }
+		m_nodes.remove(entity->m_node, destroy_entity);
+	}
 	m_to_destroy.clear();
 }
 
@@ -361,11 +368,11 @@ bool Scene::destroy(Id<Entity> entity) {
 
 void Scene::render_3d() {
 	m_entity_refs.clear();
-	fill_to_if(m_entities, m_entity_refs, [](Id<Entity>, Entity const& e) { return e.active && e.m_renderer; });
+	fill_to_if(m_entities, m_entity_refs, [](Id<Entity>, Entity const& e) { return e.active && !e.m_render_components.empty(); });
+	// TODO: render ordering
 	std::sort(m_entity_refs.begin(), m_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
 	for (Entity const& entity : m_entity_refs) {
-		assert(entity.m_renderer);
-		entity.m_renderer->render();
+		for (auto const* rc : entity.m_render_components) { rc->render(); }
 	}
 }
 
@@ -407,13 +414,6 @@ bool Scene::serialize(dj::Json& out) const {
 				out_components.push_back(std::move(out_component));
 			} else {
 				logger::warn("[Scene] Failed to serialize Component [{}]", component->type_name());
-			}
-		}
-		if (in_entity.m_renderer) {
-			if (auto renderer = serializer.serialize(*in_entity.m_renderer)) {
-				out_entity["renderer"] = std::move(renderer);
-			} else {
-				logger::warn("[Scene] Failed to serialize Entity::Renderer for Entity [{}]", in_entity.m_id.value());
 			}
 		}
 		out_entities.push_back(std::move(out_entity));
@@ -467,16 +467,11 @@ bool Scene::deserialize(dj::Json const& json) {
 		out_entity.m_scene = this;
 		for (auto const& in_component : in_entity["components"].array_view()) {
 			auto result = serializer.deserialize_as<Component>(in_component);
-			if (!result.is_component || !result.value) {
+			if (!result) {
 				logger::warn("[Scene] Failed to deserialize Component");
 				continue;
 			}
 			out_entity.attach(result.type_id.value(), std::move(result.value));
-		}
-		if (auto const& in_renderer = in_entity["renderer"]) {
-			auto result = serializer.deserialize_as<Entity::Renderer>(in_renderer);
-			out_entity.attach(std::move(result.value));
-			if (!out_entity.m_renderer) { logger::error("[Scene] Failed to obtain Renderer for Entity [{}]", id); }
 		}
 		out_entities.insert_or_assign(id, std::move(out_entity));
 	}
@@ -496,5 +491,13 @@ bool Scene::deserialize(dj::Json const& json) {
 		asset::from_json(in_dir_light["rgb"], out_dir_light.rgb);
 	}
 	return true;
+}
+
+bool Scene::detach_from(Entity& out_entity, TypeId::value_type component_type) const {
+	if (auto it = out_entity.m_components.find(component_type); it != out_entity.m_components.end()) {
+		out_entity.m_components.erase(component_type);
+		return true;
+	}
+	return false;
 }
 } // namespace levk

@@ -66,6 +66,7 @@ set(levk_headers
 
   include/levk/asset_id.hpp
   include/levk/camera.hpp
+  include/levk/component_factory.hpp
   include/levk/component.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp

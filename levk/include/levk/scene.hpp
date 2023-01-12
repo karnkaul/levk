@@ -45,7 +45,7 @@ struct SkinnedMeshRenderer {
 	void render(Entity const& entity) const;
 };
 
-struct MeshRenderer : Entity::Renderer {
+struct MeshRenderer : RenderComponent {
 	std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer{};
 
 	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer = StaticMeshRenderer{}) : renderer(std::move(renderer)) {}
@@ -89,6 +89,8 @@ class Scene : public GraphicsRenderer, public Serializable {
 	std::string_view type_name() const override { return "scene"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
+
+	bool detach_from(Entity& out_entity, TypeId::value_type component_type) const;
 
 	std::string name{};
 	Camera camera{};

@@ -24,11 +24,7 @@ void Entity::init(Component& out) const {
 
 void Entity::attach(TypeId::value_type type_id, std::unique_ptr<Component>&& out) {
 	init(*out);
+	if (auto* r = dynamic_cast<RenderComponent*>(out.get())) { m_render_components.insert(r); }
 	m_components.insert_or_assign(type_id, std::move(out));
-}
-
-void Entity::set_renderer(std::unique_ptr<Renderer>&& renderer) {
-	init(*renderer);
-	m_renderer = std::move(renderer);
 }
 } // namespace levk

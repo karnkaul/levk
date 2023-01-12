@@ -7,6 +7,7 @@ target_sources(levk PRIVATE
   impl/vulkan_device.cpp
 
   camera.cpp
+  component_factory.cpp
   component.cpp
   engine.cpp
   entity.cpp
