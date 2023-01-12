@@ -3,6 +3,7 @@
 #include <levk/asset/common.hpp>
 #include <levk/asset/gltf_importer.hpp>
 #include <levk/imcpp/common.hpp>
+#include <levk/imcpp/drag_drop.hpp>
 #include <levk/scene.hpp>
 #include <levk/serializer.hpp>
 #include <levk/service.hpp>

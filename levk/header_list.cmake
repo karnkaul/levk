@@ -40,6 +40,7 @@ set(impl_headers
 
 set(imcpp_headers
   include/levk/imcpp/common.hpp
+  include/levk/imcpp/drag_drop.hpp
   include/levk/imcpp/engine_status.hpp
   include/levk/imcpp/input_text.hpp
   include/levk/imcpp/log_renderer.hpp

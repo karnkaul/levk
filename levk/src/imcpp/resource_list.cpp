@@ -1,4 +1,5 @@
 #include <imgui.h>
+#include <levk/imcpp/drag_drop.hpp>
 #include <levk/imcpp/resource_list.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/fixed_string.hpp>

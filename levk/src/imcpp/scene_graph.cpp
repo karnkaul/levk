@@ -1,4 +1,5 @@
 #include <imgui.h>
+#include <levk/imcpp/drag_drop.hpp>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/scene.hpp>
