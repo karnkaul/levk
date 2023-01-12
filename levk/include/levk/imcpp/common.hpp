@@ -105,6 +105,8 @@ class Window : public Canvas {
 	Window(NotClosed<Canvas> parent, char const* label, glm::vec2 size = {}, Bool border = {}, int flags = {});
 };
 
+using OpenWindow = NotClosed<Window>;
+
 ///
 /// \brief RAII Dear ImGui TreeNode
 ///
