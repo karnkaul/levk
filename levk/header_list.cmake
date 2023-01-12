@@ -43,12 +43,12 @@ set(imcpp_headers
   include/levk/imcpp/drag_drop.hpp
   include/levk/imcpp/engine_status.hpp
   include/levk/imcpp/input_text.hpp
+  include/levk/imcpp/inspector.hpp
   include/levk/imcpp/log_renderer.hpp
   include/levk/imcpp/reflector.hpp
   include/levk/imcpp/resource_list.hpp
   include/levk/imcpp/ring_buffer.hpp
   include/levk/imcpp/scene_graph.hpp
-  include/levk/imcpp/scene_inspector.hpp
 )
 
 set(assets_headers

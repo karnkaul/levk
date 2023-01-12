@@ -1,12 +1,12 @@
 #include <imgui.h>
+#include <levk/imcpp/inspector.hpp>
 #include <levk/imcpp/reflector.hpp>
-#include <levk/imcpp/scene_inspector.hpp>
 #include <levk/scene.hpp>
 #include <levk/service.hpp>
 #include <levk/util/fixed_string.hpp>
 
 namespace levk::imcpp {
-void SceneInspector::display(Scene& scene) {
+void Inspector::display(Scene& scene) {
 	if (bool show_inspector = static_cast<bool>(target)) {
 		auto const width = ImGui::GetMainViewport()->Size.x * width_pct;
 		ImGui::SetNextWindowPos({ImGui::GetIO().DisplaySize.x - width, 0.0f});
@@ -16,7 +16,7 @@ void SceneInspector::display(Scene& scene) {
 	}
 }
 
-void SceneInspector::draw_to(NotClosed<Window> w, Scene& scene) {
+void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 	switch (target.type) {
 	case Type::eCamera: {
 		imcpp::TreeNode::leaf("Camera", ImGuiTreeNodeFlags_SpanFullWidth);

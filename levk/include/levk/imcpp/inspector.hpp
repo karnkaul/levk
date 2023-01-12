@@ -4,7 +4,7 @@
 #include <functional>
 
 namespace levk::imcpp {
-class SceneInspector {
+class Inspector {
   public:
 	enum class Type { eEntity, eCamera, eLights };
 

@@ -14,11 +14,11 @@ bool SceneGraph::check_stale() {
 		m_inspector.target = {};
 		ret = true;
 	}
-	if (m_inspector.target.type == SceneInspector::Type::eEntity && !m_scene->find(m_inspector.target.entity)) { m_inspector.target = {}; }
+	if (m_inspector.target.type == Inspector::Type::eEntity && !m_scene->find(m_inspector.target.entity)) { m_inspector.target = {}; }
 	return ret;
 }
 
-SceneInspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
+Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 	m_scene = &scene;
 	check_stale();
 
@@ -51,10 +51,10 @@ SceneInspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 void SceneGraph::camera_node() {
 	auto flags = int{};
 	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
-	if (m_inspector.target.type == SceneInspector::Type::eCamera) { flags |= ImGuiTreeNodeFlags_Selected; }
-	if (imcpp::TreeNode::leaf("Camera", flags)) { m_inspector.target.type = SceneInspector::Type::eCamera; }
+	if (m_inspector.target.type == Inspector::Type::eCamera) { flags |= ImGuiTreeNodeFlags_Selected; }
+	if (imcpp::TreeNode::leaf("Camera", flags)) { m_inspector.target.type = Inspector::Type::eCamera; }
 	if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
-		m_right_clicked_target = {.type = SceneInspector::Type::eCamera};
+		m_right_clicked_target = {.type = Inspector::Type::eCamera};
 		Popup::open("scene_graph.right_click");
 	}
 }
@@ -67,7 +67,7 @@ bool SceneGraph::walk_node(Node& node) {
 	if (node.children().empty()) { flags |= ImGuiTreeNodeFlags_Leaf; }
 	auto tn = imcpp::TreeNode{node.name.c_str(), flags};
 	if (node.entity) {
-		auto target = SceneInspector::Target{node.entity, SceneInspector::Type::eEntity};
+		auto target = Inspector::Target{node.entity, Inspector::Type::eEntity};
 		if (ImGui::IsItemClicked()) { m_inspector.target = target; }
 		if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
 			m_right_clicked = true;
@@ -114,7 +114,7 @@ void SceneGraph::handle_popups() {
 	}
 
 	if (auto popup = Popup{"scene_graph.right_click"}) {
-		if (m_right_clicked_target.type == SceneInspector::Type::eEntity && !m_scene->find(m_right_clicked_target.entity)) {
+		if (m_right_clicked_target.type == Inspector::Type::eEntity && !m_scene->find(m_right_clicked_target.entity)) {
 			m_right_clicked_target = {};
 			return popup.close_current();
 		}
@@ -123,7 +123,7 @@ void SceneGraph::handle_popups() {
 			m_right_clicked_target = {};
 			popup.close_current();
 		}
-		if (m_right_clicked_target.type == SceneInspector::Type::eEntity && ImGui::Selectable("Destroy")) {
+		if (m_right_clicked_target.type == Inspector::Type::eEntity && ImGui::Selectable("Destroy")) {
 			m_scene->destroy(m_right_clicked_target.entity);
 			m_right_clicked_target = {};
 			popup.close_current();
