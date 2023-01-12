@@ -1,7 +1,7 @@
 #include <imgui.h>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/imcpp/scene_graph.hpp>
-#include <levk/serializer.hpp>
+#include <levk/scene.hpp>
 #include <levk/service.hpp>
 #include <levk/util/fixed_string.hpp>
 
@@ -10,21 +10,23 @@ bool SceneGraph::check_stale() {
 	bool ret = false;
 	if (m_scene != m_prev) {
 		m_prev = m_scene;
-		m_inspecting = {};
+		m_inspector.target = {};
 		ret = true;
 	}
-	if (m_inspecting.type == Inspect::Type::eEntity && !m_scene->find(m_inspecting.entity)) { m_inspecting = {}; }
+	if (m_inspector.target.type == Inspector::Type::eEntity && !m_scene->find(m_inspector.target.entity)) { m_inspector.target = {}; }
 	return ret;
 }
 
-SceneGraph::Inspect SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
+Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 	m_scene = &scene;
 	check_stale();
 
-	if (ImGui::SliderFloat("Inspector Width", &m_inspector_nwidth, 0.1f, 0.5f, "%.3f")) { m_inspector_nwidth = std::clamp(m_inspector_nwidth, 0.1f, 0.5f); }
+	if (ImGui::SliderFloat("Inspector Width", &m_inspector.width_pct, 0.1f, 0.5f, "%.3f")) {
+		m_inspector.width_pct = std::clamp(m_inspector.width_pct, 0.1f, 0.5f);
+	}
 
 	ImGui::Separator();
-	if (ImGui::Button("Spawn")) { Popup::open("scene_inspector.spawn_entity"); }
+	if (ImGui::Button("Spawn")) { Popup::open("scene_graph.spawn_entity"); }
 
 	ImGui::Separator();
 	camera_node();
@@ -39,15 +41,9 @@ SceneGraph::Inspect SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 		}
 	}
 
-	if (bool show_inspector = static_cast<bool>(m_inspecting)) {
-		auto const width = ImGui::GetMainViewport()->Size.x * m_inspector_nwidth;
-		ImGui::SetNextWindowPos({ImGui::GetIO().DisplaySize.x - width, 0.0f});
-		ImGui::SetNextWindowSize({width, ImGui::GetIO().DisplaySize.y});
-		if (auto w = imcpp::Window{"Inspector", &show_inspector, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove}) { draw_inspector(w); }
-		if (!show_inspector) { m_inspecting = {}; }
-	}
+	m_inspector.display(scene);
 
-	if (auto popup = Popup{"scene_inspector.spawn_entity"}) {
+	if (auto popup = Popup{"scene_graph.spawn_entity"}) {
 		ImGui::Text("Spawn Entity");
 		m_entity_name("Name");
 		if (!m_entity_name.empty() && ImGui::Button("Spawn")) {
@@ -57,25 +53,25 @@ SceneGraph::Inspect SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 		}
 	}
 
-	return m_inspecting;
+	return m_inspector.target;
 }
 
 void SceneGraph::camera_node() {
 	auto flags = int{};
 	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
-	if (m_inspecting.type == Inspect::Type::eCamera) { flags |= ImGuiTreeNodeFlags_Selected; }
-	if (imcpp::TreeNode::leaf("Camera", flags)) { m_inspecting.type = Inspect::Type::eCamera; }
+	if (m_inspector.target.type == Inspector::Type::eCamera) { flags |= ImGuiTreeNodeFlags_Selected; }
+	if (imcpp::TreeNode::leaf("Camera", flags)) { m_inspector.target.type = Inspector::Type::eCamera; }
 }
 
 bool SceneGraph::walk_node(Node& node) {
 	auto node_locator = m_scene->node_locator();
 	auto flags = int{};
 	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
-	if (node.entity && m_inspecting == node.entity) { flags |= ImGuiTreeNodeFlags_Selected; }
+	if (node.entity && m_inspector.target == node.entity) { flags |= ImGuiTreeNodeFlags_Selected; }
 	if (node.children().empty()) { flags |= ImGuiTreeNodeFlags_Leaf; }
 	auto tn = imcpp::TreeNode{node.name.c_str(), flags};
 	if (node.entity) {
-		if (ImGui::IsItemClicked()) { m_inspecting = {node.entity, Inspect::Type::eEntity}; }
+		if (ImGui::IsItemClicked()) { m_inspector.target = {node.entity, Inspector::Type::eEntity}; }
 		if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
 			m_right_clicked = true;
 			m_right_clicked_entity = node.entity;
@@ -104,11 +100,11 @@ void SceneGraph::draw_scene_tree(imcpp::OpenWindow) {
 	}
 
 	if (m_right_clicked) {
-		Popup::open("scene_inspector.right_click_entity");
+		Popup::open("scene_graph.right_click_entity");
 		m_right_clicked = {};
 	}
 
-	if (auto popup = Popup{"scene_inspector.right_click_entity"}) {
+	if (auto popup = Popup{"scene_graph.right_click_entity"}) {
 		if (!m_scene->find(m_right_clicked_entity)) {
 			m_right_clicked_entity = {};
 			return popup.close_current();
@@ -117,41 +113,6 @@ void SceneGraph::draw_scene_tree(imcpp::OpenWindow) {
 			m_scene->destroy(m_right_clicked_entity);
 			m_right_clicked_entity = {};
 			popup.close_current();
-		}
-	}
-}
-
-void SceneGraph::draw_inspector(imcpp::OpenWindow w) {
-	assert(m_scene);
-	switch (m_inspecting.type) {
-	case Inspect::Type::eCamera: {
-		imcpp::TreeNode::leaf("Camera", ImGuiTreeNodeFlags_SpanFullWidth);
-		if (auto tn = imcpp::TreeNode{"Transform", ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen}) {
-			Bool unified_scaling{true};
-			imcpp::Reflector{w}(m_scene->camera.transform, unified_scaling, {});
-		}
-		break;
-	}
-	case Inspect::Type::eLights: {
-		break;
-	}
-	default: {
-		auto* entity = m_scene->find(m_inspecting.entity);
-		if (!entity) { return; }
-		entity->inspect(w);
-		if (ImGui::Button("Attach...")) { Popup::open("scene_inspector.attach"); }
-		break;
-	}
-	}
-
-	if (auto popup = Popup{"scene_inspector.attach"}) {
-		assert(m_inspecting.type == Inspect::Type::eEntity);
-		auto* entity = m_scene->find(m_inspecting.entity);
-		assert(entity);
-		auto const& serializer = Service<Serializer>::locate();
-		auto const& map = serializer.entries();
-		for (auto const& [type_name, entry] : map) {
-			if (ImGui::Selectable(type_name.c_str())) { m_scene->attach_to(*entity, type_name); }
 		}
 	}
 }

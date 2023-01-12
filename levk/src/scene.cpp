@@ -214,7 +214,7 @@ void MeshRenderer::inspect(imcpp::OpenWindow) {
 			std::string_view label = "[None]";
 			if (smr.uri) { label = Service<Resources>::get().render.static_meshes.get(smr.uri).name; }
 			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", label}.c_str());
-			if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) { imcpp::Popup::open("static_mesh_renderer/right_click"); }
+			if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) { imcpp::Popup::open("static_mesh_renderer.right_click"); }
 			if (auto drop = imcpp::DragDrop::Target{}) {
 				if (auto const mesh = imcpp::DragDrop::accept_string("static_mesh"); !mesh.empty()) { smr.uri = mesh; }
 			}
@@ -231,7 +231,7 @@ void MeshRenderer::inspect(imcpp::OpenWindow) {
 		},
 	};
 	std::visit(visitor, renderer);
-	if (auto popup = imcpp::Popup{"static_mesh_renderer/right_click"}) {
+	if (auto popup = imcpp::Popup{"static_mesh_renderer.right_click"}) {
 		if (ImGui::Selectable("Unset")) {
 			std::get<StaticMeshRenderer>(renderer).uri = {};
 			popup.close_current();
