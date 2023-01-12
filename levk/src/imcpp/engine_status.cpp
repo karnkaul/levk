@@ -1,9 +1,9 @@
 #include <imgui.h>
-#include <levk/imcpp/engine_inspector.hpp>
+#include <levk/imcpp/engine_status.hpp>
 #include <levk/util/fixed_string.hpp>
 
 namespace levk::imcpp {
-void EngineInspector::inspect(NotClosed<Window>, Engine& engine, Time dt) {
+void EngineStatus::draw_to(NotClosed<Window>, Engine& engine, Time dt) {
 	auto const ms = dt.count() * 1000.0f;
 	m_dts.push(ms);
 	float scale = engine.device().info().render_scale;

@@ -11,7 +11,7 @@ class LogRenderer {
   public:
 	LogRenderer() noexcept;
 
-	void display(NotClosed<Window> w);
+	void draw_to(NotClosed<Window> w);
 
 	EnumArray<logger::Level, bool> show_levels{};
 	int entries{100};

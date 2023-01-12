@@ -4,9 +4,9 @@
 #include <levk/imcpp/ring_buffer.hpp>
 
 namespace levk::imcpp {
-class EngineInspector {
+class EngineStatus {
   public:
-	void inspect(NotClosed<Window> w, Engine& engine, Time dt);
+	void draw_to(NotClosed<Window> w, Engine& engine, Time dt);
 
   private:
 	RingBuffer<float> m_dts{};

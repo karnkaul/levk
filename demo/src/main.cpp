@@ -17,10 +17,10 @@
 #include <levk/util/visitor.hpp>
 #include <filesystem>
 
-#include <levk/imcpp/engine_inspector.hpp>
+#include <levk/imcpp/engine_status.hpp>
 #include <levk/imcpp/log_renderer.hpp>
-#include <levk/imcpp/resource_inspector.hpp>
-#include <levk/imcpp/scene_inspector.hpp>
+#include <levk/imcpp/resource_list.hpp>
+#include <levk/imcpp/scene_graph.hpp>
 #include <main_menu.hpp>
 
 namespace levk {
@@ -121,9 +121,9 @@ void run(fs::path data_path) {
 	auto scene = std::make_unique<Scene>();
 	auto free_cam = FreeCam{&engine.window()};
 
-	auto resource_inspector = imcpp::ResourceInspector{};
-	auto scene_inspector = imcpp::SceneInspector{};
-	auto engine_inspector = imcpp::EngineInspector{};
+	auto resource_list = imcpp::ResourceList{};
+	auto scene_graph = imcpp::SceneGraph{};
+	auto engine_status = imcpp::EngineStatus{};
 	auto log_renderer = imcpp::LogRenderer{};
 	auto main_menu = MainMenu{};
 
@@ -180,10 +180,10 @@ void run(fs::path data_path) {
 		default: break;
 		}
 
-		main_menu.windows[0].display([&](imcpp::OpenWindow w) { scene_inspector.inspect(w, *scene); });
-		main_menu.windows[1].display([&](imcpp::OpenWindow w) { resource_inspector.inspect(w, Service<Resources>::locate()); });
-		main_menu.windows[2].display([&](imcpp::OpenWindow w) { engine_inspector.inspect(w, Service<Engine>::locate(), frame.dt); });
-		main_menu.windows[3].display([&](imcpp::OpenWindow w) { log_renderer.display(w); });
+		main_menu.windows[0].display([&](imcpp::OpenWindow w) { scene_graph.draw_to(w, *scene); });
+		main_menu.windows[1].display([&](imcpp::OpenWindow w) { resource_list.draw_to(w, Service<Resources>::locate()); });
+		main_menu.windows[2].display([&](imcpp::OpenWindow w) { engine_status.draw_to(w, Service<Engine>::locate(), frame.dt); });
+		main_menu.windows[3].display([&](imcpp::OpenWindow w) { log_renderer.draw_to(w); });
 
 		if constexpr (debug_v) {
 			if (bool& show = main_menu.windows[5].show.value) { ImGui::ShowDemoWindow(&show); }

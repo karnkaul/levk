@@ -41,7 +41,7 @@ LogRenderer::LogRenderer() noexcept {
 	for (auto& level : show_levels.t) { level = true; }
 }
 
-void LogRenderer::display(NotClosed<Window> w) {
+void LogRenderer::draw_to(NotClosed<Window> w) {
 	ImGui::Checkbox("Error", &show_levels[logger::Level::eError]);
 	ImGui::SameLine();
 	ImGui::Checkbox("Warn", &show_levels[logger::Level::eWarn]);

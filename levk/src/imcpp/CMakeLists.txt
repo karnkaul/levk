@@ -1,8 +1,8 @@
 target_sources(${PROJECT_NAME} PRIVATE
-  engine_inspector.cpp
+  engine_status.cpp
   imcpp_common.cpp
   log_renderer.cpp
   reflector.cpp
-  resource_inspector.cpp
-  scene_inspector.cpp
+  resource_list.cpp
+  scene_graph.cpp
 )

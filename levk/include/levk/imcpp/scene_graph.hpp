@@ -1,10 +1,11 @@
 #pragma once
 #include <levk/imcpp/common.hpp>
+#include <levk/imcpp/input_text.hpp>
 #include <levk/scene.hpp>
 #include <levk/util/path_tree.hpp>
 
 namespace levk::imcpp {
-class SceneInspector {
+class SceneGraph {
   public:
 	struct Inspect {
 		enum class Type { eEntity, eCamera, eLights };
@@ -18,7 +19,7 @@ class SceneInspector {
 		constexpr bool operator==(Type desired) const { return type == desired; }
 	};
 
-	Inspect inspect(NotClosed<Window> w, Scene& scene);
+	Inspect draw_to(NotClosed<Window> w, Scene& scene);
 
   private:
 	bool check_stale();
@@ -31,5 +32,9 @@ class SceneInspector {
 	Ptr<Scene> m_scene{};
 	void const* m_prev{};
 	float m_inspector_nwidth{0.35f};
+
+	bool m_right_clicked{};
+	Id<Entity> m_right_clicked_entity{};
+	InputText<> m_entity_name{};
 };
 } // namespace levk::imcpp

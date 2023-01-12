@@ -4,7 +4,7 @@
 #include <levk/util/path_tree.hpp>
 
 namespace levk::imcpp {
-class ResourceInspector {
+class ResourceList {
   public:
 	struct Inspect {
 		Uri uri{};
@@ -13,7 +13,7 @@ class ResourceInspector {
 		explicit operator bool() const { return type != TypeId{} && uri; }
 	};
 
-	void inspect(NotClosed<Window> window, Resources& out);
+	void draw_to(NotClosed<Window> window, Resources& out);
 
 	Inspect inspecting{};
 	TypeId resource_type{};
