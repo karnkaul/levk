@@ -1,9 +1,10 @@
 #pragma once
 #include <levk/entity.hpp>
 #include <levk/imcpp/common.hpp>
+#include <functional>
 
 namespace levk::imcpp {
-class Inspector {
+class SceneInspector {
   public:
 	enum class Type { eEntity, eCamera, eLights };
 
@@ -24,5 +25,7 @@ class Inspector {
 
   private:
 	void draw_to(NotClosed<Window> w, Scene& scene);
+
+	std::vector<std::reference_wrapper<Component>> m_cache{};
 };
 } // namespace levk::imcpp

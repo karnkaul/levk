@@ -13,11 +13,11 @@ bool SceneGraph::check_stale() {
 		m_inspector.target = {};
 		ret = true;
 	}
-	if (m_inspector.target.type == Inspector::Type::eEntity && !m_scene->find(m_inspector.target.entity)) { m_inspector.target = {}; }
+	if (m_inspector.target.type == SceneInspector::Type::eEntity && !m_scene->find(m_inspector.target.entity)) { m_inspector.target = {}; }
 	return ret;
 }
 
-Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
+SceneInspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 	m_scene = &scene;
 	check_stale();
 
@@ -31,6 +31,7 @@ Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 	ImGui::Separator();
 	camera_node();
 	draw_scene_tree(w);
+	handle_popups();
 	if (auto* payload = ImGui::GetDragDropPayload(); payload && payload->IsDataType("node")) {
 		imcpp::TreeNode::leaf("(Unparent)");
 		if (auto target = imcpp::DragDrop::Target{}) {
@@ -43,24 +44,18 @@ Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 
 	m_inspector.display(scene);
 
-	if (auto popup = Popup{"scene_graph.spawn_entity"}) {
-		ImGui::Text("Spawn Entity");
-		m_entity_name("Name");
-		if (!m_entity_name.empty() && ImGui::Button("Spawn")) {
-			scene.spawn({}, NodeCreateInfo{.name = std::string{m_entity_name.view()}});
-			m_entity_name = {};
-			popup.close_current();
-		}
-	}
-
 	return m_inspector.target;
 }
 
 void SceneGraph::camera_node() {
 	auto flags = int{};
 	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
-	if (m_inspector.target.type == Inspector::Type::eCamera) { flags |= ImGuiTreeNodeFlags_Selected; }
-	if (imcpp::TreeNode::leaf("Camera", flags)) { m_inspector.target.type = Inspector::Type::eCamera; }
+	if (m_inspector.target.type == SceneInspector::Type::eCamera) { flags |= ImGuiTreeNodeFlags_Selected; }
+	if (imcpp::TreeNode::leaf("Camera", flags)) { m_inspector.target.type = SceneInspector::Type::eCamera; }
+	if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+		m_right_clicked_target = {.type = SceneInspector::Type::eCamera};
+		Popup::open("scene_graph.right_click");
+	}
 }
 
 bool SceneGraph::walk_node(Node& node) {
@@ -71,10 +66,11 @@ bool SceneGraph::walk_node(Node& node) {
 	if (node.children().empty()) { flags |= ImGuiTreeNodeFlags_Leaf; }
 	auto tn = imcpp::TreeNode{node.name.c_str(), flags};
 	if (node.entity) {
-		if (ImGui::IsItemClicked()) { m_inspector.target = {node.entity, Inspector::Type::eEntity}; }
+		auto target = SceneInspector::Target{node.entity, SceneInspector::Type::eEntity};
+		if (ImGui::IsItemClicked()) { m_inspector.target = target; }
 		if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
 			m_right_clicked = true;
-			m_right_clicked_entity = node.entity;
+			m_right_clicked_target = target;
 		}
 	}
 	auto const id = node.id().value();
@@ -100,18 +96,35 @@ void SceneGraph::draw_scene_tree(imcpp::OpenWindow) {
 	}
 
 	if (m_right_clicked) {
-		Popup::open("scene_graph.right_click_entity");
+		Popup::open("scene_graph.right_click");
 		m_right_clicked = {};
 	}
+}
 
-	if (auto popup = Popup{"scene_graph.right_click_entity"}) {
-		if (!m_scene->find(m_right_clicked_entity)) {
-			m_right_clicked_entity = {};
+void SceneGraph::handle_popups() {
+	if (auto popup = Popup{"scene_graph.spawn_entity"}) {
+		ImGui::Text("Spawn Entity");
+		m_entity_name("Name");
+		if (!m_entity_name.empty() && ImGui::Button("Spawn")) {
+			m_scene->spawn({}, NodeCreateInfo{.name = std::string{m_entity_name.view()}});
+			m_entity_name = {};
+			popup.close_current();
+		}
+	}
+
+	if (auto popup = Popup{"scene_graph.right_click"}) {
+		if (m_right_clicked_target.type == SceneInspector::Type::eEntity && !m_scene->find(m_right_clicked_target.entity)) {
+			m_right_clicked_target = {};
 			return popup.close_current();
 		}
-		if (ImGui::Button("Destroy")) {
-			m_scene->destroy(m_right_clicked_entity);
-			m_right_clicked_entity = {};
+		if (ImGui::Selectable("Inspect")) {
+			m_inspector.target = m_right_clicked_target;
+			m_right_clicked_target = {};
+			popup.close_current();
+		}
+		if (m_right_clicked_target.type == SceneInspector::Type::eEntity && ImGui::Selectable("Destroy")) {
+			m_scene->destroy(m_right_clicked_target.entity);
+			m_right_clicked_target = {};
 			popup.close_current();
 		}
 	}

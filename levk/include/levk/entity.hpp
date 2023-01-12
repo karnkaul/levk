@@ -14,7 +14,7 @@ class Node;
 template <typename T>
 concept ComponentT = std::derived_from<T, Component>;
 
-class Entity final : public imcpp::Inspectable {
+class Entity final {
   public:
 	///
 	/// \brief Each Entity can have zero or one (concrete) Renderer instances attached.
@@ -72,7 +72,10 @@ class Entity final : public imcpp::Inspectable {
 
 	Scene& scene() const;
 
-	void inspect(imcpp::NotClosed<imcpp::Window>) final;
+	template <typename ContainerT>
+	void fill_components_to(ContainerT&& container) const {
+		for (auto const& [_, component] : m_components) { container.insert(container.end(), *component); }
+	}
 
 	bool active{true};
 

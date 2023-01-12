@@ -1,11 +1,12 @@
 #include <imgui.h>
-#include <levk/imcpp/inspector.hpp>
 #include <levk/imcpp/reflector.hpp>
+#include <levk/imcpp/scene_inspector.hpp>
 #include <levk/scene.hpp>
 #include <levk/service.hpp>
+#include <levk/util/fixed_string.hpp>
 
 namespace levk::imcpp {
-void Inspector::display(Scene& scene) {
+void SceneInspector::display(Scene& scene) {
 	if (bool show_inspector = static_cast<bool>(target)) {
 		auto const width = ImGui::GetMainViewport()->Size.x * width_pct;
 		ImGui::SetNextWindowPos({ImGui::GetIO().DisplaySize.x - width, 0.0f});
@@ -15,7 +16,7 @@ void Inspector::display(Scene& scene) {
 	}
 }
 
-void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
+void SceneInspector::draw_to(NotClosed<Window> w, Scene& scene) {
 	switch (target.type) {
 	case Type::eCamera: {
 		imcpp::TreeNode::leaf("Camera", ImGuiTreeNodeFlags_SpanFullWidth);
@@ -31,7 +32,21 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 	default: {
 		auto* entity = scene.find(target.entity);
 		if (!entity) { return; }
-		entity->inspect(w);
+		auto* node = scene.node_locator().find(entity->node_id());
+		if (!node) { return; }
+		imcpp::TreeNode::leaf(node->name.c_str());
+		ImGui::Checkbox("Active", &entity->active);
+		if (auto tn = imcpp::TreeNode("Transform", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
+			auto unified_scaling = Bool{true};
+			imcpp::Reflector{w}(node->transform, unified_scaling, {true});
+		}
+		auto inspect_component = [w](Component& component) {
+			if (auto tn = imcpp::TreeNode{FixedString<128>{component.type_name()}.c_str(), ImGuiTreeNodeFlags_Framed}) { component.inspect(w); }
+		};
+		m_cache.clear();
+		entity->fill_components_to(m_cache);
+		for (auto const& component : m_cache) { inspect_component(component); }
+		if (auto* renderer = entity->renderer_as<Entity::Renderer>()) { inspect_component(*renderer); }
 		if (ImGui::Button("Attach...")) { Popup::open("inspector.attach"); }
 		break;
 	}
