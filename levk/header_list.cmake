@@ -41,6 +41,7 @@ set(impl_headers
 set(imcpp_headers
   include/levk/imcpp/common.hpp
   include/levk/imcpp/engine_inspector.hpp
+  include/levk/imcpp/input_text.hpp
   include/levk/imcpp/inspectable.hpp
   include/levk/imcpp/log_renderer.hpp
   include/levk/imcpp/reflector.hpp

@@ -36,6 +36,8 @@ bool small_button_red(char const* label) {
 
 bool selectable(char const* label, Bool selected, int flags, glm::vec2 size) { return ImGui::Selectable(label, selected.value, flags, {size.x, size.y}); }
 
+bool input_text(char const* label, char* buffer, std::size_t size, int flags) { return ImGui::InputText(label, buffer, size, flags); }
+
 Openable::~Openable() noexcept {
 	if (m_open || m_force_close) {
 		assert(m_close);

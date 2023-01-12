@@ -24,11 +24,10 @@ struct Access : logger::Accessor {
 
 	void operator()(std::span<logger::Entry const> entries) override {
 		if (auto style = StyleVar{ImGuiStyleVar_ItemSpacing, glm::vec2{}}) {
-			auto const filter = std::string_view{out.filter.data()};
 			out.cache.clear();
 			for (auto const& entry : entries) {
 				if (!out.show_levels[entry.level]) { continue; }
-				if (!filter.empty() && entry.message.find(filter) == std::string::npos) { continue; }
+				if (!out.filter.empty() && entry.message.find(out.filter) == std::string::npos) { continue; }
 				out.cache.push(entry);
 			}
 			for (auto const& entry : out.cache.span()) { ImGui::TextColored(colour_for(entry.level), "%s", entry.message.c_str()); }
@@ -64,7 +63,7 @@ void LogRenderer::display(NotClosed<Window> w) {
 	cache.set_capacity(static_cast<std::size_t>(entries));
 	ImGui::SetNextItemWidth(200.0f);
 	ImGui::SameLine();
-	ImGui::InputText("Filter", filter.data(), filter.size() - 1);
+	filter("Filter");
 	ImGui::SameLine();
 	if (ImGui::SmallButton("clear")) { filter = {}; }
 

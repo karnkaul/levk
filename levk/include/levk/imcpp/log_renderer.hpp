@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/imcpp/common.hpp>
+#include <levk/imcpp/input_text.hpp>
 #include <levk/imcpp/ring_buffer.hpp>
 #include <levk/util/enum_array.hpp>
 #include <levk/util/logger.hpp>
@@ -15,7 +16,7 @@ class LogRenderer {
 	EnumArray<logger::Level, bool> show_levels{};
 	int entries{100};
 	bool auto_scroll{true};
-	std::array<char, 128> filter{};
+	InputText<> filter{};
 
 	RingBuffer<logger::Entry> cache{};
 };

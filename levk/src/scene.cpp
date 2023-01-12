@@ -345,6 +345,27 @@ void Scene::tick(Time dt) {
 	fill_to_if(m_entities, m_entity_refs, [](Id<Entity>, Entity const& e) { return e.active; });
 	std::sort(m_entity_refs.begin(), m_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
 	for (Entity& entity : m_entity_refs) { entity.tick(dt); }
+	auto destroy_entity = [&](Node const& node) { m_entities.remove(node.entity); };
+	for (auto const id : m_to_destroy) { m_nodes.remove(id, destroy_entity); }
+	m_to_destroy.clear();
+}
+
+bool Scene::destroy(Id<Entity> entity) {
+	if (m_entities.contains(entity)) {
+		m_to_destroy.insert(entity);
+		return true;
+	}
+	return false;
+}
+
+void Scene::render_3d() {
+	m_entity_refs.clear();
+	fill_to_if(m_entities, m_entity_refs, [](Id<Entity>, Entity const& e) { return e.active && e.m_renderer; });
+	std::sort(m_entity_refs.begin(), m_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
+	for (Entity const& entity : m_entity_refs) {
+		assert(entity.m_renderer);
+		entity.m_renderer->render();
+	}
 }
 
 bool Scene::from_json(char const* path) {
@@ -476,11 +497,19 @@ bool Scene::deserialize(dj::Json const& json) {
 	return true;
 }
 
-void Scene::render_3d() {
-	m_entity_refs.clear();
-	fill_to_if(m_entities, m_entity_refs, [](Id<Entity>, Entity const& e) { return e.active; });
-	for (Entity const& entity : m_entity_refs) {
-		if (entity.m_renderer) { entity.m_renderer->render(); }
-	};
+Ptr<Component> Scene::attach_to(Entity& out, std::string const& type_name) const {
+	auto const* entry = Service<Serializer>::locate().find_entry(type_name);
+	if (!entry) { return {}; }
+	auto component = Serializer::dynamic_pointer_cast<Component>(entry->factory());
+	if (!component) { return {}; }
+	auto ret = component.get();
+	if (dynamic_cast<Entity::Renderer*>(component.get())) {
+		auto renderer = Serializer::dynamic_pointer_cast<Entity::Renderer>(std::move(component));
+		assert(renderer);
+		out.set_renderer(std::move(renderer));
+	} else {
+		out.attach(entry->type_id.value(), std::move(component));
+	}
+	return ret;
 }
 } // namespace levk

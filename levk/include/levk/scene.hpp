@@ -8,6 +8,7 @@
 #include <levk/util/monotonic_map.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/time.hpp>
+#include <unordered_set>
 #include <variant>
 
 namespace levk {
@@ -70,6 +71,7 @@ class Scene : public GraphicsRenderer, public Serializable {
 
 	Node& spawn(Entity entity, Node::CreateInfo const& node_create_info = {});
 	void tick(Time dt);
+	bool destroy(Id<Entity> entity);
 
 	Ptr<Entity const> find(Id<Entity> id) const { return m_entities.find(id); }
 	Ptr<Entity> find(Id<Entity> id) { return m_entities.find(id); }
@@ -88,6 +90,8 @@ class Scene : public GraphicsRenderer, public Serializable {
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
 
+	Ptr<Component> attach_to(Entity& out, std::string const& type_name) const;
+
 	std::string name{};
 	Camera camera{};
 	Lights lights{};
@@ -96,5 +100,6 @@ class Scene : public GraphicsRenderer, public Serializable {
 	Node::Tree m_nodes{};
 	MonotonicMap<Entity> m_entities{};
 	std::vector<std::reference_wrapper<Entity>> m_entity_refs{};
+	std::unordered_set<Id<Entity>::id_type> m_to_destroy{};
 };
 } // namespace levk

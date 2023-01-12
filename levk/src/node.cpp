@@ -27,12 +27,7 @@ Node& Node::Tree::add(CreateInfo const& create_info) {
 }
 
 void Node::Tree::remove(Id<Node> id) {
-	if (auto it = m_nodes.find(id); it != m_nodes.end()) {
-		remove_child_from_parent(it->second);
-		destroy_children(it->second);
-		m_nodes.erase(it);
-		std::erase(m_roots, id);
-	}
+	remove(id, [](auto&&...) {});
 }
 
 void Node::Tree::reparent(Node& out, Id<Node> new_parent) {
@@ -73,16 +68,6 @@ void Node::Tree::remove_child_from_parent(Node& out) {
 		std::erase(parent->m_children, out.m_id);
 		out.m_parent = {};
 	}
-}
-
-void Node::Tree::destroy_children(Node& out) {
-	for (auto const id : out.m_children) {
-		if (auto it = m_nodes.find(id); it != m_nodes.end()) {
-			destroy_children(it->second);
-			m_nodes.erase(it);
-		}
-	}
-	out.m_children.clear();
 }
 
 Ptr<Node const> Node::Tree::find(Id<Node> id) const {

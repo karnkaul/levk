@@ -46,6 +46,17 @@ class Node::Tree {
 	Node& add(CreateInfo const& create_info);
 	void remove(Id<Node> id);
 
+	template <typename OnRemove>
+	void remove(Id<Node> id, OnRemove&& on_remove) {
+		if (auto it = m_nodes.find(id); it != m_nodes.end()) {
+			remove_child_from_parent(it->second);
+			destroy_children(it->second, on_remove);
+			on_remove(it->second);
+			m_nodes.erase(it);
+			std::erase(m_roots, id);
+		}
+	}
+
 	Ptr<Node const> find(Id<Node> id) const;
 	Ptr<Node> find(Id<Node> id);
 
@@ -64,7 +75,18 @@ class Node::Tree {
 
   private:
 	void remove_child_from_parent(Node& out);
-	void destroy_children(Node& out);
+
+	template <typename OnRemove>
+	void destroy_children(Node& out, OnRemove&& on_remove) {
+		for (auto const id : out.m_children) {
+			if (auto it = m_nodes.find(id); it != m_nodes.end()) {
+				destroy_children(it->second, on_remove);
+				on_remove(it->second);
+				m_nodes.erase(it);
+			}
+		}
+		out.m_children.clear();
+	}
 
 	Map m_nodes{};
 	std::vector<Id<Node>> m_roots{};

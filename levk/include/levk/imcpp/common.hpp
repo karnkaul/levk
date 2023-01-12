@@ -37,6 +37,8 @@ bool small_button_red(char const* label);
 ///
 bool selectable(char const* label, Bool selected, int flags = {}, glm::vec2 size = {});
 
+bool input_text(char const* label, char* buffer, std::size_t size, int flags = {});
+
 ///
 /// \brief RAII Dear ImGui StyleVar stack
 ///
@@ -192,6 +194,11 @@ class Combo : public Openable {
 	bool item(char const* label, Bool selected, int flags = {}, glm::vec2 size = {}) const { return selectable(label, selected, flags, size); }
 };
 
+class ListBox : public Openable {
+  public:
+	explicit ListBox(char const* label, glm::vec2 size = {});
+};
+
 template <typename Type>
 concept DragDropPayloadT = (!std::is_pointer_v<Type>) && std::is_trivially_copyable_v<Type>;
 
@@ -235,10 +242,5 @@ struct DragDrop {
 
 	static void set_string(char const* type_name, std::string_view str, std::string_view label = {}, int cond = {});
 	static std::string_view accept_string(char const* type_name);
-};
-
-class ListBox : public Openable {
-  public:
-	explicit ListBox(char const* label, glm::vec2 size = {});
 };
 } // namespace levk::imcpp
