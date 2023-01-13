@@ -211,7 +211,7 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 
 void MeshRenderer::inspect(imcpp::OpenWindow) {
 	auto const visitor = Visitor{
-		[&](StaticMeshRenderer& smr) {
+		[](StaticMeshRenderer& smr) {
 			std::string_view label = "[None]";
 			if (smr.uri) { label = Service<Resources>::get().render.static_meshes.get(smr.uri).name; }
 			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", label}.c_str());
@@ -220,7 +220,7 @@ void MeshRenderer::inspect(imcpp::OpenWindow) {
 				if (auto const mesh = imcpp::DragDrop::accept_string("static_mesh"); !mesh.empty()) { smr.uri = mesh; }
 			}
 		},
-		[&](SkinnedMeshRenderer& smr) {
+		[](SkinnedMeshRenderer& smr) {
 			if (smr.uri) {
 				auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.uri);
 				auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
