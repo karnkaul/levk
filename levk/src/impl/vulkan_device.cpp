@@ -2391,6 +2391,8 @@ void levk::gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& 
 	out.impl->info.current_vsync = from(out.impl->swapchain.info.presentMode);
 	out.impl->info.supported_aa = make_aa(out.impl->gpu.properties);
 	out.impl->info.current_aa = get_samples(out.impl->info.supported_aa, create_info.anti_aliasing);
+	out.impl->info.validation = create_info.validation;
+	out.impl->info.name = out.impl->gpu.properties.deviceName;
 
 	auto const depth = depth_format(out.impl->gpu.device);
 	auto const samples = from(out.impl->info.current_aa);
@@ -2431,7 +2433,13 @@ void levk::gfx_destroy_device(VulkanDevice& out) {
 
 levk::GraphicsDeviceInfo const& levk::gfx_info(VulkanDevice const& device) { return device.impl->info; }
 
-bool levk::gfx_set_vsync(VulkanDevice& out, Vsync::Type vsync) { return make_swapchain(out, {}, from(vsync)) == vk::Result::eSuccess; }
+bool levk::gfx_set_vsync(VulkanDevice& out, Vsync::Type vsync) {
+	if (make_swapchain(out, {}, from(vsync)) == vk::Result::eSuccess) {
+		out.impl->info.current_vsync = vsync;
+		return true;
+	}
+	return false;
+}
 
 bool levk::gfx_set_render_scale(VulkanDevice& out, float scale) {
 	if (scale < render_scale_limit_v[0] || scale > render_scale_limit_v[1]) { return false; }

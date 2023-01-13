@@ -7,6 +7,11 @@ namespace levk {
 struct MainMenu {
 	struct Separator {};
 
+	struct List {
+		std::string label{};
+		std::function<void()> callback{};
+	};
+
 	struct Custom {
 		std::string label{};
 		std::function<void(bool& show)> draw{};
@@ -14,7 +19,7 @@ struct MainMenu {
 		Bool show{};
 	};
 
-	using Entry = std::variant<imcpp::EditorWindow, Separator, Custom>;
+	using WindowItem = std::variant<imcpp::EditorWindow, Separator, Custom>;
 
 	enum class Action { eNone, eExit };
 
@@ -22,7 +27,10 @@ struct MainMenu {
 		Action action{};
 	};
 
-	std::vector<Entry> entries{};
+	struct {
+		std::vector<List> lists{};
+		std::vector<WindowItem> window{};
+	} menus{};
 
 	Result display_menu();
 	void display_windows();

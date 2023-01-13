@@ -5,10 +5,10 @@
 namespace levk {
 MainMenu::Result MainMenu::display_menu() {
 	if (auto menu = imcpp::MainMenu{}) {
-		if (auto file = imcpp::Menu{menu, "File"}) {
-			if (ImGui::MenuItem("Exit")) { return {.action = Action::eExit}; }
+		for (auto const& list : menus.lists) {
+			if (auto title = imcpp::Menu{menu, list.label.c_str()}) { list.callback(); }
 		}
-		if (!entries.empty()) {
+		if (!menus.window.empty()) {
 			auto const visitor = Visitor{
 				[](Separator) { ImGui::Separator(); },
 				[](auto& t) {
@@ -16,14 +16,14 @@ MainMenu::Result MainMenu::display_menu() {
 				},
 			};
 			if (auto window = imcpp::Menu{menu, "Window"}) {
-				for (auto& entry : entries) { std::visit(visitor, entry); }
+				for (auto& entry : menus.window) { std::visit(visitor, entry); }
 				ImGui::Separator();
 				if (ImGui::MenuItem("Close All", {})) {
 					auto const visitor = Visitor{
 						[](Separator) {},
 						[](auto& t) { t.show.value = false; },
 					};
-					for (auto& entry : entries) { std::visit(visitor, entry); }
+					for (auto& entry : menus.window) { std::visit(visitor, entry); }
 				}
 			}
 		}
@@ -39,6 +39,6 @@ void MainMenu::display_windows() {
 			if (custom.show) { custom.draw(custom.show.value); }
 		},
 	};
-	for (auto& entry : entries) { std::visit(visitor, entry); }
+	for (auto& entry : menus.window) { std::visit(visitor, entry); }
 }
 } // namespace levk

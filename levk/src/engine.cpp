@@ -86,5 +86,6 @@ void Engine::render(GraphicsRenderer& renderer, Camera const& camera, Lights con
 	m_impl->graphics_device.render(renderer, camera, lights, m_impl->window.framebuffer_extent(), clear);
 }
 
+Time Engine::delta_time() const { return m_impl->dt.value; }
 int Engine::framerate() const { return m_impl->fps.fps == 0 ? m_impl->fps.frames : m_impl->fps.fps; }
 } // namespace levk

@@ -27,6 +27,7 @@ class GraphicsDevice {
 	void create(CreateInfo const& create_info) { m_model->create(create_info); }
 	void destroy() { m_model->destroy(); }
 	Info const& info() const { return m_model->info(); }
+	bool set_vsync(Vsync::Type desired) { return m_model->set_vsync(desired); }
 	bool set_render_scale(float scale) { return m_model->set_render_scale(scale); }
 
 	void render(GraphicsRenderer& renderer, Camera const& camera, Lights const& lights, glm::uvec2 extent, Rgba clear);
@@ -54,6 +55,7 @@ class GraphicsDevice {
 		virtual void create(CreateInfo const& create_info) = 0;
 		virtual void destroy() = 0;
 		virtual Info const& info() const = 0;
+		virtual bool set_vsync(Vsync::Type) = 0;
 		virtual bool set_render_scale(float) = 0;
 
 		virtual void render(RenderInfo const& info) = 0;
@@ -68,13 +70,14 @@ class GraphicsDevice {
 	};
 
 	template <typename T>
-	struct Model : Base {
+	struct Model final : Base {
 		T impl;
 		Model(T&& t) : impl(std::move(t)) {}
 
 		void create(CreateInfo const& create_info) final { gfx_create_device(impl, create_info); }
 		void destroy() final { gfx_destroy_device(impl); }
 		Info const& info() const final { return gfx_info(impl); }
+		bool set_vsync(Vsync::Type vsync) final { return gfx_set_vsync(impl, vsync); }
 		bool set_render_scale(float scale) final { return gfx_set_render_scale(impl, scale); }
 
 		void render(RenderInfo const& info) final { gfx_render(impl, info); }

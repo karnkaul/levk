@@ -127,16 +127,31 @@ void run(fs::path data_path) {
 	auto log_renderer = imcpp::LogRenderer{};
 	auto main_menu = MainMenu{};
 
-	main_menu.entries = {
+	auto save_scene = [&] {
+		auto json = dj::Json{};
+		scene->serialize(json);
+		auto filename = "test_scene.json";
+		json.to_file((data_path / filename).string().c_str());
+		logger::debug("Scene saved to {}", filename);
+	};
+
+	auto file_menu = [&] {
+		if (ImGui::MenuItem("Save", nullptr, false, !scene->empty())) { save_scene(); }
+		ImGui::Separator();
+		if (ImGui::MenuItem("Exit")) { engine.shutdown(); }
+	};
+
+	main_menu.menus.lists.push_back(MainMenu::List{.label = "File", .callback = file_menu});
+
+	main_menu.menus.window = {
 		imcpp::EditorWindow{.label = "Scene", .draw_to = [&](imcpp::OpenWindow w) { scene_graph.draw_to(w, *scene); }},
 		imcpp::EditorWindow{.label = "Resources", .draw_to = [&](imcpp::OpenWindow w) { resource_list.draw_to(w, Service<Resources>::locate()); }},
-		imcpp::EditorWindow{
-			.label = "Engine", .init_size = {300.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { resource_list.draw_to(w, Service<Resources>::locate()); }},
+		imcpp::EditorWindow{.label = "Engine", .init_size = {350.0f, 250.0f}, .draw_to = [&](imcpp::OpenWindow w) { engine_status.draw_to(w, engine); }},
 		imcpp::EditorWindow{.label = "Log", .init_size = {600.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { log_renderer.draw_to(w); }},
 	};
 	if constexpr (debug_v) {
-		main_menu.entries.push_back(MainMenu::Separator{});
-		main_menu.entries.push_back(MainMenu::Custom{.label = "Dear ImGui Demo", .draw = [](bool& show) { ImGui::ShowDemoWindow(&show); }});
+		main_menu.menus.window.push_back(MainMenu::Separator{});
+		main_menu.menus.window.push_back(MainMenu::Custom{.label = "Dear ImGui Demo", .draw = [](bool& show) { ImGui::ShowDemoWindow(&show); }});
 	}
 
 	engine.show();
@@ -171,13 +186,7 @@ void run(fs::path data_path) {
 		free_cam.tick(scene->camera.transform, frame.state.input, frame.dt);
 
 		// test code
-		if (frame.state.input.chord(Key::eS, Key::eLeftControl)) {
-			auto json = dj::Json{};
-			scene->serialize(json);
-			auto filename = "test_scene.json";
-			json.to_file((data_path / filename).string().c_str());
-			logger::debug("Scene saved to {}", filename);
-		}
+		if (frame.state.input.chord(Key::eS, Key::eLeftControl)) { save_scene(); }
 		// test code
 
 		auto result = main_menu.display_menu();

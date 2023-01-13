@@ -92,6 +92,8 @@ class Scene : public GraphicsRenderer, public Serializable {
 
 	bool detach_from(Entity& out_entity, TypeId::value_type component_type) const;
 
+	bool empty() const { return m_entities.empty(); }
+
 	std::string name{};
 	Camera camera{};
 	Lights lights{};

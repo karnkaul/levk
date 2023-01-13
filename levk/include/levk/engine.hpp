@@ -38,6 +38,7 @@ class Engine {
 	Frame next_frame();
 	void render(GraphicsRenderer& renderer, Camera const& camera, Lights const& lights, Rgba clear = black_v);
 
+	Time delta_time() const;
 	int framerate() const;
 
   private:

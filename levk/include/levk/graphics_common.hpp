@@ -61,6 +61,7 @@ struct Vsync {
 };
 
 struct GraphicsDeviceInfo {
+	std::string_view name{};
 	bool validation{};
 	bool portability{};
 	ColourSpace swapchain{};
