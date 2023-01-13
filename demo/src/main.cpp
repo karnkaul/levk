@@ -127,11 +127,17 @@ void run(fs::path data_path) {
 	auto log_renderer = imcpp::LogRenderer{};
 	auto main_menu = MainMenu{};
 
-	main_menu.windows = {
-		{.label = "Scene"}, {.label = "Resources"}, {.label = "Engine", .init_size = {300.0f, 300.0f}}, {.label = "Log", .init_size = {600.0f, 300.0f}},
-		{.label = "--"},
+	main_menu.entries = {
+		imcpp::EditorWindow{.label = "Scene", .draw_to = [&](imcpp::OpenWindow w) { scene_graph.draw_to(w, *scene); }},
+		imcpp::EditorWindow{.label = "Resources", .draw_to = [&](imcpp::OpenWindow w) { resource_list.draw_to(w, Service<Resources>::locate()); }},
+		imcpp::EditorWindow{
+			.label = "Engine", .init_size = {300.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { resource_list.draw_to(w, Service<Resources>::locate()); }},
+		imcpp::EditorWindow{.label = "Log", .init_size = {600.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { log_renderer.draw_to(w); }},
 	};
-	if constexpr (debug_v) { main_menu.windows.push_back({.label = "Dear ImGui Demo"}); }
+	if constexpr (debug_v) {
+		main_menu.entries.push_back(MainMenu::Separator{});
+		main_menu.entries.push_back(MainMenu::Custom{.label = "Dear ImGui Demo", .draw = [](bool& show) { ImGui::ShowDemoWindow(&show); }});
+	}
 
 	engine.show();
 	while (engine.is_running()) {
@@ -174,20 +180,13 @@ void run(fs::path data_path) {
 		}
 		// test code
 
-		auto result = main_menu.display();
+		auto result = main_menu.display_menu();
 		switch (result.action) {
 		case MainMenu::Action::eExit: engine.shutdown(); break;
 		default: break;
 		}
 
-		main_menu.windows[0].display([&](imcpp::OpenWindow w) { scene_graph.draw_to(w, *scene); });
-		main_menu.windows[1].display([&](imcpp::OpenWindow w) { resource_list.draw_to(w, Service<Resources>::locate()); });
-		main_menu.windows[2].display([&](imcpp::OpenWindow w) { engine_status.draw_to(w, Service<Engine>::locate(), frame.dt); });
-		main_menu.windows[3].display([&](imcpp::OpenWindow w) { log_renderer.draw_to(w); });
-
-		if constexpr (debug_v) {
-			if (bool& show = main_menu.windows[5].show.value) { ImGui::ShowDemoWindow(&show); }
-		}
+		main_menu.display_windows();
 
 		engine.render(*scene, scene->camera, scene->lights, Rgba::from({0.1f, 0.1f, 0.1f, 1.0f}));
 	}

@@ -1,30 +1,20 @@
 #pragma once
-#include <imgui.h>
-#include <levk/imcpp/common.hpp>
-#include <levk/util/bool.hpp>
-#include <string>
+#include <levk/imcpp/editor_window.hpp>
+#include <variant>
 #include <vector>
 
 namespace levk {
 struct MainMenu {
-	struct Win {
+	struct Separator {};
+
+	struct Custom {
 		std::string label{};
-		glm::vec2 init_size{400.0f, 300.0f};
+		std::function<void(bool& show)> draw{};
 
 		Bool show{};
-
-		template <typename Func>
-		bool display(Func&& func) {
-			if (show) {
-				ImGui::SetNextWindowSize({init_size.x, init_size.y}, ImGuiCond_Once);
-				if (auto w = imcpp::Window{label.c_str(), &show.value}) {
-					func(imcpp::NotClosed{w});
-					return true;
-				}
-			}
-			return false;
-		}
 	};
+
+	using Entry = std::variant<imcpp::EditorWindow, Separator, Custom>;
 
 	enum class Action { eNone, eExit };
 
@@ -32,8 +22,9 @@ struct MainMenu {
 		Action action{};
 	};
 
-	std::vector<Win> windows{};
+	std::vector<Entry> entries{};
 
-	Result display();
+	Result display_menu();
+	void display_windows();
 };
 } // namespace levk
