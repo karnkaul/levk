@@ -116,7 +116,7 @@ void run(fs::path data_path) {
 	reader.mount(data_path.generic_string());
 	auto services = Services{};
 	services.engine.emplace(make_engine(reader));
-	services.resources.emplace(data_path.generic_string());
+	services.resources.emplace(data_path.generic_string(), reader);
 	auto& engine = Service<Engine>::locate();
 	auto scene = std::make_unique<Scene>();
 	auto free_cam = FreeCam{&engine.window()};
