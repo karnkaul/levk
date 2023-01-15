@@ -65,16 +65,8 @@ Engine::Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& creat
 	if (create_info.autoshow) { m_impl->window.show(); }
 }
 
-Window const& Engine::window() const { return m_impl->window; }
-Window& Engine::window() { return m_impl->window; }
-GraphicsDevice const& Engine::device() const { return m_impl->graphics_device; }
-GraphicsDevice& Engine::device() { return m_impl->graphics_device; }
-
-void Engine::show() { m_impl->window.show(); }
-void Engine::hide() { m_impl->window.hide(); }
-void Engine::shutdown() { m_impl->window.close(); }
-
-bool Engine::is_running() const { return m_impl->window.is_open(); }
+Window& Engine::window() const { return m_impl->window; }
+GraphicsDevice& Engine::device() const { return m_impl->graphics_device; }
 
 Frame Engine::next_frame() {
 	m_impl->window.poll();
@@ -82,7 +74,7 @@ Frame Engine::next_frame() {
 	return {.state = m_impl->window.state(), .dt = m_impl->dt()};
 }
 
-void Engine::render(GraphicsRenderer const& renderer, Camera const& camera, Lights const& lights, Rgba clear) const {
+void Engine::render(GraphicsRenderer const& renderer, Camera const& camera, Lights const& lights, Rgba clear) {
 	m_impl->graphics_device.render(renderer, camera, lights, m_impl->window.framebuffer_extent(), clear);
 }
 

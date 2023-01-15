@@ -88,6 +88,7 @@ set(levk_headers
   include/levk/resource_map.hpp
   include/levk/resources.hpp
   include/levk/rgba.hpp
+  include/levk/runtime.hpp
   include/levk/scene.hpp
   include/levk/service.hpp
   include/levk/serializable.hpp

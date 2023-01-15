@@ -26,17 +26,11 @@ class Engine {
 
 	explicit Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& create_info = {}) noexcept(false);
 
-	Window const& window() const;
-	Window& window();
-	GraphicsDevice const& device() const;
-	GraphicsDevice& device();
+	Window& window() const;
+	GraphicsDevice& device() const;
 
-	void show();
-	void hide();
-	void shutdown();
-	bool is_running() const;
 	Frame next_frame();
-	void render(GraphicsRenderer const& renderer, Camera const& camera, Lights const& lights, Rgba clear = black_v) const;
+	void render(GraphicsRenderer const& renderer, Camera const& camera, Lights const& lights, Rgba clear = black_v);
 
 	Time delta_time() const;
 	int framerate() const;

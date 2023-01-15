@@ -17,6 +17,7 @@ target_sources(levk PRIVATE
   material.cpp
   node.cpp
   rgba.cpp
+  runtime.cpp
   pixel_map.cpp
   resources.cpp
   scene.cpp
