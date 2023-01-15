@@ -1,4 +1,5 @@
 #include <levk/runtime.hpp>
+#include <levk/util/error.hpp>
 
 namespace levk {
 namespace {
@@ -25,13 +26,25 @@ fs::path find_dir(fs::path exe, std::span<std::string_view const> patterns) {
 Runtime::Runtime(std::unique_ptr<Reader> reader, ContextFactory const& context_factory)
 	: m_reader(std::move(reader)), m_context(context_factory.make(*m_reader)) {}
 
-void Runtime::run() {
-	m_context.show();
-	while (m_context.is_running()) {
-		auto frame = m_context.next_frame();
-		tick(frame);
-		render();
+Runtime::ReturnCode Runtime::run() {
+	try {
+		m_context.show();
+		while (m_context.is_running()) {
+			auto frame = m_context.next_frame();
+			tick(frame);
+			render();
+		}
+	} catch (levk::Error const& e) {
+		logger::error("Runtime error: {}", e.what());
+		return EXIT_FAILURE;
+	} catch (std::exception const& e) {
+		logger::error("Fatal error: {}", e.what());
+		return EXIT_FAILURE;
+	} catch (...) {
+		logger::error("Unknown error");
+		return EXIT_FAILURE;
 	}
+	return EXIT_SUCCESS;
 }
 } // namespace levk
 
