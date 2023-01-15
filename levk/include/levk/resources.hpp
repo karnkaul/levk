@@ -18,6 +18,7 @@ class Resources {
 	MeshType get_mesh_type(Uri const& uri) const;
 
 	std::uint64_t signature() const { return m_signature.load(); }
+	Reader& reader() const { return *m_reader; }
 
 	RenderResources render{};
 

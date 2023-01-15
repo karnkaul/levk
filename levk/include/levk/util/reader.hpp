@@ -34,6 +34,8 @@ class FileReader : public Reader {
 	FileReader& operator=(FileReader&&) noexcept;
 	~FileReader();
 
+	FileReader(std::string_view mount_dir);
+
 	bool mount(std::string_view directory);
 	std::string absolute_path_for(std::string_view const uri) const;
 

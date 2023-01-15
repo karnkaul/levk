@@ -35,6 +35,8 @@ FileReader::FileReader(FileReader&&) noexcept = default;
 FileReader& FileReader::operator=(FileReader&&) noexcept = default;
 FileReader::~FileReader() = default;
 
+FileReader::FileReader(std::string_view mount_dir) : FileReader() { mount(mount_dir); }
+
 std::string FileReader::absolute_path_for(std::string_view const uri) const {
 	for (auto const& loader : m_impl->mounted) {
 		if (auto ret = loader.absolute_path_for(uri); !ret.empty()) { return ret; }
