@@ -366,12 +366,12 @@ bool Scene::destroy(Id<Entity> entity) {
 	return false;
 }
 
-void Scene::render_3d() {
-	m_entity_refs.clear();
-	fill_to_if(m_entities, m_entity_refs, [](Id<Entity>, Entity const& e) { return e.active && !e.m_render_components.empty(); });
+void Scene::render_3d() const {
+	m_const_entity_refs.clear();
+	fill_to_if(m_entities, m_const_entity_refs, [](Id<Entity>, Entity const& e) { return e.active && !e.m_render_components.empty(); });
 	// TODO: render ordering
-	std::sort(m_entity_refs.begin(), m_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
-	for (Entity const& entity : m_entity_refs) {
+	std::sort(m_const_entity_refs.begin(), m_const_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
+	for (Entity const& entity : m_const_entity_refs) {
 		for (auto const* rc : entity.m_render_components) { rc->render(); }
 	}
 }

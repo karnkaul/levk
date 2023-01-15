@@ -30,7 +30,7 @@ class GraphicsDevice {
 	bool set_vsync(Vsync::Type desired) { return m_model->set_vsync(desired); }
 	bool set_render_scale(float scale) { return m_model->set_render_scale(scale); }
 
-	void render(GraphicsRenderer& renderer, Camera const& camera, Lights const& lights, glm::uvec2 extent, Rgba clear);
+	void render(GraphicsRenderer const& renderer, Camera const& camera, Lights const& lights, glm::uvec2 extent, Rgba clear);
 
 	MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints = {}) { return m_model->make_mesh_geometry(geometry, joints); }
 	Texture make_texture(Image::View image, Texture::CreateInfo create_info = {}) { return m_model->make_texture(image, std::move(create_info)); }
@@ -58,7 +58,7 @@ class GraphicsDevice {
 		virtual bool set_vsync(Vsync::Type) = 0;
 		virtual bool set_render_scale(float) = 0;
 
-		virtual void render(RenderInfo const& info) = 0;
+		virtual void render(RenderInfo const& info) const = 0;
 
 		virtual MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) = 0;
 		virtual Texture make_texture(Image::View image, Texture::CreateInfo info) = 0;
@@ -80,7 +80,7 @@ class GraphicsDevice {
 		bool set_vsync(Vsync::Type vsync) final { return gfx_set_vsync(impl, vsync); }
 		bool set_render_scale(float scale) final { return gfx_set_render_scale(impl, scale); }
 
-		void render(RenderInfo const& info) final { gfx_render(impl, info); }
+		void render(RenderInfo const& info) const final { gfx_render(impl, info); }
 
 		MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) final { return gfx_make_mesh_geometry(impl, geometry, joints); }
 		Texture make_texture(Image::View image, Texture::CreateInfo create_info) final { return gfx_make_texture(impl, std::move(create_info), image); }

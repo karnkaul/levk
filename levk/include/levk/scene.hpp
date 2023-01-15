@@ -83,8 +83,8 @@ class Scene : public GraphicsRenderer, public Serializable {
 
 	bool from_json(char const* path);
 
-	void render_3d() final;
-	void render_ui() final {}
+	void render_3d() const final;
+	void render_ui() const final {}
 
 	std::string_view type_name() const override { return "scene"; }
 	bool serialize(dj::Json& out) const override;
@@ -102,6 +102,7 @@ class Scene : public GraphicsRenderer, public Serializable {
 	Node::Tree m_nodes{};
 	MonotonicMap<Entity> m_entities{};
 	std::vector<std::reference_wrapper<Entity>> m_entity_refs{};
+	mutable std::vector<std::reference_wrapper<Entity const>> m_const_entity_refs{};
 	std::unordered_set<Id<Entity>::id_type> m_to_destroy{};
 };
 } // namespace levk

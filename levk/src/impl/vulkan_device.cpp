@@ -1372,34 +1372,34 @@ vk::SwapchainCreateInfoKHR make_swci(std::uint32_t queue_family, vk::SurfaceKHR 
 	return ret;
 }
 
-vk::Result make_swapchain(VulkanDevice& out, std::optional<glm::uvec2> extent, std::optional<vk::PresentModeKHR> mode) {
-	auto create_info = out.impl->swapchain.info;
+vk::Result make_swapchain(VulkanDevice const& device, std::optional<glm::uvec2> extent, std::optional<vk::PresentModeKHR> mode) {
+	auto create_info = device.impl->swapchain.info;
 	if (mode) {
-		assert(out.impl->swapchain.modes.contains(*mode));
+		assert(device.impl->swapchain.modes.contains(*mode));
 		create_info.presentMode = *mode;
 	}
-	auto const caps = out.impl->gpu.device.getSurfaceCapabilitiesKHR(*out.impl->surface);
+	auto const caps = device.impl->gpu.device.getSurfaceCapabilitiesKHR(*device.impl->surface);
 	if (extent) { create_info.imageExtent = image_extent(caps, vk::Extent2D{extent->x, extent->y}); }
 
 	create_info.minImageCount = image_count(caps);
-	create_info.oldSwapchain = out.impl->swapchain.storage.swapchain.get();
+	create_info.oldSwapchain = device.impl->swapchain.storage.swapchain.get();
 	auto vk_swapchain = vk::SwapchainKHR{};
-	auto const ret = out.impl->device->createSwapchainKHR(&create_info, nullptr, &vk_swapchain);
+	auto const ret = device.impl->device->createSwapchainKHR(&create_info, nullptr, &vk_swapchain);
 	if (ret != vk::Result::eSuccess) { return ret; }
-	out.impl->swapchain.info = std::move(create_info);
-	if (out.impl->swapchain.storage.swapchain) { out.impl->defer.push(std::move(out.impl->swapchain.storage)); }
-	out.impl->swapchain.storage.swapchain = vk::UniqueSwapchainKHR{vk_swapchain, *out.impl->device};
-	auto const images = out.impl->device->getSwapchainImagesKHR(*out.impl->swapchain.storage.swapchain);
-	out.impl->swapchain.storage.images.clear();
-	out.impl->swapchain.storage.views.clear();
+	device.impl->swapchain.info = std::move(create_info);
+	if (device.impl->swapchain.storage.swapchain) { device.impl->defer.push(std::move(device.impl->swapchain.storage)); }
+	device.impl->swapchain.storage.swapchain = vk::UniqueSwapchainKHR{vk_swapchain, *device.impl->device};
+	auto const images = device.impl->device->getSwapchainImagesKHR(*device.impl->swapchain.storage.swapchain);
+	device.impl->swapchain.storage.images.clear();
+	device.impl->swapchain.storage.views.clear();
 	for (auto const image : images) {
-		out.impl->swapchain.storage.views.insert(out.impl->vma.get().make_image_view(image, out.impl->swapchain.info.imageFormat));
-		out.impl->swapchain.storage.images.insert({image, *out.impl->swapchain.storage.views.span().back(), out.impl->swapchain.info.imageExtent});
+		device.impl->swapchain.storage.views.insert(device.impl->vma.get().make_image_view(image, device.impl->swapchain.info.imageFormat));
+		device.impl->swapchain.storage.images.insert({image, *device.impl->swapchain.storage.views.span().back(), device.impl->swapchain.info.imageExtent});
 	}
 
 	logger::info("[Swapchain] extent: [{}x{}] | images: [{}] | colour space: [{}] | vsync: [{}]", create_info.imageExtent.width, create_info.imageExtent.height,
-				 out.impl->swapchain.storage.images.size(), is_srgb(out.impl->swapchain.info.imageFormat) ? "sRGB" : "linear",
-				 vsync_status(out.impl->swapchain.info.presentMode));
+				 device.impl->swapchain.storage.images.size(), is_srgb(device.impl->swapchain.info.imageFormat) ? "sRGB" : "linear",
+				 vsync_status(device.impl->swapchain.info.presentMode));
 	return ret;
 }
 
@@ -2454,11 +2454,11 @@ bool levk::gfx_set_render_scale(VulkanDevice& out, float scale) {
 	return true;
 }
 
-void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
+void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	struct OnReturn {
-		VulkanDevice& out;
+		VulkanDevice const& out;
 		Index<> i;
-		OnReturn(VulkanDevice& out) : out(out), i(out.impl->buffered_index) {}
+		OnReturn(VulkanDevice const& out) : out(out), i(out.impl->buffered_index) {}
 
 		~OnReturn() {
 			out.impl->buffered_index.next();
@@ -2470,22 +2470,22 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 		}
 	};
 
-	out.impl->stats.per_frame = {};
+	device.impl->stats.per_frame = {};
 
-	auto const on_return = OnReturn{out};
+	auto const on_return = OnReturn{device};
 	if (info.extent.x == 0 || info.extent.y == 0) { return; }
 
-	auto& frame = out.impl->off_screen.rp.frames.get(out.impl->buffered_index);
+	auto& frame = device.impl->off_screen.rp.frames.get(device.impl->buffered_index);
 
-	auto recreate = [&out, extent = info.extent] {
-		if (make_swapchain(out, extent, {}) == vk::Result::eSuccess) {
-			out.impl->swapchain.storage.extent = extent;
+	auto recreate = [&device, extent = info.extent] {
+		if (make_swapchain(device, extent, {}) == vk::Result::eSuccess) {
+			device.impl->swapchain.storage.extent = extent;
 			return true;
 		}
 		return false;
 	};
 
-	if (info.extent != out.impl->swapchain.storage.extent && !recreate()) { return; }
+	if (info.extent != device.impl->swapchain.storage.extent && !recreate()) { return; }
 
 	struct {
 		ImageView image;
@@ -2493,10 +2493,10 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	} acquired{};
 	auto result = vk::Result::eErrorOutOfDateKHR;
 	{
-		auto lock = std::scoped_lock{out.impl->mutex};
+		auto lock = std::scoped_lock{device.impl->mutex};
 		// acquire swapchain image
-		result = out.impl->device->acquireNextImageKHR(*out.impl->swapchain.storage.swapchain, std::numeric_limits<std::uint64_t>::max(), *frame.sync.draw, {},
-													   &acquired.index);
+		result = device.impl->device->acquireNextImageKHR(*device.impl->swapchain.storage.swapchain, std::numeric_limits<std::uint64_t>::max(),
+														  *frame.sync.draw, {}, &acquired.index);
 	}
 	switch (result) {
 	case vk::Result::eErrorOutOfDateKHR:
@@ -2507,58 +2507,58 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	case vk::Result::eSuccess: break;
 	default: return;
 	}
-	auto const images = out.impl->swapchain.storage.images.span();
+	auto const images = device.impl->swapchain.storage.images.span();
 	assert(acquired.index < images.size());
 	acquired.image = images[acquired.index];
-	out.impl->swapchain.storage.extent = info.extent;
+	device.impl->swapchain.storage.extent = info.extent;
 
 	if (!acquired.image.image) { return; }
 
-	reset(*out.impl->device, *frame.sync.drawn);
+	reset(*device.impl->device, *frame.sync.drawn);
 
 	// write view
-	write_view(out, info.camera, info.lights, info.extent);
+	write_view(device, info.camera, info.lights, info.extent);
 
 	// refresh render targets
-	auto& fs_quad_fb = out.impl->fs_quad.framebuffer.get(out.impl->buffered_index);
-	frame.framebuffer = out.impl->off_screen.make_framebuffer(out, acquired.image.extent, out.impl->info.render_scale);
-	fs_quad_fb = out.impl->fs_quad.make_framebuffer(out, acquired.image);
+	auto& fs_quad_fb = device.impl->fs_quad.framebuffer.get(device.impl->buffered_index);
+	frame.framebuffer = device.impl->off_screen.make_framebuffer(device, acquired.image.extent, device.impl->info.render_scale);
+	fs_quad_fb = device.impl->fs_quad.make_framebuffer(device, acquired.image);
 
 	// begin recording
 	auto cmd_3d = RenderCmd{frame.secondary[0], frame.framebuffer.render_target.extent};
 	auto cmd_ui = RenderCmd{frame.secondary[1], fs_quad_fb.render_target.extent};
-	auto cbii = vk::CommandBufferInheritanceInfo{*out.impl->off_screen.rp.render_pass, 0, *frame.framebuffer.framebuffer};
+	auto cbii = vk::CommandBufferInheritanceInfo{*device.impl->off_screen.rp.render_pass, 0, *frame.framebuffer.framebuffer};
 	cmd_3d.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
-	cbii = {*out.impl->fs_quad.rp, 0, *fs_quad_fb.framebuffer};
+	cbii = {*device.impl->fs_quad.rp, 0, *fs_quad_fb.framebuffer};
 	cmd_ui.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
 
-	out.impl->default_render_mode = info.default_render_mode;
+	device.impl->default_render_mode = info.default_render_mode;
 	// dispatch 3D render
-	out.impl->cmd_3d = cmd_3d;
+	device.impl->cmd_3d = cmd_3d;
 	for (auto* renderer = &info.renderer; renderer; renderer = renderer->next_renderer) { renderer->render_3d(); }
-	out.impl->cmd_3d = {};
+	device.impl->cmd_3d = {};
 
 	// trace 3D output image to native render pass
-	auto fs_quad_vert = out.impl->shaders.get(*out.impl->reader, "shaders/fs_quad.vert");
-	auto fs_quad_frag = out.impl->shaders.get(*out.impl->reader, "shaders/fs_quad.frag");
-	auto fs_quad_pipe = out.impl->pipelines.get(out.impl->vma, {}, {}, {*out.impl->fs_quad.rp, vk::SampleCountFlagBits::e1}, {fs_quad_vert, fs_quad_frag},
-												out.impl->buffered_index);
+	auto fs_quad_vert = device.impl->shaders.get(*device.impl->reader, "shaders/fs_quad.vert");
+	auto fs_quad_frag = device.impl->shaders.get(*device.impl->reader, "shaders/fs_quad.frag");
+	auto fs_quad_pipe = device.impl->pipelines.get(device.impl->vma, {}, {}, {*device.impl->fs_quad.rp, vk::SampleCountFlagBits::e1},
+												   {fs_quad_vert, fs_quad_frag}, device.impl->buffered_index);
 	// bind 3D output image to 0, 0
 	auto& fs_quad_set0 = fs_quad_pipe.set_pool->next_set(0);
-	fs_quad_set0.update(0, frame.framebuffer.render_target.output_image(), out.impl->samplers.get(*out.impl->device, {}));
+	fs_quad_set0.update(0, frame.framebuffer.render_target.output_image(), device.impl->samplers.get(*device.impl->device, {}));
 	fs_quad_pipe.bind(cmd_ui.cb, fs_quad_fb.render_target.extent);
 	cmd_ui.cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, fs_quad_pipe.layout, 0u, fs_quad_set0.set(), {});
 	// draw quad hard-coded in shader
 	cmd_ui.cb.draw(6u, 1u, {}, {});
 
 	// dispatch UI render
-	out.impl->cmd_ui = cmd_ui;
+	device.impl->cmd_ui = cmd_ui;
 	for (auto* renderer = &info.renderer; renderer; renderer = renderer->next_renderer) { renderer->render_ui(); }
-	out.impl->cmd_ui = {};
+	device.impl->cmd_ui = {};
 
 	// dispatch Dear ImGui render
-	out.impl->dear_imgui.end_frame();
-	out.impl->dear_imgui.render(cmd_ui.cb);
+	device.impl->dear_imgui.end_frame();
+	device.impl->dear_imgui.render(cmd_ui.cb);
 
 	// end recording
 	cmd_3d.cb.end();
@@ -2571,13 +2571,13 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 	auto const vk_clear_colour = vk::ClearColorValue{std::array{clear_colour.x, clear_colour.y, clear_colour.z, clear_colour.w}};
 	// execute 3D render pass
 	vk::ClearValue const clear_values[] = {vk_clear_colour, vk::ClearDepthStencilValue{1.0f, 0u}};
-	auto rpbi = vk::RenderPassBeginInfo{*out.impl->off_screen.rp.render_pass, *frame.framebuffer.framebuffer,
+	auto rpbi = vk::RenderPassBeginInfo{*device.impl->off_screen.rp.render_pass, *frame.framebuffer.framebuffer,
 										vk::Rect2D{{}, frame.framebuffer.render_target.extent}, clear_values};
 	frame.primary.beginRenderPass(rpbi, vk::SubpassContents::eSecondaryCommandBuffers);
 	frame.primary.executeCommands(1u, &cmd_3d.cb);
 	frame.primary.endRenderPass();
 	// execute UI render pass
-	rpbi = vk::RenderPassBeginInfo{*out.impl->fs_quad.rp, *fs_quad_fb.framebuffer, vk::Rect2D{{}, fs_quad_fb.render_target.extent}, clear_values};
+	rpbi = vk::RenderPassBeginInfo{*device.impl->fs_quad.rp, *fs_quad_fb.framebuffer, vk::Rect2D{{}, fs_quad_fb.render_target.extent}, clear_values};
 	frame.primary.beginRenderPass(rpbi, vk::SubpassContents::eSecondaryCommandBuffers);
 	frame.primary.executeCommands(1u, &cmd_ui.cb);
 	frame.primary.endRenderPass();
@@ -2590,17 +2590,17 @@ void levk::gfx_render(VulkanDevice& out, RenderInfo const& info) {
 
 	auto present_info = vk::PresentInfoKHR{};
 	present_info.swapchainCount = 1u;
-	present_info.pSwapchains = &*out.impl->swapchain.storage.swapchain;
+	present_info.pSwapchains = &*device.impl->swapchain.storage.swapchain;
 	present_info.waitSemaphoreCount = 1u;
 	present_info.pWaitSemaphores = &*frame.sync.present;
 	present_info.pImageIndices = &acquired.index;
 
 	{
-		auto lock = std::scoped_lock{out.impl->mutex};
+		auto lock = std::scoped_lock{device.impl->mutex};
 		// submit commands
-		out.impl->queue.submit(submit_info, *frame.sync.drawn);
+		device.impl->queue.submit(submit_info, *frame.sync.drawn);
 		// present image
-		result = out.impl->queue.presentKHR(&present_info);
+		result = device.impl->queue.presentKHR(&present_info);
 	}
 }
 

@@ -87,12 +87,12 @@ struct GraphicsRenderer {
 
 	virtual ~GraphicsRenderer() = default;
 
-	virtual void render_3d() = 0;
-	virtual void render_ui() = 0;
+	virtual void render_3d() const = 0;
+	virtual void render_ui() const = 0;
 };
 
 struct RenderInfo {
-	GraphicsRenderer& renderer;
+	GraphicsRenderer const& renderer;
 	Camera const& camera;
 	Lights const& lights;
 	Extent2D extent;
