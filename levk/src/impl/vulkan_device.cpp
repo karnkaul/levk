@@ -1245,6 +1245,13 @@ Swapchain::Formats make_swapchain_formats(std::span<vk::SurfaceFormatKHR const> 
 	return ret;
 }
 
+vk::PresentModeKHR ideal_present_mode(std::unordered_set<vk::PresentModeKHR> const& available, vk::PresentModeKHR desired) {
+	if (available.contains(desired)) { return desired; }
+	if (available.contains(vk::PresentModeKHR::eFifoRelaxed)) { return vk::PresentModeKHR::eFifoRelaxed; }
+	assert(available.contains(vk::PresentModeKHR::eFifo));
+	return vk::PresentModeKHR::eFifo;
+}
+
 vk::SurfaceFormatKHR surface_format(Swapchain::Formats const& formats, ColourSpace colour_space) {
 	if (colour_space == ColourSpace::eSrgb && !formats.srgb.empty()) { return formats.srgb.front(); }
 	return formats.linear.front();
@@ -2384,8 +2391,8 @@ void levk::gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& 
 	out.impl->swapchain.formats = make_swapchain_formats(out.impl->gpu.device.getSurfaceFormatsKHR(*out.impl->surface));
 	auto const supported_modes = out.impl->gpu.device.getSurfacePresentModesKHR(*out.impl->surface);
 	out.impl->swapchain.modes = {supported_modes.begin(), supported_modes.end()};
-	out.impl->swapchain.info =
-		make_swci(out.impl->queue_family, *out.impl->surface, out.impl->swapchain.formats, create_info.swapchain, vk::PresentModeKHR::eFifo);
+	auto const present_mode = ideal_present_mode(out.impl->swapchain.modes, from(create_info.vsync));
+	out.impl->swapchain.info = make_swci(out.impl->queue_family, *out.impl->surface, out.impl->swapchain.formats, create_info.swapchain, present_mode);
 	out.impl->info.swapchain = is_srgb(out.impl->swapchain.info.imageFormat) ? ColourSpace::eSrgb : ColourSpace::eLinear;
 	out.impl->info.supported_vsync = make_vsync(out.impl->gpu.device, *out.impl->surface);
 	out.impl->info.current_vsync = from(out.impl->swapchain.info.presentMode);

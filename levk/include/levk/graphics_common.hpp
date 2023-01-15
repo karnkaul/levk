@@ -76,7 +76,7 @@ struct GraphicsDeviceCreateInfo {
 	Window const& window;
 	bool validation{true};
 	ColourSpace swapchain{ColourSpace::eSrgb};
-	Vsync::Type vsync{Vsync::eOn};
+	Vsync::Type vsync{Vsync::eAdaptive};
 	AntiAliasing::Type anti_aliasing{AntiAliasing::e2x};
 };
 
