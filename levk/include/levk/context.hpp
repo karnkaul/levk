@@ -2,9 +2,9 @@
 #include <levk/engine.hpp>
 #include <levk/resources.hpp>
 #include <levk/service.hpp>
-#include <levk/util/reader.hpp>
 
 namespace levk {
+struct Reader;
 class Scene;
 
 class Context {
@@ -22,6 +22,21 @@ class Context {
 	Service<Resources>::Instance resources;
 };
 
-Context make_desktop_context(Reader& reader);
-std::string find_directory(char const* exe_path, std::span<std::string_view const> uri_patterns);
+struct ContextFactory {
+	WindowFactory const& window;
+	GraphicsDeviceFactory const& graphics_device;
+
+	ContextFactory(WindowFactory const& window, GraphicsDeviceFactory const& graphics_device) : window(window), graphics_device(graphics_device) {}
+
+	Context make(Reader& reader) const { return Context{reader, window.make(), graphics_device.make(reader)}; }
+};
+
+struct DesktopContextFactoryStorage {
+	DesktopWindowFactory desktop_window{};
+	VulkanDeviceFactory vulkan_device{};
+};
+
+struct DesktopContextFactory : DesktopContextFactoryStorage, ContextFactory {
+	DesktopContextFactory() : ContextFactory(desktop_window, vulkan_device) {}
+};
 } // namespace levk

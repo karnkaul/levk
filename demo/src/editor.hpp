@@ -4,6 +4,7 @@
 #include <levk/imcpp/log_renderer.hpp>
 #include <levk/imcpp/resource_list.hpp>
 #include <levk/imcpp/scene_graph.hpp>
+#include <levk/runtime.hpp>
 #include <levk/scene.hpp>
 #include <levk/util/reader.hpp>
 #include <main_menu.hpp>
@@ -20,20 +21,15 @@ struct FreeCam {
 	void tick(Transform& transform, Input const& input, Time dt);
 };
 
-class Editor {
+class Editor : public Runtime {
   public:
 	Editor(std::string data_path);
 
 	void save_scene() const;
 
-	void tick(Frame const& frame);
-	void render(Rgba clear = black_v);
-
 	bool import_gltf(char const* in_path, std::string_view dest_dir);
 
-	FileReader reader{};
 	std::string data_path{};
-	Context context;
 
 	Scene scene{};
 	FreeCam free_cam{};
@@ -42,5 +38,9 @@ class Editor {
 	imcpp::EngineStatus engine_status{};
 	imcpp::LogRenderer log_renderer{};
 	MainMenu main_menu{};
+
+  private:
+	void tick(Frame const& frame) override;
+	void render() override;
 };
 } // namespace levk

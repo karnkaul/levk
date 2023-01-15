@@ -93,4 +93,14 @@ class GraphicsDevice {
 
 	std::unique_ptr<Base> m_model{};
 };
+
+class Reader;
+
+struct GraphicsDeviceFactory {
+	virtual GraphicsDevice make(Reader& reader) const = 0;
+};
+
+struct VulkanDeviceFactory : GraphicsDeviceFactory {
+	GraphicsDevice make(Reader& reader) const override;
+};
 } // namespace levk
