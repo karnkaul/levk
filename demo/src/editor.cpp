@@ -1,12 +1,21 @@
 #include <imgui.h>
 #include <editor.hpp>
+#include <levk/asset/asset_loader.hpp>
 #include <levk/asset/gltf_importer.hpp>
 #include <filesystem>
 
 namespace levk {
 namespace {
 namespace fs = std::filesystem;
+
+std::string trim_to_uri(std::string_view full, std::string_view data) {
+	auto const i = full.find(data);
+	if (i == std::string_view::npos) { return {}; }
+	full = full.substr(i + data.size());
+	while (!full.empty() && full.front() == '/') { full = full.substr(1); }
+	return std::string{full};
 }
+} // namespace
 
 void FreeCam::tick(Transform& transform, Input const& input, Time dt) {
 	auto data = transform.data();
@@ -83,6 +92,30 @@ void Editor::save_scene() const {
 }
 
 void Editor::tick(Frame const& frame) {
+	if (frame.state.focus_changed() && frame.state.is_in_focus()) { reader.reload_out_of_date(); }
+	if (frame.state.input.chord(Key::eW, Key::eLeftControl) || frame.state.input.chord(Key::eW, Key::eRightControl)) { runtime.shutdown(); }
+
+	for (auto const& drop : frame.state.drops) {
+		auto path = fs::path{drop};
+		if (path.extension() == ".gltf") {
+			auto export_path = path.filename().stem();
+			import_gltf(drop.c_str(), export_path.generic_string());
+			break;
+		}
+		if (path.extension() == ".json") {
+			auto uri = trim_to_uri(fs::path{drop}.generic_string(), data_path);
+			if (!uri.empty()) {
+				auto const asset_type = AssetLoader::get_asset_type(reader, drop);
+				if (asset_type == "mesh") {
+					scene.load_mesh_into_tree(uri);
+				} else if (asset_type == "scene") {
+					scene.from_json(drop.c_str());
+				}
+			}
+			break;
+		}
+	}
+
 	scene.tick(frame.dt);
 	free_cam.tick(scene.camera.transform, frame.state.input, frame.dt);
 
