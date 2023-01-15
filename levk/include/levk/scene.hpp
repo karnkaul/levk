@@ -62,7 +62,6 @@ class Scene : public GraphicsRenderer, public Serializable {
   public:
 	struct Renderer;
 
-	bool import_gltf(char const* in_path, std::string_view data_root, std::string_view dest_dir);
 	bool load_mesh_into_tree(std::string_view uri);
 	bool load_static_mesh_into_tree(Uri const& uri);
 	bool load_skinned_mesh_into_tree(Uri const& uri);

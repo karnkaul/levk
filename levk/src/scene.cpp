@@ -1,7 +1,6 @@
 #include <imgui.h>
 #include <levk/asset/asset_loader.hpp>
 #include <levk/asset/common.hpp>
-#include <levk/asset/gltf_importer.hpp>
 #include <levk/imcpp/common.hpp>
 #include <levk/imcpp/drag_drop.hpp>
 #include <levk/scene.hpp>
@@ -237,50 +236,6 @@ void MeshRenderer::inspect(imcpp::OpenWindow) {
 			std::get<StaticMeshRenderer>(renderer).uri = {};
 			popup.close_current();
 		}
-	}
-}
-
-bool Scene::import_gltf(char const* in_path, std::string_view data_root, std::string_view dest_dir) {
-	auto src = fs::path{in_path};
-	auto dst = fs::path{data_root} / dest_dir;
-	auto src_filename = src.filename().stem();
-	auto export_path = dst / src_filename;
-	auto asset_list = asset::GltfImporter::peek(in_path);
-
-	if (!asset_list) { return {}; }
-
-	if (asset_list.static_meshes.empty() && asset_list.skinned_meshes.empty()) {
-		logger::error("No meshes found in {}\n", in_path);
-		return {};
-	}
-
-	bool is_skinned{};
-	auto mesh_asset = [&]() -> Ptr<asset::GltfAsset const> {
-		auto const func = [](asset::GltfAsset const& asset) { return asset.index == 0; };
-		if (auto it = std::find_if(asset_list.static_meshes.begin(), asset_list.static_meshes.end(), func); it != asset_list.static_meshes.end()) {
-			return &*it;
-		}
-		if (auto it = std::find_if(asset_list.skinned_meshes.begin(), asset_list.skinned_meshes.end(), func); it != asset_list.skinned_meshes.end()) {
-			is_skinned = true;
-			return &*it;
-		}
-		return nullptr;
-	}();
-
-	auto importer = asset_list.importer(dst.string());
-	if (!importer) { return {}; }
-
-	auto mesh_uri = importer.import_mesh(*mesh_asset);
-	if (mesh_uri.value().empty()) {
-		logger::error("Import failed! {}\n", mesh_asset->asset_name);
-		return {};
-	}
-	mesh_uri = (fs::path{dest_dir} / mesh_uri.value()).generic_string();
-
-	if (is_skinned) {
-		return load_skinned_mesh_into_tree(mesh_uri.value());
-	} else {
-		return load_static_mesh_into_tree(mesh_uri.value());
 	}
 }
 
