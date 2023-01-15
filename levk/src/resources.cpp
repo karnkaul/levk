@@ -3,20 +3,11 @@
 #include <levk/service.hpp>
 #include <levk/util/error.hpp>
 #include <levk/util/logger.hpp>
-#include <filesystem>
 
 namespace levk {
-namespace fs = std::filesystem;
+Resources::Resources(Reader& reader) : m_reader(&reader) {}
 
-Resources::Resources(std::string_view root_dir, Reader& reader) : m_reader(&reader) {
-	if (!fs::is_directory(root_dir) && !fs::create_directories(root_dir)) {
-		throw Error{fmt::format("Failed to create root directory for Resources: {}", root_dir)};
-	}
-	if (!fs::is_directory(root_dir)) { throw Error{fmt::format("Failed to locate root directory for Resources: {}", root_dir)}; }
-	m_root_dir = fs::absolute(root_dir).generic_string();
-}
-
-MeshType Resources::get_mesh_type(Uri const& uri) const { return AssetLoader::get_mesh_type(uri.absolute_path(m_root_dir).c_str()); }
+MeshType Resources::get_mesh_type(Uri const& uri) const { return AssetLoader::get_mesh_type(*m_reader, uri); }
 
 Ptr<StaticMesh> Resources::load_static_mesh(Uri const& uri) {
 	auto const func = [](AssetLoader& loader, Uri const& uri) { return loader.load_static_mesh(uri); };

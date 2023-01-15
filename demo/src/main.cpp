@@ -116,7 +116,7 @@ void run(fs::path data_path) {
 	reader.mount(data_path.generic_string());
 	auto services = Services{};
 	services.engine.emplace(make_engine(reader));
-	services.resources.emplace(data_path.generic_string(), reader);
+	services.resources.emplace(reader);
 	auto& engine = Service<Engine>::locate();
 	auto scene = std::make_unique<Scene>();
 	auto free_cam = FreeCam{&engine.window()};
@@ -164,13 +164,13 @@ void run(fs::path data_path) {
 			auto path = fs::path{drop};
 			if (path.extension() == ".gltf") {
 				auto export_path = path.filename().stem();
-				scene->import_gltf(drop.c_str(), export_path.generic_string());
+				scene->import_gltf(drop.c_str(), data_path.generic_string(), export_path.generic_string());
 				break;
 			}
 			if (path.extension() == ".json") {
 				auto uri = trim_to_uri(fs::path{drop}.generic_string(), data_path.generic_string());
 				if (!uri.empty()) {
-					auto const asset_type = AssetLoader::get_asset_type(drop.c_str());
+					auto const asset_type = AssetLoader::get_asset_type(reader, drop);
 					if (asset_type == "mesh") {
 						scene->load_mesh_into_tree(uri);
 					} else if (asset_type == "scene") {

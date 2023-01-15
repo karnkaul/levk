@@ -7,7 +7,7 @@
 namespace levk {
 class Resources {
   public:
-	Resources(std::string_view root_dir, Reader& reader);
+	Resources(Reader& reader);
 
 	Ptr<StaticMesh> load_static_mesh(Uri const& uri);
 	Ptr<SkinnedMesh> load_skinned_mesh(Uri const& uri);
@@ -15,7 +15,6 @@ class Resources {
 	bool unload_static_mesh(Uri const& uri);
 	bool unload_skinned_mesh(Uri const& uri);
 
-	std::string_view root_dir() const { return m_root_dir; }
 	MeshType get_mesh_type(Uri const& uri) const;
 
 	std::uint64_t signature() const { return m_signature.load(); }
@@ -30,7 +29,6 @@ class Resources {
 	bool unload(Uri const& uri, Map& out);
 
 	Ptr<Reader> m_reader{};
-	std::string m_root_dir{};
 	std::atomic_uint64_t m_signature{};
 };
 } // namespace levk

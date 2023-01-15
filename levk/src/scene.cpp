@@ -240,9 +240,9 @@ void MeshRenderer::inspect(imcpp::OpenWindow) {
 	}
 }
 
-bool Scene::import_gltf(char const* in_path, std::string_view dest_dir) {
+bool Scene::import_gltf(char const* in_path, std::string_view data_root, std::string_view dest_dir) {
 	auto src = fs::path{in_path};
-	auto dst = fs::path{Service<Resources>::locate().root_dir()} / dest_dir;
+	auto dst = fs::path{data_root} / dest_dir;
 	auto src_filename = src.filename().stem();
 	auto export_path = dst / src_filename;
 	auto asset_list = asset::GltfImporter::peek(in_path);
