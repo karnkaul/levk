@@ -69,6 +69,7 @@ set(levk_headers
   include/levk/camera.hpp
   include/levk/component_factory.hpp
   include/levk/component.hpp
+  include/levk/context.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
   include/levk/entity.hpp
@@ -88,7 +89,6 @@ set(levk_headers
   include/levk/resource_map.hpp
   include/levk/resources.hpp
   include/levk/rgba.hpp
-  include/levk/runtime.hpp
   include/levk/scene.hpp
   include/levk/service.hpp
   include/levk/serializable.hpp

@@ -7,9 +7,9 @@
 namespace levk {
 class Scene;
 
-class Runtime {
+class Context {
   public:
-	Runtime(Reader& reader, Window&& window, GraphicsDevice&& graphics_device);
+	Context(Reader& reader, Window&& window, GraphicsDevice&& graphics_device);
 
 	void show() { return engine.get().window().show(); }
 	void hide() { return engine.get().window().hide(); }
@@ -22,6 +22,6 @@ class Runtime {
 	Service<Resources>::Instance resources;
 };
 
-Runtime make_desktop_runtime(Reader& reader);
+Context make_desktop_context(Reader& reader);
 std::string find_directory(char const* exe_path, std::span<std::string_view const> uri_patterns);
 } // namespace levk

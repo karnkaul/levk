@@ -7,9 +7,9 @@ namespace {
 void run(std::string data_path) {
 	auto editor = Editor{std::move(data_path)};
 
-	editor.runtime.show();
-	while (editor.runtime.is_running()) {
-		auto frame = editor.runtime.next_frame();
+	editor.context.show();
+	while (editor.context.is_running()) {
+		auto frame = editor.context.next_frame();
 
 		// tick
 		editor.tick(frame);

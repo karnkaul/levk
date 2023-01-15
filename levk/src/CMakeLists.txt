@@ -9,6 +9,7 @@ target_sources(levk PRIVATE
   camera.cpp
   component_factory.cpp
   component.cpp
+  context.cpp
   engine.cpp
   entity.cpp
   geometry.cpp
@@ -17,7 +18,6 @@ target_sources(levk PRIVATE
   material.cpp
   node.cpp
   rgba.cpp
-  runtime.cpp
   pixel_map.cpp
   resources.cpp
   scene.cpp

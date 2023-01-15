@@ -1,6 +1,6 @@
+#include <levk/context.hpp>
 #include <levk/impl/desktop_window.hpp>
 #include <levk/impl/vulkan_device.hpp>
-#include <levk/runtime.hpp>
 #include <levk/scene.hpp>
 #include <filesystem>
 
@@ -26,13 +26,13 @@ fs::path find_dir(fs::path exe, std::span<std::string_view const> patterns) {
 }
 } // namespace
 
-Runtime::Runtime(Reader& reader, Window&& window, GraphicsDevice&& graphics_device)
+Context::Context(Reader& reader, Window&& window, GraphicsDevice&& graphics_device)
 	: engine(std::move(window), std::move(graphics_device)), resources(reader) {}
 
-void Runtime::render(Scene const& scene, Rgba clear) { engine.get().render(scene, scene.camera, scene.lights, clear); }
+void Context::render(Scene const& scene, Rgba clear) { engine.get().render(scene, scene.camera, scene.lights, clear); }
 } // namespace levk
 
-levk::Runtime levk::make_desktop_runtime(Reader& reader) { return Runtime{reader, DesktopWindow{}, VulkanDevice{reader}}; }
+levk::Context levk::make_desktop_context(Reader& reader) { return Context{reader, DesktopWindow{}, VulkanDevice{reader}}; }
 
 std::string levk::find_directory(char const* exe_path, std::span<std::string_view const> uri_patterns) {
 	if (uri_patterns.empty()) { return {}; }

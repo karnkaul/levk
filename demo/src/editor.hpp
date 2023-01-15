@@ -1,9 +1,9 @@
 #pragma once
+#include <levk/context.hpp>
 #include <levk/imcpp/engine_status.hpp>
 #include <levk/imcpp/log_renderer.hpp>
 #include <levk/imcpp/resource_list.hpp>
 #include <levk/imcpp/scene_graph.hpp>
-#include <levk/runtime.hpp>
 #include <levk/scene.hpp>
 #include <levk/util/reader.hpp>
 #include <main_menu.hpp>
@@ -33,7 +33,7 @@ class Editor {
 
 	FileReader reader{};
 	std::string data_path{};
-	Runtime runtime;
+	Context context;
 
 	Scene scene{};
 	FreeCam free_cam{};

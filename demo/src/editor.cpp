@@ -61,11 +61,11 @@ void FreeCam::tick(Transform& transform, Input const& input, Time dt) {
 }
 
 Editor::Editor(std::string data_path)
-	: reader(data_path), data_path(std::move(data_path)), runtime(make_desktop_runtime(reader)), free_cam{&runtime.engine.get().window()} {
+	: reader(data_path), data_path(std::move(data_path)), context(make_desktop_context(reader)), free_cam{&context.engine.get().window()} {
 	auto file_menu = [&] {
 		if (ImGui::MenuItem("Save", nullptr, false, !scene.empty())) { save_scene(); }
 		ImGui::Separator();
-		if (ImGui::MenuItem("Exit")) { runtime.shutdown(); }
+		if (ImGui::MenuItem("Exit")) { context.shutdown(); }
 	};
 
 	main_menu.menus.lists.push_back(MainMenu::List{.label = "File", .callback = file_menu});
@@ -74,7 +74,7 @@ Editor::Editor(std::string data_path)
 		imcpp::EditorWindow{.label = "Scene", .draw_to = [&](imcpp::OpenWindow w) { scene_graph.draw_to(w, scene); }},
 		imcpp::EditorWindow{.label = "Resources", .draw_to = [&](imcpp::OpenWindow w) { resource_list.draw_to(w, Service<Resources>::locate()); }},
 		imcpp::EditorWindow{
-			.label = "Engine", .init_size = {350.0f, 250.0f}, .draw_to = [&](imcpp::OpenWindow w) { engine_status.draw_to(w, runtime.engine.get()); }},
+			.label = "Engine", .init_size = {350.0f, 250.0f}, .draw_to = [&](imcpp::OpenWindow w) { engine_status.draw_to(w, context.engine.get()); }},
 		imcpp::EditorWindow{.label = "Log", .init_size = {600.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { log_renderer.draw_to(w); }},
 	};
 	if constexpr (debug_v) {
@@ -93,7 +93,7 @@ void Editor::save_scene() const {
 
 void Editor::tick(Frame const& frame) {
 	if (frame.state.focus_changed() && frame.state.is_in_focus()) { reader.reload_out_of_date(); }
-	if (frame.state.input.chord(Key::eW, Key::eLeftControl) || frame.state.input.chord(Key::eW, Key::eRightControl)) { runtime.shutdown(); }
+	if (frame.state.input.chord(Key::eW, Key::eLeftControl) || frame.state.input.chord(Key::eW, Key::eRightControl)) { context.shutdown(); }
 
 	for (auto const& drop : frame.state.drops) {
 		auto path = fs::path{drop};
@@ -125,14 +125,14 @@ void Editor::tick(Frame const& frame) {
 
 	auto result = main_menu.display_menu();
 	switch (result.action) {
-	case MainMenu::Action::eExit: runtime.shutdown(); break;
+	case MainMenu::Action::eExit: context.shutdown(); break;
 	default: break;
 	}
 
 	main_menu.display_windows();
 }
 
-void Editor::render(Rgba clear) { runtime.render(scene, clear); }
+void Editor::render(Rgba clear) { context.render(scene, clear); }
 
 bool Editor::import_gltf(char const* in_path, std::string_view dest_dir) {
 	auto src = fs::path{in_path};
