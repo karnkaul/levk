@@ -17,7 +17,6 @@ struct GltfAsset {
 struct GltfAsset::List {
 	std::vector<GltfAsset> static_meshes{};
 	std::vector<GltfAsset> skinned_meshes{};
-	std::vector<GltfAsset> skeletons{};
 };
 
 struct LogDispatch : logger::CrtpDispatch<LogDispatch> {

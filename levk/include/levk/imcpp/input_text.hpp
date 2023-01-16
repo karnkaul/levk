@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/imcpp/common.hpp>
 #include <array>
+#include <cstring>
 #include <string_view>
 
 namespace levk::imcpp {
@@ -13,6 +14,15 @@ struct InputText {
 		auto ret = input_text(label, buffer.data(), buffer.size(), flags);
 		used = std::string_view{buffer.data()}.size();
 		return ret;
+	}
+
+	void set(std::string_view text) {
+		if (text.empty()) {
+			*this = {};
+			return;
+		}
+		used = std::min(text.size(), buffer.size());
+		std::memcpy(buffer.data(), text.data(), used);
 	}
 
 	constexpr bool empty() const { return used == 0; }

@@ -160,9 +160,6 @@ GltfAsset::List make_gltf_asset_view_list(dj::Json const& json) {
 			ret.static_meshes.push_back(std::move(asset_view));
 		}
 	}
-	for (auto const [skin, index] : enumerate(json["skins"].array_view())) {
-		ret.skeletons.push_back(make_gltf_asset_view(skin["name"].as_string(), index, "skeleton", {false}));
-	}
 	return ret;
 }
 
