@@ -118,10 +118,10 @@ bool Editor::import_gltf(char const* in_path, std::string_view dest_dir) {
 		return nullptr;
 	}();
 
-	auto importer = asset_list.importer(dst.string());
+	auto importer = asset_list.importer();
 	if (!importer) { return {}; }
 
-	auto mesh_uri = importer.import_mesh(*mesh_asset);
+	auto mesh_uri = importer.import_mesh(*mesh_asset, dst.string());
 	if (mesh_uri.value().empty()) {
 		logger::error("Import failed! {}\n", mesh_asset->asset_name);
 		return {};
