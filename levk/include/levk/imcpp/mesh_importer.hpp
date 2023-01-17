@@ -16,20 +16,14 @@ class MeshImporter {
 	struct Entry {
 		std::string display_name{};
 		asset::GltfAsset asset{};
-		InputText<256> filename{};
-		Bool selected{true};
-		Bool editing{};
+		InputText<256> export_uri{};
+		bool is_skinned{};
 	};
-
-	struct {
-		std::size_t index{};
-		Bool skinned{};
-	} m_selected{};
 
 	std::string m_gltf_path{};
 	asset::GltfImporter m_importer{};
-	std::vector<Entry> m_static{};
-	std::vector<Entry> m_skinned{};
+	std::vector<Entry> m_entries{};
+	std::size_t m_selected{};
 	std::string m_root{};
 
 	InputText<128> m_rename_buffer{};

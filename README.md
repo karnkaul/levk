@@ -6,7 +6,7 @@ This project is a revamp of the original [`LittleEngineVk`](https://github.com/k
 
 [![Build Status](https://github.com/karnkaul/levk/actions/workflows/ci.yml/badge.svg)](https://github.com/karnkaul/levk/actions/workflows/ci.yml)
 
-https://user-images.githubusercontent.com/16272243/209456614-943b4c07-dc28-48ec-a9da-c3588f8bfc5a.mp4
+https://user-images.githubusercontent.com/16272243/212808493-0ccdd6b3-f409-4cfb-989d-74f3239eada1.mp4
 
 ## Features
 
@@ -23,9 +23,9 @@ https://user-images.githubusercontent.com/16272243/209456614-943b4c07-dc28-48ec-
   - [ ] Built-in / embedded shaders
 - [x] Instanced static mesh renderer
 - [x] Skinned mesh renderer
-- [ ] Scene (in-game)
+- [x] Scene (in-game)
 - [ ] Workspace (editor)
-  - [ ] Asset (de)serialization
+  - [x] Asset (de)serialization
   - [ ] Scene management
 - [ ] Fonts and text
 - [ ] In-game UI
