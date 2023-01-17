@@ -11,6 +11,8 @@ namespace levk {
 template <std::size_t Capacity = 64>
 class FixedString {
   public:
+	static constexpr auto capacity_v{Capacity};
+
 	FixedString() = default;
 
 	///

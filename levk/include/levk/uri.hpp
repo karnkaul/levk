@@ -14,7 +14,7 @@ class Uri {
 	Uri(char const* value) : Uri(std::string{value}) {}
 	Uri(std::string_view value) : Uri(std::string{value}) {}
 
-	std::string_view value() const { return m_value; }
+	std::string const& value() const { return m_value; }
 	std::size_t hash() const { return m_hash; }
 
 	explicit operator bool() const { return !m_value.empty() && m_hash > 0; }

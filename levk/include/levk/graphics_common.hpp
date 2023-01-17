@@ -61,6 +61,7 @@ struct Vsync {
 };
 
 struct GraphicsDeviceInfo {
+	std::string_view name{};
 	bool validation{};
 	bool portability{};
 	ColourSpace swapchain{};
@@ -75,7 +76,7 @@ struct GraphicsDeviceCreateInfo {
 	Window const& window;
 	bool validation{true};
 	ColourSpace swapchain{ColourSpace::eSrgb};
-	Vsync::Type vsync{Vsync::eOn};
+	Vsync::Type vsync{Vsync::eAdaptive};
 	AntiAliasing::Type anti_aliasing{AntiAliasing::e2x};
 };
 
@@ -86,12 +87,12 @@ struct GraphicsRenderer {
 
 	virtual ~GraphicsRenderer() = default;
 
-	virtual void render_3d() = 0;
-	virtual void render_ui() = 0;
+	virtual void render_3d() const = 0;
+	virtual void render_ui() const = 0;
 };
 
 struct RenderInfo {
-	GraphicsRenderer& renderer;
+	GraphicsRenderer const& renderer;
 	Camera const& camera;
 	Lights const& lights;
 	Extent2D extent;
@@ -110,5 +111,10 @@ struct SkinnedMeshRenderInfo {
 	RenderResources const& resources;
 	SkinnedMesh const& mesh;
 	std::span<glm::mat4 const> joints;
+};
+
+struct RenderStats {
+	std::uint64_t draw_calls{};
+	std::uint64_t triangles{};
 };
 } // namespace levk

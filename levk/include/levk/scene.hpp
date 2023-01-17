@@ -8,6 +8,7 @@
 #include <levk/util/monotonic_map.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/time.hpp>
+#include <unordered_set>
 #include <variant>
 
 namespace levk {
@@ -44,7 +45,7 @@ struct SkinnedMeshRenderer {
 	void render(Entity const& entity) const;
 };
 
-struct MeshRenderer : Entity::Renderer {
+struct MeshRenderer : RenderComponent {
 	std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer{};
 
 	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer = StaticMeshRenderer{}) : renderer(std::move(renderer)) {}
@@ -61,7 +62,6 @@ class Scene : public GraphicsRenderer, public Serializable {
   public:
 	struct Renderer;
 
-	bool import_gltf(char const* in_path, std::string_view dest_dir);
 	bool load_mesh_into_tree(std::string_view uri);
 	bool load_static_mesh_into_tree(Uri const& uri);
 	bool load_skinned_mesh_into_tree(Uri const& uri);
@@ -70,6 +70,7 @@ class Scene : public GraphicsRenderer, public Serializable {
 
 	Node& spawn(Entity entity, Node::CreateInfo const& node_create_info = {});
 	void tick(Time dt);
+	bool destroy(Id<Entity> entity);
 
 	Ptr<Entity const> find(Id<Entity> id) const { return m_entities.find(id); }
 	Ptr<Entity> find(Id<Entity> id) { return m_entities.find(id); }
@@ -81,12 +82,16 @@ class Scene : public GraphicsRenderer, public Serializable {
 
 	bool from_json(char const* path);
 
-	void render_3d() final;
-	void render_ui() final {}
+	void render_3d() const final;
+	void render_ui() const final {}
 
 	std::string_view type_name() const override { return "scene"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
+
+	bool detach_from(Entity& out_entity, TypeId::value_type component_type) const;
+
+	bool empty() const { return m_entities.empty(); }
 
 	std::string name{};
 	Camera camera{};
@@ -96,5 +101,7 @@ class Scene : public GraphicsRenderer, public Serializable {
 	Node::Tree m_nodes{};
 	MonotonicMap<Entity> m_entities{};
 	std::vector<std::reference_wrapper<Entity>> m_entity_refs{};
+	mutable std::vector<std::reference_wrapper<Entity const>> m_const_entity_refs{};
+	std::unordered_set<Id<Entity>::id_type> m_to_destroy{};
 };
 } // namespace levk

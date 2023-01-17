@@ -40,9 +40,17 @@ set(impl_headers
 
 set(imcpp_headers
   include/levk/imcpp/common.hpp
-  include/levk/imcpp/inspectable.hpp
+  include/levk/imcpp/drag_drop.hpp
+  include/levk/imcpp/editor_window.hpp
+  include/levk/imcpp/engine_status.hpp
+  include/levk/imcpp/input_text.hpp
+  include/levk/imcpp/inspector.hpp
+  include/levk/imcpp/log_renderer.hpp
+  include/levk/imcpp/mesh_importer.hpp
   include/levk/imcpp/reflector.hpp
-  include/levk/imcpp/resource_inspector.hpp
+  include/levk/imcpp/resource_list.hpp
+  include/levk/imcpp/ring_buffer.hpp
+  include/levk/imcpp/scene_graph.hpp
 )
 
 set(assets_headers
@@ -60,7 +68,9 @@ set(levk_headers
 
   include/levk/asset_id.hpp
   include/levk/camera.hpp
+  include/levk/component_factory.hpp
   include/levk/component.hpp
+  include/levk/context.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
   include/levk/entity.hpp
@@ -80,6 +90,7 @@ set(levk_headers
   include/levk/resource_map.hpp
   include/levk/resources.hpp
   include/levk/rgba.hpp
+  include/levk/runtime.hpp
   include/levk/scene.hpp
   include/levk/service.hpp
   include/levk/serializable.hpp

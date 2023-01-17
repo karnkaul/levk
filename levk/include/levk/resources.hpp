@@ -1,12 +1,13 @@
 #pragma once
 #include <levk/render_resources.hpp>
+#include <levk/util/reader.hpp>
 #include <levk/util/type_id.hpp>
 #include <atomic>
 
 namespace levk {
 class Resources {
   public:
-	Resources(std::string_view root_dir);
+	Resources(Reader& reader);
 
 	Ptr<StaticMesh> load_static_mesh(Uri const& uri);
 	Ptr<SkinnedMesh> load_skinned_mesh(Uri const& uri);
@@ -14,10 +15,10 @@ class Resources {
 	bool unload_static_mesh(Uri const& uri);
 	bool unload_skinned_mesh(Uri const& uri);
 
-	std::string_view root_dir() const { return m_root_dir; }
 	MeshType get_mesh_type(Uri const& uri) const;
 
 	std::uint64_t signature() const { return m_signature.load(); }
+	Reader& reader() const { return *m_reader; }
 
 	RenderResources render{};
 
@@ -28,7 +29,7 @@ class Resources {
 	template <typename T, typename Map>
 	bool unload(Uri const& uri, Map& out);
 
-	std::string m_root_dir{};
+	Ptr<Reader> m_reader{};
 	std::atomic_uint64_t m_signature{};
 };
 } // namespace levk

@@ -6,6 +6,7 @@
 #include <cassert>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace levk {
@@ -14,27 +15,15 @@ class Node;
 template <typename T>
 concept ComponentT = std::derived_from<T, Component>;
 
-class Entity final : public imcpp::Inspectable {
+class Entity final {
   public:
-	///
-	/// \brief Each Entity can have zero or one (concrete) Renderer instances attached.
-	///
-	struct Renderer : Component {
-		virtual ~Renderer() = default;
-
-		void tick(Time) final {}
-		virtual void render() const = 0;
-	};
+	using ComponentMap = std::unordered_map<TypeId::value_type, std::unique_ptr<Component>>;
 
 	template <ComponentT T>
 	T& attach(std::unique_ptr<T>&& t) {
 		assert(t);
 		auto& ret = *t;
-		if constexpr (std::derived_from<T, Renderer>) {
-			set_renderer(std::move(t));
-		} else {
-			attach(TypeId::make<T>().value(), std::move(t));
-		}
+		attach(TypeId::make<T>().value(), std::move(t));
 		return ret;
 	}
 
@@ -51,17 +40,11 @@ class Entity final : public imcpp::Inspectable {
 		return *ret;
 	}
 
-	template <std::derived_from<Renderer> T>
-	Ptr<T> renderer_as() const {
-		return dynamic_cast<T*>(m_renderer.get());
-	}
-
 	template <ComponentT T>
 	void detach() {
-		if constexpr (std::derived_from<T, Renderer>) {
-			if (dynamic_cast<T*>(m_renderer.get())) { m_renderer.reset(); }
-		} else {
-			m_components.erase(TypeId::make<T>());
+		if (auto it = m_components.find(TypeId::make<T>()); it != m_components.end()) {
+			m_render_components.erase(it->second.get());
+			m_components.erase(it);
 		}
 	}
 
@@ -71,20 +54,20 @@ class Entity final : public imcpp::Inspectable {
 	void tick(Time dt);
 
 	Scene& scene() const;
+	ComponentMap const& component_map() const { return m_components; }
 
-	void inspect(imcpp::NotClosed<imcpp::Window>) final;
+	bool active{true};
 
   private:
 	void init(Component& out) const;
 	void attach(TypeId::value_type type_id, std::unique_ptr<Component>&& component);
-	void set_renderer(std::unique_ptr<Renderer>&& renderer);
 
-	std::unordered_map<TypeId::value_type, std::unique_ptr<Component>> m_components{};
+	ComponentMap m_components{};
+	std::unordered_set<Ptr<RenderComponent>> m_render_components{};
 	std::vector<Ptr<Component>> m_sorted{};
 	Id<Entity> m_id{};
 	Id<Node> m_node{};
 	Ptr<Scene> m_scene{};
-	std::unique_ptr<Renderer> m_renderer{};
 
 	friend class Scene;
 };

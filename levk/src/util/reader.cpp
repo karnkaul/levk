@@ -35,6 +35,8 @@ FileReader::FileReader(FileReader&&) noexcept = default;
 FileReader& FileReader::operator=(FileReader&&) noexcept = default;
 FileReader::~FileReader() = default;
 
+FileReader::FileReader(std::string_view mount_dir) : FileReader() { mount(mount_dir); }
+
 std::string FileReader::absolute_path_for(std::string_view const uri) const {
 	for (auto const& loader : m_impl->mounted) {
 		if (auto ret = loader.absolute_path_for(uri); !ret.empty()) { return ret; }
@@ -93,7 +95,8 @@ std::uint32_t FileReader::reload_out_of_date(bool silent) {
 	auto lock = std::scoped_lock{m_impl->mutex};
 	for (auto& [uri, entry] : m_impl->loaded) {
 		auto const& loader = m_impl->mounted[entry.loader];
-		if (entry.lwt < fs::last_write_time(loader.absolute_path_for(uri))) {
+		auto const path = loader.absolute_path_for(uri);
+		if (fs::is_regular_file(path) && entry.lwt < fs::last_write_time(path)) {
 			entry.data = loader.load(uri);
 			if (entry.hash) { entry.hash = compute_hash(entry.data.span()); }
 			if (!silent) { logger::info("[FileReader] Reloaded out of date URI: [{}]", uri); }

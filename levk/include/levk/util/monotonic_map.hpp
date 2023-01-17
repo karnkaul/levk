@@ -72,33 +72,27 @@ class MonotonicMap {
 		m_map.clear();
 	}
 
-	template <typename F>
-	void for_each(F&& func) {
-		auto lock = std::scoped_lock{m_mutex};
-		for (auto& [key, value] : m_map) { func(key, value); }
+	template <typename MonotonicMapT, typename F>
+	friend void for_each(MonotonicMapT&& map, F&& func) {
+		auto lock = std::scoped_lock{map.m_mutex};
+		for (auto& [key, value] : map.m_map) { func(key, value); }
 	}
 
-	template <typename F>
-	void for_each(F&& func) const {
-		auto lock = std::scoped_lock{m_mutex};
-		for (auto& [key, value] : m_map) { func(key, value); }
+	template <typename MonotonicMapT, typename ContainerT>
+	friend void fill_to(MonotonicMapT&& map, ContainerT& out) {
+		fill_to(std::forward<MonotonicMapT>(map), out, [](auto&&...) { return true; });
 	}
 
-	void fill_to(std::vector<std::reference_wrapper<Type>>& out) {
-		auto lock = std::scoped_lock{m_mutex};
-		out.reserve(out.size() + m_map.size());
-		for (auto& [key, value] : m_map) { out.push_back(value); }
-	}
-
-	void fill_to(std::vector<std::reference_wrapper<Type const>>& out) const {
-		auto lock = std::scoped_lock{m_mutex};
-		out.reserve(out.size() + m_map.size());
-		for (auto& [key, value] : m_map) { out.push_back(value); }
+	template <typename MonotonicMapT, typename ContainerT, typename Pred>
+	friend void fill_to_if(MonotonicMapT&& map, ContainerT& out, Pred&& pred) {
+		for_each(map, [&](auto& key, auto& value) {
+			if (pred(key, value)) { out.insert(out.end(), value); }
+		});
 	}
 
 	void import_map(std::unordered_map<id_underlying_t, Type> map) {
 		auto prev_id = id_underlying_t{};
-		for (auto const& [id, _] : map) { prev_id = std::max(id, m_prev_id); }
+		for (auto const& [id, _] : map) { prev_id = std::max(id, prev_id); }
 		auto lock = std::scoped_lock{m_mutex};
 		m_map = std::move(map);
 		m_prev_id = prev_id;

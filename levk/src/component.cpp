@@ -1,4 +1,6 @@
+#include <imgui.h>
 #include <levk/component.hpp>
+#include <levk/defines.hpp>
 #include <levk/scene.hpp>
 #include <cassert>
 
@@ -11,5 +13,9 @@ Entity& Component::entity() const {
 Scene& Component::scene() const {
 	assert(m_scene);
 	return *m_scene;
+}
+
+void Component::inspect(imcpp::OpenWindow) {
+	if constexpr (debug_v) { ImGui::Text("[Not customized]"); }
 }
 } // namespace levk

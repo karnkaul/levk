@@ -102,13 +102,87 @@ std::vector<typename Interpolator<T>::Keyframe> make_keyframes(dj::Json const& j
 	return ret;
 }
 
-template <typename T>
-T get_sampler(asset::BinSkeletalAnimation::Header::Sampler const& header, BinaryInFile& file) {
+template <typename T, typename SourceT>
+T get_sampler(asset::BinSkeletalAnimation::Header::Sampler const& header, BinaryIn<SourceT>& file) {
 	auto ret = T{};
 	ret.interpolation = header.interpolation;
 	ret.keyframes.resize(static_cast<std::size_t>(header.keyframes));
 	file.read(std::span{ret.keyframes});
 	return ret;
+}
+
+template <typename BinarySourceT>
+bool read_from(BinarySourceT&& source, asset::BinGeometry& out) {
+	auto bin = BinaryIn<BinarySourceT>{std::move(source)};
+	if (!bin) { return false; }
+
+	auto in = asset::BinGeometry{};
+	auto header = asset::BinGeometry::Header{};
+	bin.read(header);
+
+	in.geometry.positions.resize(static_cast<std::size_t>(header.positions));
+	bin.read(std::span{in.geometry.positions});
+
+	in.geometry.rgbs.resize(static_cast<std::size_t>(header.positions));
+	bin.read(std::span{in.geometry.rgbs});
+
+	in.geometry.normals.resize(static_cast<std::size_t>(header.positions));
+	bin.read(std::span{in.geometry.normals});
+
+	in.geometry.uvs.resize(static_cast<std::size_t>(header.positions));
+	bin.read(std::span{in.geometry.uvs});
+
+	if (header.indices) {
+		in.geometry.indices.resize(static_cast<std::size_t>(header.indices));
+		bin.read(std::span{in.geometry.indices});
+	}
+
+	if (header.joints) {
+		in.joints.resize(static_cast<std::size_t>(header.joints));
+		bin.read(std::span{in.joints});
+
+		assert(header.weights == header.joints);
+		in.weights.resize(static_cast<std::size_t>(header.weights));
+		bin.read(std::span{in.weights});
+	}
+
+	if (in.compute_hash() != header.hash) { return false; }
+
+	out = std::move(in);
+	return true;
+}
+
+template <typename BinarySourceT>
+bool read_from(BinarySourceT&& source, asset::BinSkeletalAnimation& out) {
+	auto bin = BinaryIn<BinarySourceT>{std::move(source)};
+	if (!bin) { return false; }
+
+	auto in = asset::BinSkeletalAnimation{};
+	auto header = asset::BinSkeletalAnimation::Header{};
+	bin.read(header);
+
+	for (std::uint64_t i = 0; i < header.samplers; ++i) {
+		auto sampler_header = asset::BinSkeletalAnimation::Header::Sampler{};
+		bin.read(sampler_header);
+		auto& out_sampler = in.samplers.emplace_back();
+		switch (sampler_header.type) {
+		case asset::BinSkeletalAnimation::Type::eTranslate: out_sampler = get_sampler<TransformAnimation::Translate>(sampler_header, bin); break;
+		case asset::BinSkeletalAnimation::Type::eRotate: out_sampler = get_sampler<TransformAnimation::Rotate>(sampler_header, bin); break;
+		case asset::BinSkeletalAnimation::Type::eScale: out_sampler = get_sampler<TransformAnimation::Scale>(sampler_header, bin); break;
+		default: logger::error("[BinSkeletonAnimation] Unrecognized type: [{}]", static_cast<int>(sampler_header.type)); break;
+		}
+	}
+
+	in.target_joints.resize(static_cast<std::size_t>(header.target_joints));
+	bin.read(std::span{in.target_joints});
+
+	in.name.resize(static_cast<std::size_t>(header.name_length));
+	bin.read(std::span{in.name.data(), in.name.size()});
+
+	if (in.compute_hash() != header.hash) { return false; }
+
+	out = std::move(in);
+	return true;
 }
 } // namespace
 
@@ -143,45 +217,8 @@ bool BinGeometry::write(char const* path) const {
 	return true;
 }
 
-bool BinGeometry::read(char const* path) {
-	auto file = BinaryInFile{path};
-	if (!file) { return false; }
-
-	auto in = BinGeometry{};
-	auto header = Header{};
-	file.read(header);
-
-	in.geometry.positions.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.positions});
-
-	in.geometry.rgbs.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.rgbs});
-
-	in.geometry.normals.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.normals});
-
-	in.geometry.uvs.resize(static_cast<std::size_t>(header.positions));
-	file.read(std::span{in.geometry.uvs});
-
-	if (header.indices) {
-		in.geometry.indices.resize(static_cast<std::size_t>(header.indices));
-		file.read(std::span{in.geometry.indices});
-	}
-
-	if (header.joints) {
-		in.joints.resize(static_cast<std::size_t>(header.joints));
-		file.read(std::span{in.joints});
-
-		assert(header.weights == header.joints);
-		in.weights.resize(static_cast<std::size_t>(header.weights));
-		file.read(std::span{in.weights});
-	}
-
-	if (in.compute_hash() != header.hash) { return false; }
-
-	*this = std::move(in);
-	return true;
-}
+bool BinGeometry::read(char const* path) { return read_from(BinarySourceFile{path}, *this); }
+bool BinGeometry::read(std::span<std::byte const> bytes) { return read_from(BinarySourceData{bytes}, *this); }
 
 template <typename T>
 constexpr bool has_w_v = requires(T t) { t.w; };
@@ -233,37 +270,8 @@ bool BinSkeletalAnimation::write(char const* path) const {
 	return true;
 }
 
-bool BinSkeletalAnimation::read(char const* path) {
-	auto file = BinaryInFile{path};
-	if (!file) { return false; }
-
-	auto in = BinSkeletalAnimation{};
-	auto header = Header{};
-	file.read(header);
-
-	for (std::uint64_t i = 0; i < header.samplers; ++i) {
-		auto sampler_header = Header::Sampler{};
-		file.read(sampler_header);
-		auto& out_sampler = in.samplers.emplace_back();
-		switch (sampler_header.type) {
-		case Type::eTranslate: out_sampler = get_sampler<TransformAnimation::Translate>(sampler_header, file); break;
-		case Type::eRotate: out_sampler = get_sampler<TransformAnimation::Rotate>(sampler_header, file); break;
-		case Type::eScale: out_sampler = get_sampler<TransformAnimation::Scale>(sampler_header, file); break;
-		default: logger::error("[BinSkeletonAnimation] Unrecognized type: [{}]", static_cast<int>(sampler_header.type)); break;
-		}
-	}
-
-	in.target_joints.resize(static_cast<std::size_t>(header.target_joints));
-	file.read(std::span{in.target_joints});
-
-	in.name.resize(static_cast<std::size_t>(header.name_length));
-	file.read(std::span{in.name.data(), in.name.size()});
-
-	if (in.compute_hash() != header.hash) { return false; }
-
-	*this = std::move(in);
-	return true;
-}
+bool BinSkeletalAnimation::read(char const* path) { return read_from(BinarySourceFile{path}, *this); }
+bool BinSkeletalAnimation::read(std::span<std::byte const> bytes) { return read_from(BinarySourceData{bytes}, *this); }
 } // namespace asset
 
 void asset::from_json(dj::Json const& json, glm::quat& out, glm::quat const& fallback) {

@@ -1,8 +1,8 @@
 #include <imgui.h>
 #include <levk/asset/asset_loader.hpp>
 #include <levk/asset/common.hpp>
-#include <levk/asset/gltf_importer.hpp>
 #include <levk/imcpp/common.hpp>
+#include <levk/imcpp/drag_drop.hpp>
 #include <levk/scene.hpp>
 #include <levk/serializer.hpp>
 #include <levk/service.hpp>
@@ -53,7 +53,7 @@ Skeleton::Instance to_skeleton_instance(dj::Json const& json, TUri<Skeleton> con
 
 void SkeletonController::change_animation(std::optional<Id<Skeleton::Animation>> index) {
 	if (index != enabled) {
-		auto* mesh_renderer = entity().renderer_as<MeshRenderer>();
+		auto* mesh_renderer = entity().find<MeshRenderer>();
 		if (!mesh_renderer) { return; }
 		auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 		if (!skinned_mesh_renderer) { return; }
@@ -65,7 +65,7 @@ void SkeletonController::change_animation(std::optional<Id<Skeleton::Animation>>
 
 void SkeletonController::tick(Time dt) {
 	if (!enabled || dt == Time{}) { return; }
-	auto* mesh_renderer = entity().renderer_as<MeshRenderer>();
+	auto* mesh_renderer = entity().find<MeshRenderer>();
 	if (!mesh_renderer) { return; }
 	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 	if (!skinned_mesh_renderer) { return; }
@@ -98,7 +98,7 @@ bool SkeletonController::deserialize(dj::Json const& json) {
 }
 
 void SkeletonController::inspect(imcpp::OpenWindow) {
-	auto const* mesh_renderer = entity().renderer_as<MeshRenderer>();
+	auto const* mesh_renderer = entity().find<MeshRenderer>();
 	if (!mesh_renderer) { return; }
 	auto const* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 	if (!skinned_mesh_renderer) { return; }
@@ -210,60 +210,32 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 
 void MeshRenderer::inspect(imcpp::OpenWindow) {
 	auto const visitor = Visitor{
-		[&](StaticMeshRenderer& smr) {
-			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", Service<Resources>::get().render.static_meshes.get(smr.uri).name}.c_str());
+		[](StaticMeshRenderer& smr) {
+			std::string_view label = "[None]";
+			if (smr.uri) { label = Service<Resources>::get().render.static_meshes.get(smr.uri).name; }
+			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", label}.c_str());
+			if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) { imcpp::Popup::open("static_mesh_renderer.right_click"); }
+			if (auto drop = imcpp::DragDrop::Target{}) {
+				if (auto const mesh = imcpp::DragDrop::accept_string("static_mesh"); !mesh.empty()) { smr.uri = mesh; }
+			}
 		},
-		[&](SkinnedMeshRenderer& smr) {
-			auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.uri);
-			auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
-			imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
-			imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
+		[](SkinnedMeshRenderer& smr) {
+			if (smr.uri) {
+				auto const& mesh = Service<Resources>::get().render.skinned_meshes.get(smr.uri);
+				auto const& skeleton = Service<Resources>::get().render.skeletons.get(mesh.skeleton);
+				imcpp::TreeNode::leaf(FixedString{"Mesh: {}", mesh.name}.c_str());
+				imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton.name}.c_str());
+			} else {
+				imcpp::TreeNode::leaf(FixedString{"Mesh: [None]"}.c_str());
+			}
 		},
 	};
 	std::visit(visitor, renderer);
-}
-
-bool Scene::import_gltf(char const* in_path, std::string_view dest_dir) {
-	auto src = fs::path{in_path};
-	auto dst = fs::path{Service<Resources>::locate().root_dir()} / dest_dir;
-	auto src_filename = src.filename().stem();
-	auto export_path = dst / src_filename;
-	auto asset_list = asset::GltfImporter::peek(in_path);
-
-	if (!asset_list) { return {}; }
-
-	if (asset_list.static_meshes.empty() && asset_list.skinned_meshes.empty()) {
-		logger::error("No meshes found in {}\n", in_path);
-		return {};
-	}
-
-	bool is_skinned{};
-	auto mesh_asset = [&]() -> Ptr<asset::GltfAsset const> {
-		auto const func = [](asset::GltfAsset const& asset) { return asset.index == 0; };
-		if (auto it = std::find_if(asset_list.static_meshes.begin(), asset_list.static_meshes.end(), func); it != asset_list.static_meshes.end()) {
-			return &*it;
+	if (auto popup = imcpp::Popup{"static_mesh_renderer.right_click"}) {
+		if (ImGui::Selectable("Unset")) {
+			std::get<StaticMeshRenderer>(renderer).uri = {};
+			popup.close_current();
 		}
-		if (auto it = std::find_if(asset_list.skinned_meshes.begin(), asset_list.skinned_meshes.end(), func); it != asset_list.skinned_meshes.end()) {
-			is_skinned = true;
-			return &*it;
-		}
-		return nullptr;
-	}();
-
-	auto importer = asset_list.importer(dst.string());
-	if (!importer) { return {}; }
-
-	auto mesh_uri = importer.import_mesh(*mesh_asset);
-	if (mesh_uri.value().empty()) {
-		logger::error("Import failed! {}\n", mesh_asset->asset_name);
-		return {};
-	}
-	mesh_uri = (fs::path{dest_dir} / mesh_uri.value()).generic_string();
-
-	if (is_skinned) {
-		return load_skinned_mesh_into_tree(mesh_uri.value());
-	} else {
-		return load_static_mesh_into_tree(mesh_uri.value());
 	}
 }
 
@@ -326,9 +298,37 @@ Node& Scene::spawn(Entity entity, Node::CreateInfo const& node_create_info) {
 
 void Scene::tick(Time dt) {
 	m_entity_refs.clear();
-	m_entities.fill_to(m_entity_refs);
+	fill_to_if(m_entities, m_entity_refs, [](Id<Entity>, Entity const& e) { return e.active; });
 	std::sort(m_entity_refs.begin(), m_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
 	for (Entity& entity : m_entity_refs) { entity.tick(dt); }
+	auto destroy_entity = [&](Node const& node) {
+		//
+		m_entities.remove(node.entity);
+	};
+	for (auto const id : m_to_destroy) {
+		auto* entity = m_entities.find(id);
+		if (!entity) { continue; }
+		m_nodes.remove(entity->m_node, destroy_entity);
+	}
+	m_to_destroy.clear();
+}
+
+bool Scene::destroy(Id<Entity> entity) {
+	if (m_entities.contains(entity)) {
+		m_to_destroy.insert(entity);
+		return true;
+	}
+	return false;
+}
+
+void Scene::render_3d() const {
+	m_const_entity_refs.clear();
+	fill_to_if(m_entities, m_const_entity_refs, [](Id<Entity>, Entity const& e) { return e.active && !e.m_render_components.empty(); });
+	// TODO: render ordering
+	std::sort(m_const_entity_refs.begin(), m_const_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
+	for (Entity const& entity : m_const_entity_refs) {
+		for (auto const* rc : entity.m_render_components) { rc->render(); }
+	}
 }
 
 bool Scene::from_json(char const* path) {
@@ -371,16 +371,9 @@ bool Scene::serialize(dj::Json& out) const {
 				logger::warn("[Scene] Failed to serialize Component [{}]", component->type_name());
 			}
 		}
-		if (in_entity.m_renderer) {
-			if (auto renderer = serializer.serialize(*in_entity.m_renderer)) {
-				out_entity["renderer"] = std::move(renderer);
-			} else {
-				logger::warn("[Scene] Failed to serialize Entity::Renderer for Entity [{}]", in_entity.m_id.value());
-			}
-		}
 		out_entities.push_back(std::move(out_entity));
 	};
-	m_entities.for_each(func);
+	for_each(m_entities, func);
 	out["entities"] = std::move(out_entities);
 	auto& out_camera = out["camera"];
 	out_camera["name"] = camera.name;
@@ -429,16 +422,11 @@ bool Scene::deserialize(dj::Json const& json) {
 		out_entity.m_scene = this;
 		for (auto const& in_component : in_entity["components"].array_view()) {
 			auto result = serializer.deserialize_as<Component>(in_component);
-			if (!result.is_component || !result.value) {
+			if (!result) {
 				logger::warn("[Scene] Failed to deserialize Component");
 				continue;
 			}
 			out_entity.attach(result.type_id.value(), std::move(result.value));
-		}
-		if (auto const& in_renderer = in_entity["renderer"]) {
-			auto result = serializer.deserialize_as<Entity::Renderer>(in_renderer);
-			out_entity.attach(std::move(result.value));
-			if (!out_entity.m_renderer) { logger::error("[Scene] Failed to obtain Renderer for Entity [{}]", id); }
 		}
 		out_entities.insert_or_assign(id, std::move(out_entity));
 	}
@@ -460,11 +448,11 @@ bool Scene::deserialize(dj::Json const& json) {
 	return true;
 }
 
-void Scene::render_3d() {
-	m_entity_refs.clear();
-	m_entities.fill_to(m_entity_refs);
-	for (Entity const& entity : m_entity_refs) {
-		if (entity.m_renderer) { entity.m_renderer->render(); }
-	};
+bool Scene::detach_from(Entity& out_entity, TypeId::value_type component_type) const {
+	if (auto it = out_entity.m_components.find(component_type); it != out_entity.m_components.end()) {
+		out_entity.m_components.erase(component_type);
+		return true;
+	}
+	return false;
 }
 } // namespace levk

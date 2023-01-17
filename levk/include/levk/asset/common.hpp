@@ -81,6 +81,7 @@ struct BinGeometry {
 	std::uint64_t compute_hash() const;
 	bool write(char const* path) const;
 	bool read(char const* path);
+	bool read(std::span<std::byte const> bytes);
 };
 
 struct BinSkeletalAnimation {
@@ -107,6 +108,7 @@ struct BinSkeletalAnimation {
 	std::uint64_t compute_hash() const;
 	bool write(char const* path) const;
 	bool read(char const* path);
+	bool read(std::span<std::byte const> bytes);
 };
 
 struct Skeleton {

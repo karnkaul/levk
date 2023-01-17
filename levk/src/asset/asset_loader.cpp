@@ -18,16 +18,47 @@ std::unique_ptr<MaterialBase> to_material_base(Uri const& parent, dj::Json const
 	}
 	return std::move(ret.value);
 }
-
-dj::Json open_json(char const* path) {
-	auto json = dj::Json::from_file(path);
-	if (!json) { logger::error("[Load] Failed to open [{}]", path); }
-	return json;
-}
 } // namespace
 
+std::span<std::byte const> AssetLoader::load_bytes(Reader& reader, Uri const& uri, Bool silent) {
+	auto ret = reader.load(uri.value());
+	if (!ret && !silent) {
+		logger::error("[Load] Failed to load URI [{}]", uri.value());
+		return {};
+	}
+	return ret.bytes;
+}
+
+dj::Json AssetLoader::load_json(Reader& reader, Uri const& uri, Bool silent) {
+	auto bytes = load_bytes(reader, uri, silent);
+	if (bytes.empty()) { return {}; }
+	auto ret = dj::Json::parse(std::string_view{reinterpret_cast<char const*>(bytes.data()), bytes.size()});
+	if (!ret && !silent) {
+		logger::error("[Load] Failed to load JSON [{}]", uri.value());
+		return {};
+	}
+	return ret;
+}
+
+std::string AssetLoader::get_asset_type(Reader& reader, Uri const& uri, Bool silent) {
+	auto json = load_json(reader, uri, silent);
+	if (!json) { return {}; }
+	return json["asset_type"].as<std::string>();
+}
+
+MeshType AssetLoader::get_mesh_type(Reader& reader, Uri const& uri, Bool silent) {
+	auto json = load_json(reader, uri, silent);
+	if (!json || json["asset_type"].as_string() != "mesh") { return MeshType::eNone; }
+	auto const type = json["type"].as_string();
+	if (type == "skinned") { return MeshType::eSkinned; }
+	if (type == "static") { return MeshType::eStatic; }
+	return MeshType::eNone;
+}
+
 Ptr<Texture> AssetLoader::load_texture(Uri const& uri, ColourSpace colour_space) const {
-	auto image = Image{uri.absolute_path(root_dir).c_str(), fs::path{uri.value()}.filename().string()};
+	auto bytes = load_bytes(reader, uri);
+	if (bytes.empty()) { return {}; }
+	auto image = Image{bytes, fs::path{uri.value()}.filename().string()};
 	if (!image) {
 		logger::error("[Load] Failed to load image [{}]", uri.value());
 		return {};
@@ -43,11 +74,8 @@ Ptr<Texture> AssetLoader::load_texture(Uri const& uri, ColourSpace colour_space)
 }
 
 Ptr<Material> AssetLoader::load_material(Uri const& uri) const {
-	auto json = dj::Json::from_file(uri.absolute_path(root_dir).c_str());
-	if (!json) {
-		logger::error("[Load] Failed to load Material JSON [{}]", uri.value());
-		return {};
-	}
+	auto json = load_json(reader, uri);
+	if (!json) { return {}; }
 	auto mat = to_material_base(uri.parent(), json);
 	if (!mat) {
 		logger::error("[Load] Failed to load Material [{}]", uri.value());
@@ -60,15 +88,9 @@ Ptr<Material> AssetLoader::load_material(Uri const& uri) const {
 	return &render_resources.materials.add(uri, Material{std::move(mat)});
 }
 
-Ptr<StaticMesh> AssetLoader::try_load_static_mesh(Uri const& uri) const {
-	auto const path = uri.absolute_path(root_dir);
-	auto json = open_json(path.c_str());
+Ptr<StaticMesh> AssetLoader::load_static_mesh(Uri const& uri) const {
+	auto json = load_json(reader, uri);
 	if (!json) { return {}; }
-	if (json["asset_type"].as_string() != "mesh" || json["type"].as_string() != "static") { return {}; }
-	return load_static_mesh(uri, json);
-}
-
-Ptr<StaticMesh> AssetLoader::load_static_mesh(Uri const& uri, dj::Json const& json) const {
 	if (json["type"].as_string() != "static") {
 		logger::error("[Load] JSON is not a StaticMesh [{}]", uri.value());
 		return {};
@@ -82,7 +104,7 @@ Ptr<StaticMesh> AssetLoader::load_static_mesh(Uri const& uri, dj::Json const& js
 		assert(!in_primitive.geometry.value().empty());
 		auto bin_geometry = asset::BinGeometry{};
 		auto bin_geometry_uri = Uri{dir_uri.append(in_primitive.geometry.value())};
-		if (!bin_geometry.read(bin_geometry_uri.absolute_path(root_dir).c_str())) {
+		if (!bin_geometry.read(reader.load(bin_geometry_uri.value()).bytes)) {
 			logger::error("[Load] Failed to read bin geometry [{}]", bin_geometry_uri.value());
 			continue;
 		}
@@ -99,7 +121,7 @@ Ptr<StaticMesh> AssetLoader::load_static_mesh(Uri const& uri, dj::Json const& js
 }
 
 Ptr<Skeleton> AssetLoader::load_skeleton(Uri const& uri) const {
-	auto const json = dj::Json::from_file(uri.absolute_path(root_dir).c_str());
+	auto const json = load_json(reader, uri);
 	if (!json) { return {}; }
 	if (json["asset_type"].as_string() != "skeleton") {
 		logger::error("[Load] JSON is not a Skeleton [{}]", uri.value());
@@ -113,13 +135,10 @@ Ptr<Skeleton> AssetLoader::load_skeleton(Uri const& uri) const {
 	skeleton.joints = std::move(asset.joints);
 	for (auto const& in_animation : asset.animations) {
 		auto animation_uri = Uri{dir_uri.append(in_animation.value())};
-		auto const in_animation_asset = open_json(animation_uri.absolute_path(root_dir).c_str());
-		if (!in_animation_asset) {
-			logger::warn("[Load] Failed to load Skeletal animation JSON [{}]", in_animation.value());
-			continue;
-		}
+		auto const in_animation_asset = load_json(reader, animation_uri);
+		if (!in_animation_asset) { continue; }
 		auto out_animation_asset = asset::BinSkeletalAnimation{};
-		if (!out_animation_asset.read(animation_uri.absolute_path(root_dir).c_str())) {
+		if (!out_animation_asset.read(reader.load(animation_uri.value()).bytes)) {
 			logger::warn("[Load] Failed to load SkeletalAnimation at: [{}]", in_animation.value());
 			continue;
 		}
@@ -135,18 +154,8 @@ Ptr<Skeleton> AssetLoader::load_skeleton(Uri const& uri) const {
 	return &render_resources.skeletons.add(uri, std::move(skeleton));
 }
 
-Ptr<SkinnedMesh> AssetLoader::try_load_skinned_mesh(Uri const& uri) const {
-	auto const json = open_json(uri.absolute_path(root_dir).c_str());
-	if (!json) { return {}; }
-	if (json["asset_type"].as_string() != "mesh") {
-		logger::error("[Load] JSON is not a Mesh [{}]", uri.value());
-		return {};
-	}
-	if (json["type"].as_string() != "skinned") { return {}; }
-	return load_skinned_mesh(uri, json);
-}
-
-Ptr<SkinnedMesh> AssetLoader::load_skinned_mesh(Uri const& uri, dj::Json const& json) const {
+Ptr<SkinnedMesh> AssetLoader::load_skinned_mesh(Uri const& uri) const {
+	auto const json = load_json(reader, uri);
 	if (json["type"].as_string() != "skinned") {
 		logger::error("[Load] JSON is not a SkinnedMesh [{}]", uri.value());
 		return {};
@@ -160,7 +169,7 @@ Ptr<SkinnedMesh> AssetLoader::load_skinned_mesh(Uri const& uri, dj::Json const& 
 		assert(!in_primitive.geometry.value().empty());
 		auto bin_geometry = asset::BinGeometry{};
 		auto bin_geometry_uri = Uri{dir_uri.append(in_primitive.geometry.value())};
-		if (!bin_geometry.read(bin_geometry_uri.absolute_path(root_dir).c_str())) {
+		if (!bin_geometry.read(reader.load(bin_geometry_uri.value()).bytes)) {
 			logger::error("[Load] Failed to read bin geometry [{}]", bin_geometry_uri.value());
 			continue;
 		}
@@ -179,16 +188,5 @@ Ptr<SkinnedMesh> AssetLoader::load_skinned_mesh(Uri const& uri, dj::Json const& 
 	}
 	logger::info("[Load] [{}] SkinnedMesh loaded", mesh.name);
 	return &render_resources.skinned_meshes.add(uri, std::move(mesh));
-}
-
-std::string AssetLoader::get_asset_type(char const* path) { return open_json(path)["asset_type"].as<std::string>(); }
-
-MeshType AssetLoader::get_mesh_type(char const* path) {
-	auto json = open_json(path);
-	if (!json || json["asset_type"].as_string() != "mesh") { return MeshType::eNone; }
-	auto const type = json["type"].as_string();
-	if (type == "skinned") { return MeshType::eSkinned; }
-	if (type == "static") { return MeshType::eStatic; }
-	return MeshType::eNone;
 }
 } // namespace levk

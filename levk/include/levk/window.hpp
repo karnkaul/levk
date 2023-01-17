@@ -87,4 +87,12 @@ class Window {
 
 	std::unique_ptr<Base> m_model{};
 };
+
+struct WindowFactory {
+	virtual Window make() const = 0;
+};
+
+struct DesktopWindowFactory : WindowFactory {
+	Window make() const override;
+};
 } // namespace levk

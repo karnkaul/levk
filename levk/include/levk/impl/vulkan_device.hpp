@@ -50,7 +50,7 @@ void gfx_destroy_device(VulkanDevice& out);
 GraphicsDeviceInfo const& gfx_info(VulkanDevice const& device);
 bool gfx_set_vsync(VulkanDevice& out, Vsync::Type vsync);
 bool gfx_set_render_scale(VulkanDevice& out, float scale);
-void gfx_render(VulkanDevice& out, RenderInfo const& info);
+void gfx_render(VulkanDevice const& device, RenderInfo const& info);
 
 MeshGeometry gfx_make_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints);
 std::uint32_t gfx_mesh_vertex_count(VulkanMeshGeometry const& mesh);
@@ -65,4 +65,5 @@ std::uint32_t gfx_tex_mip_levels(VulkanTexture const& texture);
 
 void gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info);
 void gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info);
+RenderStats gfx_render_stats(VulkanDevice const& device);
 } // namespace levk
