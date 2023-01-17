@@ -54,7 +54,8 @@ Uri MeshImporter::update() {
 		ImGui::Separator();
 		ImGui::Text("Destination Directory");
 		selected.filename("##Destination Directory");
-		if (fs::is_directory(fs::path{m_root} / selected.filename.view())) { ImGui::TextColored({0.8f, 0.8f, 0.1f, 1.0f}, "Overwriting existing directory"); }
+		auto const dir = fs::path{m_root} / selected.filename.view();
+		if (fs::is_directory(dir) && !fs::is_empty(dir)) { ImGui::TextColored({0.8f, 0.8f, 0.1f, 1.0f}, "Directory not empty"); }
 
 		ImGui::Separator();
 		if (ImGui::Button("Import")) {
