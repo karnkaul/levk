@@ -95,7 +95,8 @@ std::uint32_t FileReader::reload_out_of_date(bool silent) {
 	auto lock = std::scoped_lock{m_impl->mutex};
 	for (auto& [uri, entry] : m_impl->loaded) {
 		auto const& loader = m_impl->mounted[entry.loader];
-		if (entry.lwt < fs::last_write_time(loader.absolute_path_for(uri))) {
+		auto const path = loader.absolute_path_for(uri);
+		if (fs::is_regular_file(path) && entry.lwt < fs::last_write_time(path)) {
 			entry.data = loader.load(uri);
 			if (entry.hash) { entry.hash = compute_hash(entry.data.span()); }
 			if (!silent) { logger::info("[FileReader] Reloaded out of date URI: [{}]", uri); }

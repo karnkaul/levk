@@ -46,6 +46,7 @@ set(imcpp_headers
   include/levk/imcpp/input_text.hpp
   include/levk/imcpp/inspector.hpp
   include/levk/imcpp/log_renderer.hpp
+  include/levk/imcpp/mesh_importer.hpp
   include/levk/imcpp/reflector.hpp
   include/levk/imcpp/resource_list.hpp
   include/levk/imcpp/ring_buffer.hpp

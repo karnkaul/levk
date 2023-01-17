@@ -143,7 +143,7 @@ void Editor::tick(Frame const& frame) {
 		auto path = fs::path{drop};
 		if (path.extension() == ".gltf") {
 			auto export_path = path.filename().stem();
-			import_gltf(drop.c_str(), export_path.generic_string());
+			mesh_importer.setup(drop.c_str(), data_path);
 			break;
 		}
 		if (path.extension() == ".json") {
@@ -174,6 +174,7 @@ void Editor::tick(Frame const& frame) {
 	}
 
 	main_menu.display_windows();
+	if (auto mesh_uri = mesh_importer.update()) { scene.load_mesh_into_tree(mesh_uri.value()); }
 }
 
 void Editor::render() { m_context.render(scene, clear_colour); }
