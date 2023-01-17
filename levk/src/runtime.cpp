@@ -50,5 +50,5 @@ Runtime::ReturnCode Runtime::run() {
 
 std::string levk::find_directory(char const* exe_path, std::span<std::string_view const> uri_patterns) {
 	if (uri_patterns.empty()) { return {}; }
-	return find_dir(exe_path, uri_patterns);
+	return find_dir(exe_path, uri_patterns).generic_string();
 }

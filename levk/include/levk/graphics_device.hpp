@@ -94,7 +94,7 @@ class GraphicsDevice {
 	std::unique_ptr<Base> m_model{};
 };
 
-class Reader;
+struct Reader;
 
 struct GraphicsDeviceFactory {
 	virtual GraphicsDevice make(Reader& reader) const = 0;
