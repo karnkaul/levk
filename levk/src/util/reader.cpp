@@ -48,7 +48,7 @@ bool FileReader::mount(std::string_view directory) {
 	if (auto loader = FileLoader{directory}) {
 		auto lock = std::scoped_lock{m_impl->mutex};
 		m_impl->mounted.push_back(std::move(loader));
-		logger::info("[FileReader] Directory [{}] mounted successfully", directory);
+		logger::debug("[FileReader] Directory [{}] mounted successfully", directory);
 		return true;
 	}
 	return false;
@@ -65,7 +65,7 @@ FileReader::Data FileReader::load(std::string const& uri, std::uint8_t flags) {
 			if (!entry.data) { return reload(uri, flags); }
 			entry.lwt = fs::last_write_time(loader.absolute_path_for(uri));
 			if (flags & eComputeHash) { entry.hash = compute_hash(entry.data.span()); }
-			if (!(flags & eSilent)) { logger::info("[FileReader] (Re)loaded URI: [{}]", uri); }
+			if (!(flags & eSilent)) { logger::debug("[FileReader] (Re)loaded URI: [{}]", uri); }
 		}
 		if (!entry.hash && (flags & eComputeHash)) { entry.hash = compute_hash(entry.data.span()); }
 		return {entry.data.span(), entry.hash};
@@ -82,7 +82,7 @@ FileReader::Data FileReader::reload(std::string const& uri, std::uint8_t flags) 
 			auto const lwt = fs::last_write_time(loader.absolute_path_for(uri));
 			auto const hash = (flags & eComputeHash) ? compute_hash(data.span()) : 0;
 			auto [it, _] = m_impl->loaded.insert_or_assign(uri, Impl::Entry{std::move(data), index, hash, lwt});
-			if (!(flags & eSilent)) { logger::info("[FileReader] Loaded URI: [{}]", uri); }
+			if (!(flags & eSilent)) { logger::debug("[FileReader] Loaded URI: [{}]", uri); }
 			return {it->second.data.span(), it->second.hash};
 		}
 	}
@@ -99,7 +99,7 @@ std::uint32_t FileReader::reload_out_of_date(bool silent) {
 		if (fs::is_regular_file(path) && entry.lwt < fs::last_write_time(path)) {
 			entry.data = loader.load(uri);
 			if (entry.hash) { entry.hash = compute_hash(entry.data.span()); }
-			if (!silent) { logger::info("[FileReader] Reloaded out of date URI: [{}]", uri); }
+			if (!silent) { logger::debug("[FileReader] Reloaded out of date URI: [{}]", uri); }
 			++ret;
 		}
 	}

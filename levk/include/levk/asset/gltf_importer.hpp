@@ -6,42 +6,36 @@
 #include <levk/util/logger.hpp>
 
 namespace levk::asset {
-struct GltfAsset {
-	struct List;
-
-	std::string gltf_name{};
-	std::string asset_name{};
-	std::size_t index{};
-};
-
-struct GltfAsset::List {
-	std::vector<GltfAsset> static_meshes{};
-	std::vector<GltfAsset> skinned_meshes{};
-};
-
 struct LogDispatch : logger::CrtpDispatch<LogDispatch> {
 	bool silenced[static_cast<std::size_t>(logger::Level::eCOUNT_)]{};
 
-	void print(logger::Level level, std::string_view message) const;
+	void print(logger::Level level, std::string message) const;
+};
+
+struct GltfMesh {
+	std::string name{};
+	MeshType mesh_type{};
+	gltf2cpp::Index<gltf2cpp::Mesh> index{};
 };
 
 struct GltfImporter {
 	LogDispatch import_logger{};
 	gltf2cpp::Root root{};
 	std::string src_dir{};
+	std::string dst_dir{};
 
-	struct List : GltfAsset::List {
-		LogDispatch import_logger{};
+	struct List {
 		std::string gltf_path{};
+		std::vector<GltfMesh> meshes{};
 
-		GltfImporter importer() const;
+		GltfImporter importer(std::string dst_dir, LogDispatch import_logger = {}) const;
 
 		explicit operator bool() const { return !gltf_path.empty(); }
 	};
 
 	static List peek(std::string gltf_path, LogDispatch const& import_logger = {});
 
-	Uri<Mesh> import_mesh(GltfAsset const& mesh, std::string_view dest_dir) const;
+	Uri<Mesh> import_mesh(GltfMesh const& mesh) const;
 
 	explicit operator bool() const { return !!root; }
 };

@@ -15,13 +15,13 @@ class MeshImporter {
   private:
 	struct Entry {
 		std::string display_name{};
-		asset::GltfAsset asset{};
+		asset::GltfMesh mesh{};
 		InputText<256> export_uri{};
-		bool is_skinned{};
+		MeshType type{};
 	};
 
 	std::string m_gltf_path{};
-	asset::GltfImporter m_importer{};
+	asset::GltfImporter::List m_asset_list{};
 	std::vector<Entry> m_entries{};
 	std::size_t m_selected{};
 	std::string m_root{};
@@ -29,6 +29,6 @@ class MeshImporter {
 	InputText<128> m_rename_buffer{};
 	Ptr<Entry> m_rename_entry{};
 
-	void setup_entries(AssetList const& list, std::string_view directory);
+	void setup_entries(std::string_view directory);
 };
 } // namespace levk::imcpp

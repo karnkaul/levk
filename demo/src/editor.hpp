@@ -28,8 +28,6 @@ class Editor : public Runtime {
 
 	void save_scene() const;
 
-	bool import_gltf(char const* in_path, std::string_view dest_dir);
-
 	std::string data_path{};
 
 	Scene scene{};

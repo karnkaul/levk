@@ -91,50 +91,6 @@ void Editor::save_scene() const {
 	logger::debug("Scene saved to {}", filename);
 }
 
-bool Editor::import_gltf(char const* in_path, std::string_view dest_dir) {
-	auto src = fs::path{in_path};
-	auto dst = fs::path{data_path} / dest_dir;
-	auto src_filename = src.filename().stem();
-	auto export_path = dst / src_filename;
-	auto asset_list = asset::GltfImporter::peek(in_path);
-
-	if (!asset_list) { return {}; }
-
-	if (asset_list.static_meshes.empty() && asset_list.skinned_meshes.empty()) {
-		logger::error("No meshes found in {}\n", in_path);
-		return {};
-	}
-
-	bool is_skinned{};
-	auto mesh_asset = [&]() -> Ptr<asset::GltfAsset const> {
-		auto const func = [](asset::GltfAsset const& asset) { return asset.index == 0; };
-		if (auto it = std::find_if(asset_list.static_meshes.begin(), asset_list.static_meshes.end(), func); it != asset_list.static_meshes.end()) {
-			return &*it;
-		}
-		if (auto it = std::find_if(asset_list.skinned_meshes.begin(), asset_list.skinned_meshes.end(), func); it != asset_list.skinned_meshes.end()) {
-			is_skinned = true;
-			return &*it;
-		}
-		return nullptr;
-	}();
-
-	auto importer = asset_list.importer();
-	if (!importer) { return {}; }
-
-	auto mesh_uri = importer.import_mesh(*mesh_asset, dst.string());
-	if (mesh_uri.value().empty()) {
-		logger::error("Import failed! {}\n", mesh_asset->asset_name);
-		return {};
-	}
-	mesh_uri = (fs::path{dest_dir} / mesh_uri.value()).generic_string();
-
-	if (is_skinned) {
-		return scene.load_skinned_mesh_into_tree(mesh_uri.value());
-	} else {
-		return scene.load_static_mesh_into_tree(mesh_uri.value());
-	}
-}
-
 void Editor::tick(Frame const& frame) {
 	if (frame.state.focus_changed() && frame.state.is_in_focus()) { static_cast<FileReader*>(m_reader.get())->reload_out_of_date(); }
 	if (frame.state.input.chord(Key::eW, Key::eLeftControl) || frame.state.input.chord(Key::eW, Key::eRightControl)) { m_context.shutdown(); }
