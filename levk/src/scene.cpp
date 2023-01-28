@@ -261,7 +261,7 @@ bool Scene::load_skinned_mesh_into_tree(Uri const& uri) {
 }
 
 bool Scene::add_to_tree(Uri const& uri, StaticMesh const& mesh) {
-	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
+	auto& node = spawn(NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
 	auto& entity = m_entities.get(node.entity);
 	auto mesh_renderer = std::make_unique<MeshRenderer>(StaticMeshRenderer{.uri = uri});
 	entity.attach(std::move(mesh_renderer));
@@ -270,7 +270,7 @@ bool Scene::add_to_tree(Uri const& uri, StaticMesh const& mesh) {
 
 bool Scene::add_to_tree(Uri const& uri, SkinnedMesh const& mesh) {
 	auto& render_resources = Service<Resources>::get().render;
-	auto& node = spawn({}, NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
+	auto& node = spawn(NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
 	auto& entity = m_entities.get(node.entity);
 	auto skeleton = Skeleton::Instance{};
 	auto enabled = std::optional<Id<Skeleton::Animation>>{};
@@ -286,7 +286,8 @@ bool Scene::add_to_tree(Uri const& uri, SkinnedMesh const& mesh) {
 	return true;
 }
 
-Node& Scene::spawn(Entity entity, Node::CreateInfo const& node_create_info) {
+Node& Scene::spawn(Node::CreateInfo const& node_create_info) {
+	auto entity = Entity{};
 	entity.m_scene = this;
 	auto& ret = m_nodes.add(node_create_info);
 	auto [i, e] = m_entities.add(std::move(entity));

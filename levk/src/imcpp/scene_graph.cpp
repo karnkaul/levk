@@ -114,7 +114,7 @@ void SceneGraph::handle_popups() {
 		ImGui::Text("Spawn Entity");
 		m_entity_name("Name");
 		if (!m_entity_name.empty() && ImGui::Button("Spawn")) {
-			m_scene->spawn({}, NodeCreateInfo{.name = std::string{m_entity_name.view()}});
+			m_scene->spawn(NodeCreateInfo{.name = std::string{m_entity_name.view()}});
 			m_entity_name = {};
 			popup.close_current();
 		}

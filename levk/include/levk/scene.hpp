@@ -68,7 +68,7 @@ class Scene : public GraphicsRenderer, public Serializable {
 	bool add_to_tree(Uri const& uri, StaticMesh const& static_mesh);
 	bool add_to_tree(Uri const& uri, SkinnedMesh const& skinned_mesh);
 
-	Node& spawn(Entity entity, Node::CreateInfo const& node_create_info = {});
+	Node& spawn(Node::CreateInfo const& node_create_info = {});
 	void tick(Time dt);
 	bool destroy(Id<Entity> entity);
 
