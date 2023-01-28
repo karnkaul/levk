@@ -18,6 +18,11 @@ struct GltfMesh {
 	gltf2cpp::Index<gltf2cpp::Mesh> index{};
 };
 
+struct GltfScene {
+	std::string name{};
+	gltf2cpp::Index<gltf2cpp::Scene> index{};
+};
+
 struct GltfImporter {
 	LogDispatch import_logger{};
 	gltf2cpp::Root root{};
@@ -27,6 +32,7 @@ struct GltfImporter {
 	struct List {
 		std::string gltf_path{};
 		std::vector<GltfMesh> meshes{};
+		std::vector<GltfScene> scenes{};
 
 		GltfImporter importer(std::string dst_dir, LogDispatch import_logger = {}) const;
 

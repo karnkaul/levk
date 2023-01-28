@@ -45,8 +45,8 @@ struct Inspector {
 			for (auto [texture, index] : enumerate(lit->textures.textures)) {
 				if (auto tn = TreeNode{FixedString{"texture[{}]", index}.c_str()}) {
 					auto& tex_uri = lit->textures.textures[index].uri;
-					std::string_view const label = tex_uri ? tex_uri.value() : "[None]";
-					TreeNode::leaf(label.data());
+					FixedString<128> const label = tex_uri ? tex_uri.value() : "[None]";
+					TreeNode::leaf(label.c_str());
 					if (tex_uri) {
 						if (auto drag = DragDrop::Source{}) { DragDrop::set_string("texture", tex_uri.value()); }
 					}

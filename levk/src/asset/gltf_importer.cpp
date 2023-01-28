@@ -158,6 +158,12 @@ std::vector<GltfMesh> make_gltf_mesh_list(dj::Json const& json) {
 	return ret;
 }
 
+std::vector<GltfScene> make_gltf_scene_list(dj::Json const& json) {
+	auto ret = std::vector<GltfScene>{};
+	for (auto const [scene, index] : enumerate(json["scenes"].array_view())) { ret.push_back(GltfScene{scene["name"].as<std::string>(), index}); }
+	return ret;
+}
+
 std::string log_name(std::string_view in, std::size_t index) {
 	auto ret = fmt::format("{}", index);
 	if (!in.empty()) { fmt::format_to(std::back_inserter(ret), " - {}", in); }
@@ -443,7 +449,9 @@ GltfImporter::List GltfImporter::peek(std::string gltf_path, LogDispatch const& 
 		import_logger.error("[Import] Invalid GLTF file path [{}]", gltf_path);
 		return ret;
 	}
-	ret.meshes = make_gltf_mesh_list(dj::Json::from_file(gltf_path.c_str()));
+	auto json = dj::Json::from_file(gltf_path.c_str());
+	ret.meshes = make_gltf_mesh_list(json);
+	ret.scenes = make_gltf_scene_list(json);
 	ret.gltf_path = std::move(gltf_path);
 	return ret;
 }
