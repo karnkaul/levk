@@ -30,7 +30,7 @@ void MeshImporter::setup_entries(std::string_view const directory) {
 	}
 }
 
-Uri MeshImporter::update() {
+Uri<asset::Mesh> MeshImporter::update() {
 	if (m_entries.empty()) { return {}; }
 	if (auto m = Modal{"Mesh Importer", {true}, {true}, ImGuiWindowFlags_AlwaysAutoResize}) {
 		ImGui::Text("%s", FixedString<256>{"Importing [{}]", m_gltf_path}.c_str());

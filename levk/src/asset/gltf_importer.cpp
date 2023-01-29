@@ -219,6 +219,10 @@ struct GltfExporter {
 		if (auto it = exported.images.find(index); it != exported.images.end()) { return it->second; }
 		auto uri = fs::path{in.source_filename}.generic_string();
 		auto dst = out_dir / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			return uri;
+		}
 		fs::create_directories(dst.parent_path());
 		if (fs::exists(dst)) {
 			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
@@ -234,6 +238,12 @@ struct GltfExporter {
 
 	Uri<Material> export_material(GltfResource const& resource) {
 		if (auto it = exported.materials.find(resource.index); it != exported.materials.end()) { return it->second; }
+		auto uri = fmt::format("{}.json", resource.name.out);
+		auto dst = out_dir / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			return uri;
+		}
 		auto const& in = in_root.materials[resource.index];
 		auto material = asset::Material{};
 		material.albedo = Rgba::from(glm::vec4{in.pbr.base_color_factor[0], in.pbr.base_color_factor[1], in.pbr.base_color_factor[2], 1.0f});
@@ -247,10 +257,8 @@ struct GltfExporter {
 		if (auto i = in.pbr.metallic_roughness_texture) { textures[1] = {copy_image(in_root.textures[i->texture], i->texture), ColourSpace::eLinear}; }
 		if (auto i = in.emissive_texture) { textures[2] = {copy_image(in_root.textures[i->texture], i->texture), ColourSpace::eSrgb}; }
 		material.emissive_factor = {in.emissive_factor[0], in.emissive_factor[1], in.emissive_factor[2]};
-		auto uri = fmt::format("{}.json", resource.name.out);
 		auto json = dj::Json{};
 		to_json(json, material);
-		auto dst = out_dir / uri;
 		if (fs::exists(dst)) {
 			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
 			fs::remove(dst);
@@ -264,12 +272,17 @@ struct GltfExporter {
 	Uri<BinGeometry> export_geometry(gltf2cpp::Mesh const& in, std::size_t primitive_index, std::size_t mesh_index, std::vector<glm::uvec4> joints,
 									 std::vector<glm::vec4> weights) {
 		if (auto it = exported.geometries.find(primitive_index); it != exported.geometries.end()) { return it->second; }
+		auto uri = fmt::format("mesh_{}.geometry_{}.bin", mesh_index, primitive_index);
+		auto dst = out_dir / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			return uri;
+		}
 		auto bin = BinGeometry{};
 		bin.geometry = to_geometry(in.primitives[primitive_index]);
 		bin.joints = std::move(joints);
 		bin.weights = std::move(weights);
-		auto uri = fmt::format("mesh_{}.geometry_{}.bin", mesh_index, primitive_index);
-		[[maybe_unused]] bool const res = bin.write((out_dir / uri).string().c_str());
+		[[maybe_unused]] bool const res = bin.write(dst.string().c_str());
 		assert(res);
 		import_logger.info("[Import] BinGeometry [{}] imported", uri);
 		exported.geometries.insert_or_assign(primitive_index, uri);
@@ -277,6 +290,12 @@ struct GltfExporter {
 	}
 
 	Uri<Mesh> export_mesh(GltfResource const& resource) {
+		auto uri = fmt::format("{}.json", resource.name.out);
+		auto dst = out_dir / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			return uri;
+		}
 		auto out_mesh = Mesh{.type = Mesh::Type::eStatic};
 		auto const& in_mesh = in_root.meshes[resource.index];
 		for (auto const& [in_primitive, primitive_index] : enumerate(in_mesh.primitives)) {
@@ -322,11 +341,9 @@ struct GltfExporter {
 			}
 			out_mesh.skeleton = export_skeleton(make_resource(in_skin.name, "skeleton", *skin));
 		}
-		auto uri = fmt::format("{}.json", resource.name.out);
 		out_mesh.name = fs::path{resource.name.out}.stem().string();
 		auto json = dj::Json{};
 		to_json(json, out_mesh);
-		auto dst = out_dir / uri;
 		if (fs::exists(dst)) {
 			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
 			fs::remove(dst);
@@ -339,6 +356,10 @@ struct GltfExporter {
 	Uri<asset::BinSkeletalAnimation> export_skeletal_animation(GltfResource const& resource, asset::BinSkeletalAnimation const& animation) {
 		auto uri = fmt::format("{}.bin", resource.name.out);
 		auto dst = out_dir / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			return uri;
+		}
 		if (!animation.write(dst.generic_string().c_str())) {
 			import_logger.error("[Import] Failed to import Skeletal Animation: [{}]", uri);
 			return {};
@@ -348,6 +369,13 @@ struct GltfExporter {
 	}
 
 	Uri<Skeleton> export_skeleton(GltfResource const& resource_skin) {
+		auto uri = fmt::format("{}.json", resource_skin.name.out);
+		auto dst = out_dir / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			return uri;
+		}
+
 		auto skin_node = Ptr<gltf2cpp::Node const>{};
 		for (auto& node : in_root.nodes) {
 			if (node.skin && *node.skin == resource_skin.index) { skin_node = &node; }
@@ -420,11 +448,9 @@ struct GltfExporter {
 			asset.animations.push_back(export_skeletal_animation(animation_prefix, in_animation));
 		}
 
-		auto uri = fmt::format("{}.json", resource_skin.name.out);
 		asset.name = fs::path{resource_skin.name.out}.stem().string();
 		auto json = dj::Json{};
 		to_json(json, asset);
-		auto dst = out_dir / uri;
 		if (fs::exists(dst)) {
 			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
 			fs::remove(dst);

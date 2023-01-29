@@ -36,7 +36,7 @@ dj::Json make_json(Skeleton::Instance const& skeleton) {
 	return ret;
 }
 
-Skeleton::Instance to_skeleton_instance(dj::Json const& json, TUri<Skeleton> const& skeleton) {
+Skeleton::Instance to_skeleton_instance(dj::Json const& json, Uri<Skeleton> const& skeleton) {
 	auto ret = Skeleton::Instance{};
 	ret.root = json["root"].as<std::size_t>();
 	ret.source = skeleton;
@@ -137,7 +137,7 @@ void StaticMeshRenderer::render(Entity const& entity) const {
 	device.render(m, resources.render, is, tree.global_transform(tree.get(entity.node_id())));
 }
 
-void SkinnedMeshRenderer::set_mesh(TUri<SkinnedMesh> uri_, Skeleton::Instance skeleton_) {
+void SkinnedMeshRenderer::set_mesh(Uri<SkinnedMesh> uri_, Skeleton::Instance skeleton_) {
 	uri = std::move(uri_);
 	skeleton = std::move(skeleton_);
 	joint_matrices = DynArray<glm::mat4>{skeleton.joints.size()};
@@ -181,7 +181,7 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 	auto& resources = Service<Resources>::locate();
 	if (type == "static") {
 		auto uri = json["mesh"].as<std::string>();
-		if (!resources.load_static_mesh(uri)) {
+		if (!resources.load(Uri<StaticMesh>{uri})) {
 			logger::error("[MeshRenderer] Failed to load StaticMesh [{}]", uri);
 			return false;
 		}
@@ -193,7 +193,7 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 		renderer = std::move(smr);
 	} else if (type == "skinned") {
 		auto uri = Uri{json["mesh"].as<std::string>()};
-		auto* mesh = resources.load_skinned_mesh(uri);
+		auto* mesh = resources.load(Uri<SkinnedMesh>{uri});
 		if (!mesh) {
 			logger::error("[MeshRenderer] Failed to load SkinnedMesh [{}]", uri.value());
 			return false;
@@ -248,19 +248,19 @@ bool Scene::load_mesh_into_tree(std::string_view uri) {
 	}
 }
 
-bool Scene::load_static_mesh_into_tree(Uri const& uri) {
-	auto* mesh = Service<Resources>::locate().load_static_mesh(uri);
+bool Scene::load_static_mesh_into_tree(Uri<StaticMesh> const& uri) {
+	auto* mesh = Service<Resources>::locate().load(Uri<StaticMesh>{uri});
 	if (!mesh) { return false; }
 	return add_to_tree(uri, *mesh);
 }
 
-bool Scene::load_skinned_mesh_into_tree(Uri const& uri) {
-	auto* mesh = Service<Resources>::locate().load_skinned_mesh(uri);
+bool Scene::load_skinned_mesh_into_tree(Uri<SkinnedMesh> const& uri) {
+	auto* mesh = Service<Resources>::locate().load(Uri<SkinnedMesh>{uri});
 	if (!mesh) { return false; }
 	return add_to_tree(uri, *mesh);
 }
 
-bool Scene::add_to_tree(Uri const& uri, StaticMesh const& mesh) {
+bool Scene::add_to_tree(Uri<StaticMesh> const& uri, StaticMesh const& mesh) {
 	auto& node = spawn(NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
 	auto& entity = m_entities.get(node.entity);
 	auto mesh_renderer = std::make_unique<MeshRenderer>(StaticMeshRenderer{.uri = uri});
@@ -268,7 +268,7 @@ bool Scene::add_to_tree(Uri const& uri, StaticMesh const& mesh) {
 	return true;
 }
 
-bool Scene::add_to_tree(Uri const& uri, SkinnedMesh const& mesh) {
+bool Scene::add_to_tree(Uri<SkinnedMesh> const& uri, SkinnedMesh const& mesh) {
 	auto& render_resources = Service<Resources>::get().render;
 	auto& node = spawn(NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
 	auto& entity = m_entities.get(node.entity);

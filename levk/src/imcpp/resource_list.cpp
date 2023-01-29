@@ -9,7 +9,7 @@ namespace {
 template <typename Map>
 PathTree build_tree(Map const& map) {
 	auto builder = PathTree::Builder{};
-	auto func = [&](Uri const& uri, auto const&) { builder.add(uri.value()); };
+	auto func = [&](Uri<> const& uri, auto const&) { builder.add(uri.value()); };
 	map.for_each(func);
 	return builder.build();
 }
@@ -29,7 +29,7 @@ TypeId list_resource_type_tabs() {
 }
 
 struct Inspector {
-	void operator()(Uri const& uri, Texture& texture) const {
+	void operator()(Uri<> const& uri, Texture& texture) const {
 		auto const extent = texture.extent();
 		TreeNode::leaf(FixedString{"{}", uri.value()}.c_str());
 		if (auto drag = DragDrop::Source{}) { DragDrop::set_string("texture", uri.value()); }
@@ -38,7 +38,7 @@ struct Inspector {
 		ImGui::Text("%s", FixedString{"Colour Space: {}", texture.colour_space() == ColourSpace::eLinear ? "linear" : "sRGB"}.c_str());
 	}
 
-	void operator()(Uri const& uri, Material const& material) const {
+	void operator()(Uri<> const& uri, Material const& material) const {
 		ImGui::Text("%s", FixedString{"{}", uri.value()}.c_str());
 		ImGui::Text("%s", FixedString{"Shader: {}", material.shader_id()}.c_str());
 		if (auto* lit = material.as<LitMaterial>()) {
@@ -59,7 +59,7 @@ struct Inspector {
 	}
 
 	template <typename MeshT>
-	void mesh_common(Uri const& uri, MeshT& mesh) const {
+	void mesh_common(Uri<> const& uri, MeshT& mesh) const {
 		ImGui::Text("%s", FixedString{"{}", uri.value()}.c_str());
 		ImGui::Text("%s", FixedString{"Name: {}", mesh.name}.c_str());
 		for (auto [primitive, index] : enumerate(mesh.primitives)) {
@@ -76,11 +76,11 @@ struct Inspector {
 		}
 	}
 
-	void operator()(Uri const& uri, StaticMesh& mesh) const { mesh_common(uri, mesh); }
+	void operator()(Uri<> const& uri, StaticMesh& mesh) const { mesh_common(uri, mesh); }
 
-	void operator()(Uri const& uri, SkinnedMesh& mesh) const {
+	void operator()(Uri<> const& uri, SkinnedMesh& mesh) const {
 		mesh_common(uri, mesh);
-		std::string_view const label = mesh.skeleton ? mesh.skeleton.value() : "[None]";
+		FixedString<128> const label = mesh.skeleton ? mesh.skeleton.value() : "[None]";
 		TreeNode::leaf(FixedString<128>{"Skeleton: {}", label}.c_str());
 		if (uri) {
 			if (auto drag = DragDrop::Source{}) { DragDrop::set_string("skeleton", uri.value()); }
@@ -90,7 +90,7 @@ struct Inspector {
 		}
 	}
 
-	void operator()(Uri const& uri, Skeleton const& skeleton) const {
+	void operator()(Uri<> const& uri, Skeleton const& skeleton) const {
 		ImGui::Text("%s", FixedString{"{}", uri.value()}.c_str());
 		ImGui::Text("%s", FixedString{"Name: {}", skeleton.name}.c_str());
 	}

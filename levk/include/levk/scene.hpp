@@ -14,7 +14,7 @@
 namespace levk {
 struct StaticMeshRenderer {
 	std::vector<Transform> instances{};
-	TUri<StaticMesh> uri{};
+	Uri<StaticMesh> uri{};
 
 	void render(Entity const& entity) const;
 };
@@ -37,11 +37,11 @@ struct SkeletonController : Component {
 
 struct SkinnedMeshRenderer {
 	Skeleton::Instance skeleton{};
-	TUri<SkinnedMesh> uri{};
+	Uri<SkinnedMesh> uri{};
 
 	DynArray<glm::mat4> joint_matrices{};
 
-	void set_mesh(TUri<SkinnedMesh> uri, Skeleton::Instance skeleton);
+	void set_mesh(Uri<SkinnedMesh> uri, Skeleton::Instance skeleton);
 	void render(Entity const& entity) const;
 };
 
@@ -63,10 +63,10 @@ class Scene : public GraphicsRenderer, public Serializable {
 	struct Renderer;
 
 	bool load_mesh_into_tree(std::string_view uri);
-	bool load_static_mesh_into_tree(Uri const& uri);
-	bool load_skinned_mesh_into_tree(Uri const& uri);
-	bool add_to_tree(Uri const& uri, StaticMesh const& static_mesh);
-	bool add_to_tree(Uri const& uri, SkinnedMesh const& skinned_mesh);
+	bool load_static_mesh_into_tree(Uri<StaticMesh> const& uri);
+	bool load_skinned_mesh_into_tree(Uri<SkinnedMesh> const& uri);
+	bool add_to_tree(Uri<StaticMesh> const& uri, StaticMesh const& static_mesh);
+	bool add_to_tree(Uri<SkinnedMesh> const& uri, SkinnedMesh const& skinned_mesh);
 
 	Node& spawn(Node::CreateInfo const& node_create_info = {});
 	void tick(Time dt);

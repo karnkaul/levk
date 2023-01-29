@@ -8,7 +8,7 @@ class Material;
 
 struct MeshPrimitive {
 	MeshGeometry geometry;
-	TUri<Material> material{};
+	Uri<Material> material{};
 	Topology topology{Topology::eTriangleList};
 };
 } // namespace levk

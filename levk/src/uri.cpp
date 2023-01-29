@@ -17,21 +17,21 @@ std::string append_paths(std::string_view prefix, std::string_view const (&suffi
 }
 } // namespace
 
-Uri::Uri(std::string value) : m_value(std::move(value)) {
+Uri<void>::Uri(std::string value) : m_value(std::move(value)) {
 	for (char const c : m_value) { hash_combine(m_hash, c); }
 }
 
-std::string Uri::absolute_path(std::string_view root_dir) const { return append_path(root_dir, m_value); }
+std::string Uri<void>::absolute_path(std::string_view root_dir) const { return append_path(root_dir, m_value); }
 
-std::string Uri::parent() const {
+std::string Uri<void>::parent() const {
 	auto it = m_value.find_last_of('/');
 	if (it == std::string::npos) { return {}; }
 	return m_value.substr(0, it);
 }
 
-std::string Uri::append(std::string_view suffix) const { return append_path(m_value, suffix); }
+std::string Uri<void>::append(std::string_view suffix) const { return append_path(m_value, suffix); }
 
-std::string Uri::concat(std::string_view suffix) const { return fmt::format("{}{}", m_value, suffix); }
+std::string Uri<void>::concat(std::string_view suffix) const { return fmt::format("{}{}", m_value, suffix); }
 
-std::string Uri::Builder::build(std::string_view uri) const { return append_paths(root_dir, {sub_dir, uri}); }
+std::string Uri<void>::Builder::build(std::string_view uri) const { return append_paths(root_dir, {sub_dir, uri}); }
 } // namespace levk

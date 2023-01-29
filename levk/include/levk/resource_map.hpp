@@ -10,39 +10,39 @@ namespace levk {
 template <typename Type>
 class ResourceMap {
   public:
-	Type& add(Uri uri, Type t = Type{}) {
+	Type& add(Uri<Type> uri, Type t = Type{}) {
 		auto lock = std::scoped_lock{m_mutex};
 		auto& ret = *m_map.insert_or_assign(std::move(uri), std::move(t)).first;
 		return ret.second;
 	}
 
-	void remove(Uri const& uri) {
+	void remove(Uri<Type> const& uri) {
 		auto lock = std::scoped_lock{m_mutex};
 		m_map.erase(uri);
 	}
 
-	bool contains(Uri const& uri) const {
+	bool contains(Uri<Type> const& uri) const {
 		auto lock = std::scoped_lock{m_mutex};
 		return m_map.contains(uri);
 	}
 
-	Ptr<Type const> find(Uri const& uri) const {
+	Ptr<Type const> find(Uri<Type> const& uri) const {
 		auto lock = std::scoped_lock{m_mutex};
 		if (auto it = m_map.find(uri); it != m_map.end()) { return &it->second; }
 		return {};
 	}
 
-	Ptr<Type> find(Uri const& uri) { return const_cast<Type*>(std::as_const(*this).find(uri)); }
+	Ptr<Type> find(Uri<Type> const& uri) { return const_cast<Type*>(std::as_const(*this).find(uri)); }
 
-	Type const& get(Uri const& uri) const {
+	Type const& get(Uri<Type> const& uri) const {
 		auto ret = find(uri);
 		assert(ret);
 		return *ret;
 	}
 
-	Type& get(Uri const& uri) { return const_cast<Type&>(std::as_const(*this).get(uri)); }
+	Type& get(Uri<Type> const& uri) { return const_cast<Type&>(std::as_const(*this).get(uri)); }
 
-	Type const& get_or(Uri const& uri, Type const& fallback) const {
+	Type const& get_or(Uri<Type> const& uri, Type const& fallback) const {
 		if (auto* ret = find(uri)) { return *ret; }
 		return fallback;
 	}
@@ -74,13 +74,13 @@ class ResourceMap {
 		for (auto& [key, value] : m_map) { func(key, value); }
 	}
 
-	void import_map(std::unordered_map<Uri, Type, Uri::Hasher> map) {
+	void import_map(std::unordered_map<Uri<Type>, Type, Uri<>::Hasher> map) {
 		auto lock = std::scoped_lock{m_mutex};
 		m_map = std::move(map);
 	}
 
   private:
-	std::unordered_map<Uri, Type, Uri::Hasher> m_map{};
+	std::unordered_map<Uri<>, Type, Uri<>::Hasher> m_map{};
 	mutable std::mutex m_mutex{};
 };
 } // namespace levk

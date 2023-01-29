@@ -2,10 +2,14 @@
 #include <string>
 
 namespace levk {
-class Uri {
+template <typename Type = void>
+class Uri;
+
+template <>
+class Uri<void> {
   public:
-	struct Hasher;
 	struct Builder;
+	struct Hasher;
 
 	Uri() = default;
 
@@ -27,22 +31,32 @@ class Uri {
 	std::string concat(std::string_view suffix) const;
 
   private:
+	Uri(std::string value, std::size_t hash) : m_value(std::move(value)), m_hash(hash) {}
+
 	std::string m_value{};
 	std::size_t m_hash{};
+
+	template <typename T>
+	friend class Uri;
 };
 
-struct Uri::Hasher {
-	std::size_t operator()(Uri const& uri) const { return uri.hash(); }
+template <typename Type>
+class Uri : public Uri<> {
+  public:
+	using Uri<>::Uri;
+
+	Uri(Uri<> uri) : Uri(std::move(uri.m_value), uri.m_hash) {}
 };
 
-struct Uri::Builder {
+struct Uri<>::Hasher {
+	std::size_t operator()(Uri<> const& uri) const { return uri.hash(); }
+};
+
+struct Uri<>::Builder {
 	std::string root_dir{};
 	std::string sub_dir{};
 
 	std::string build(std::string_view uri) const;
 	std::string operator()(std::string_view uri) const { return build(uri); }
 };
-
-template <typename Type>
-using TUri = Uri;
 } // namespace levk

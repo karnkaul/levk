@@ -10,7 +10,7 @@ class MeshImporter {
 
 	void setup(std::string gltf_path, std::string root);
 
-	Uri update();
+	Uri<asset::Mesh> update();
 
   private:
 	struct Entry {
