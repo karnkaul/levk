@@ -1,6 +1,5 @@
 #pragma once
 #include <djson/json.hpp>
-#include <levk/asset/uri.hpp>
 #include <levk/geometry.hpp>
 #include <levk/graphics_common.hpp>
 #include <levk/material.hpp>
@@ -8,6 +7,7 @@
 #include <levk/skinned_mesh.hpp>
 #include <levk/static_mesh.hpp>
 #include <levk/texture.hpp>
+#include <levk/uri.hpp>
 #include <variant>
 
 namespace levk::asset {

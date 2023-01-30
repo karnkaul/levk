@@ -57,7 +57,6 @@ set(assets_headers
   include/levk/asset/asset_loader.hpp
   include/levk/asset/common.hpp
   include/levk/asset/gltf_importer.hpp
-  include/levk/asset/uri.hpp
 )
 
 set(levk_headers
@@ -66,7 +65,6 @@ set(levk_headers
   ${imcpp_headers}
   ${assets_headers}
 
-  include/levk/asset_id.hpp
   include/levk/camera.hpp
   include/levk/component_factory.hpp
   include/levk/component.hpp

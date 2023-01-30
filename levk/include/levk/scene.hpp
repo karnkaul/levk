@@ -1,10 +1,9 @@
 #pragma once
-#include <levk/asset/uri.hpp>
-#include <levk/asset_id.hpp>
 #include <levk/engine.hpp>
 #include <levk/entity.hpp>
 #include <levk/resources.hpp>
 #include <levk/serializable.hpp>
+#include <levk/uri.hpp>
 #include <levk/util/monotonic_map.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/time.hpp>
