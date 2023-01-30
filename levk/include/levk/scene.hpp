@@ -62,9 +62,8 @@ class Scene : public GraphicsRenderer, public Serializable {
   public:
 	struct Renderer;
 
-	bool load_mesh_into_tree(std::string_view uri);
-	bool load_static_mesh_into_tree(Uri<StaticMesh> const& uri);
-	bool load_skinned_mesh_into_tree(Uri<SkinnedMesh> const& uri);
+	bool load_into_tree(Uri<StaticMesh> const& uri);
+	bool load_into_tree(Uri<SkinnedMesh> const& uri);
 	bool add_to_tree(Uri<StaticMesh> const& uri, StaticMesh const& static_mesh);
 	bool add_to_tree(Uri<SkinnedMesh> const& uri, SkinnedMesh const& skinned_mesh);
 

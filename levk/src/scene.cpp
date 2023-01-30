@@ -239,23 +239,14 @@ void MeshRenderer::inspect(imcpp::OpenWindow) {
 	}
 }
 
-bool Scene::load_mesh_into_tree(std::string_view uri) {
-	auto& resources = Service<Resources>::locate();
-	switch (resources.get_mesh_type(uri)) {
-	case MeshType::eStatic: return load_static_mesh_into_tree(std::string{uri});
-	case MeshType::eSkinned: return load_skinned_mesh_into_tree(std::string{uri});
-	default: logger::error("[Scene] Failed to load Mesh [{}]", uri); return false;
-	}
-}
-
-bool Scene::load_static_mesh_into_tree(Uri<StaticMesh> const& uri) {
-	auto* mesh = Service<Resources>::locate().load(Uri<StaticMesh>{uri});
+bool Scene::load_into_tree(Uri<StaticMesh> const& uri) {
+	auto* mesh = Service<Resources>::locate().load(uri);
 	if (!mesh) { return false; }
 	return add_to_tree(uri, *mesh);
 }
 
-bool Scene::load_skinned_mesh_into_tree(Uri<SkinnedMesh> const& uri) {
-	auto* mesh = Service<Resources>::locate().load(Uri<SkinnedMesh>{uri});
+bool Scene::load_into_tree(Uri<SkinnedMesh> const& uri) {
+	auto* mesh = Service<Resources>::locate().load(uri);
 	if (!mesh) { return false; }
 	return add_to_tree(uri, *mesh);
 }

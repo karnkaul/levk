@@ -107,7 +107,11 @@ void Editor::tick(Frame const& frame) {
 			if (!uri.empty()) {
 				auto const asset_type = AssetLoader::get_asset_type(*m_reader, drop);
 				if (asset_type == "mesh") {
-					scene.load_mesh_into_tree(uri);
+					if (AssetLoader::get_mesh_type(*m_reader, drop) == MeshType::eSkinned) {
+						scene.load_into_tree(Uri<SkinnedMesh>{uri});
+					} else {
+						scene.load_into_tree(Uri<StaticMesh>{uri});
+					}
 				} else if (asset_type == "scene") {
 					scene.from_json(drop.c_str());
 				}
@@ -130,7 +134,13 @@ void Editor::tick(Frame const& frame) {
 	}
 
 	main_menu.display_windows();
-	if (auto mesh_uri = mesh_importer.update()) { scene.load_mesh_into_tree(mesh_uri.value()); }
+	if (auto mesh_uri = mesh_importer.update()) {
+		if (AssetLoader::get_mesh_type(*m_reader, mesh_uri) == MeshType::eSkinned) {
+			scene.load_into_tree(Uri<SkinnedMesh>{mesh_uri});
+		} else {
+			scene.load_into_tree(Uri<StaticMesh>{mesh_uri});
+		}
+	}
 }
 
 void Editor::render() { m_context.render(scene, clear_colour); }
