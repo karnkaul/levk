@@ -45,7 +45,7 @@ set(imcpp_headers
   include/levk/imcpp/engine_status.hpp
   include/levk/imcpp/input_text.hpp
   include/levk/imcpp/inspector.hpp
-  include/levk/imcpp/log_renderer.hpp
+  include/levk/imcpp/logger.hpp
   include/levk/imcpp/mesh_importer.hpp
   include/levk/imcpp/reflector.hpp
   include/levk/imcpp/resource_list.hpp

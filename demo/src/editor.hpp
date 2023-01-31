@@ -1,7 +1,7 @@
 #pragma once
 #include <levk/context.hpp>
 #include <levk/imcpp/engine_status.hpp>
-#include <levk/imcpp/log_renderer.hpp>
+#include <levk/imcpp/logger.hpp>
 #include <levk/imcpp/mesh_importer.hpp>
 #include <levk/imcpp/resource_list.hpp>
 #include <levk/imcpp/scene_graph.hpp>
@@ -35,7 +35,7 @@ class Editor : public Runtime {
 	imcpp::ResourceList resource_list{};
 	imcpp::SceneGraph scene_graph{};
 	imcpp::EngineStatus engine_status{};
-	imcpp::LogRenderer log_renderer{};
+	imcpp::Logger logger{};
 	imcpp::MeshImporter mesh_importer{};
 	MainMenu main_menu{};
 
