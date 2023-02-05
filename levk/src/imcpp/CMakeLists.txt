@@ -3,7 +3,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   editor_window.cpp
   engine_status.cpp
   imcpp_common.cpp
-  inspector_side_sheet.cpp
+  inspector.cpp
   logger.cpp
   mesh_importer.cpp
   reflector.cpp

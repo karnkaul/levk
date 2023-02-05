@@ -21,6 +21,7 @@ set(util_headers
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
   include/levk/util/reader.hpp
+  include/levk/util/signal.hpp
   include/levk/util/thread_pool.hpp
   include/levk/util/time.hpp
   include/levk/util/type_id.hpp
