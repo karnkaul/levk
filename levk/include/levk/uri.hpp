@@ -21,7 +21,8 @@ class Uri<void> {
 	std::string const& value() const { return m_value; }
 	std::size_t hash() const { return m_hash; }
 
-	explicit operator bool() const { return !m_value.empty() && m_hash > 0; }
+	bool is_empty() const { return m_value.empty() || m_hash == 0; }
+	explicit operator bool() const { return !is_empty(); }
 
 	bool operator==(Uri const& rhs) const { return m_hash == rhs.m_hash; }
 

@@ -44,10 +44,10 @@ set(imcpp_headers
   include/levk/imcpp/drag_drop.hpp
   include/levk/imcpp/editor_window.hpp
   include/levk/imcpp/engine_status.hpp
+  include/levk/imcpp/gltf_import_wizard.hpp
   include/levk/imcpp/input_text.hpp
   include/levk/imcpp/inspector.hpp
   include/levk/imcpp/logger.hpp
-  include/levk/imcpp/mesh_importer.hpp
   include/levk/imcpp/reflector.hpp
   include/levk/imcpp/resource_list.hpp
   include/levk/imcpp/ring_buffer.hpp

@@ -99,7 +99,7 @@ void Editor::tick(Frame const& frame) {
 		auto path = fs::path{drop};
 		if (path.extension() == ".gltf") {
 			auto export_path = path.filename().stem();
-			mesh_importer.setup(drop.c_str(), data_path);
+			gltf_importer.emplace(drop.c_str(), data_path);
 			break;
 		}
 		if (path.extension() == ".json") {
@@ -134,11 +134,21 @@ void Editor::tick(Frame const& frame) {
 	}
 
 	main_menu.display_windows();
-	if (auto mesh_uri = mesh_importer.update()) {
-		if (AssetLoader::get_mesh_type(*m_reader, mesh_uri) == MeshType::eSkinned) {
-			scene.load_into_tree(Uri<SkinnedMesh>{mesh_uri});
-		} else {
-			scene.load_into_tree(Uri<StaticMesh>{mesh_uri});
+
+	if (gltf_importer) {
+		auto result = gltf_importer->update();
+		if (result.inactive) {
+			gltf_importer.reset();
+		} else if (result && result.should_load) {
+			if (result.scene) {
+				auto& resources = Service<Resources>::locate();
+				auto& file_reader = dynamic_cast<FileReader&>(resources.reader());
+				auto json = dj::Json::from_file(file_reader.absolute_path_for(result.scene.value()).c_str());
+				scene.deserialize(json);
+			} else if (result.mesh) {
+				std::visit([&](auto const& uri) { scene.load_into_tree(uri); }, *result.mesh);
+			}
+			gltf_importer.reset();
 		}
 	}
 }

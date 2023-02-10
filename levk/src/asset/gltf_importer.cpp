@@ -170,10 +170,10 @@ std::string log_name(std::string_view in, std::size_t index) {
 	return ret;
 }
 
-std::string asset_name(std::string_view in, std::string_view type, std::size_t index, Bool allow_unnamed) {
+std::string asset_name(std::string_view in, std::string_view type, std::size_t index) {
 	auto ret = std::string{};
 	ret.reserve(128);
-	if (!in.empty() && (allow_unnamed || in != "(Unnamed)")) { fmt::format_to(std::back_inserter(ret), "{}.", in); }
+	if (!in.empty() && in != "(Unnamed)") { fmt::format_to(std::back_inserter(ret), "{}.", in); }
 	fmt::format_to(std::back_inserter(ret), "{}_{}", type, index);
 	return ret;
 }
@@ -181,7 +181,7 @@ std::string asset_name(std::string_view in, std::string_view type, std::size_t i
 GltfResource make_resource(std::string_view in, std::string_view type, std::size_t index) {
 	auto ret = GltfResource{.index = index};
 	ret.name.in = in;
-	ret.name.out = asset_name(in, type, index, {false});
+	ret.name.out = asset_name(in, type, index);
 	ret.name.log = log_name(in, index);
 	return ret;
 }
