@@ -111,7 +111,11 @@ std::variant<Uri<StaticMesh>, Uri<SkinnedMesh>> GltfImportWizard::MeshPage::impo
 }
 
 void GltfImportWizard::ScenePage::setup(Shared const& shared) {
-	export_uri.set(fs::path{shared.gltf_path}.stem().string());
+	auto dir = fs::path{shared.gltf_path}.stem();
+	assets_dir.set(dir.string());
+	auto file = dir / dir.filename();
+	file += ".scene.json";
+	scene_uri.set(file.generic_string());
 
 	entries.clear();
 	for (auto const [scene, index] : enumerate(shared.asset_list.scenes)) {
@@ -131,31 +135,38 @@ void GltfImportWizard::ScenePage::update(Shared& out) {
 			if (ImGui::Selectable(entry.display_name.c_str(), index == selected)) { selected = index; }
 		}
 	}
-	ImGui::Separator();
-	ImGui::Text("Destination Directory");
-	ImGui::SetNextItemWidth(480.0f);
-	export_uri("##Destination Directory");
-	auto const dir = fs::path{out.root_path} / export_uri.view();
 	bool allow_import{true};
-	if (fs::is_regular_file(dir)) {
-		ImGui::TextColored({0.8f, 0.1f, 0.1f, 1.0f}, "File exists");
-		allow_import = false;
+	ImGui::Separator();
+	ImGui::Text("Assets Directory");
+	ImGui::SetNextItemWidth(480.0f);
+	assets_dir("##Assets Directory");
+	auto const dir = fs::path{out.root_path} / assets_dir.view();
+	if (fs::is_regular_file(dir)) { allow_import = false; }
+	if (!allow_import) {
+		ImGui::TextColored({0.8f, 0.1f, 0.1f, 1.0f}, "Name collision with existing file");
+	} else if (fs::is_directory(dir) && !fs::is_empty(dir)) {
+		ImGui::TextColored({0.8f, 0.8f, 0.1f, 1.0f}, "Directory not empty");
 	}
-	if (allow_import && fs::is_directory(dir) && !fs::is_empty(dir)) { ImGui::TextColored({0.8f, 0.8f, 0.1f, 1.0f}, "Directory not empty"); }
+	ImGui::Text("Scene URI");
+	ImGui::SetNextItemWidth(480.0f);
+	scene_uri("##Scene URI");
+	auto const file = fs::path{out.root_path} / scene_uri.view();
+	if (allow_import && fs::is_regular_file(file)) { ImGui::TextColored({0.8f, 0.8f, 0.1f, 1.0f}, "File exists"); }
 }
 
 Uri<Scene> GltfImportWizard::ScenePage::import_scene(Shared& out) {
-	auto export_path = (fs::path{out.root_path} / export_uri.view()).string();
+	auto export_path = (fs::path{out.root_path} / assets_dir.view()).string();
+	if (fs::exists(export_path)) {
+		logger::warn("[Import] Deleting [{}]", export_path);
+		fs::remove_all(export_path);
+	}
 	auto scene = Scene{};
-	auto ret = Walk{out.asset_list.importer(export_path), export_uri, out, scene}(entries[selected].scene);
-	auto scene_uri = fs::path{export_uri.view()};
-	scene_uri = scene_uri / scene_uri.stem();
-	scene_uri += ".scene.json";
-	auto scene_path = fs::path{out.root_path} / scene_uri;
+	auto ret = Walk{out.asset_list.importer(export_path), assets_dir, out, scene}(entries[selected].scene);
+	auto scene_path = fs::path{out.root_path} / scene_uri.view();
 	auto json = dj::Json{};
 	scene.serialize(json);
 	json.to_file(scene_path.c_str());
-	return scene_uri.generic_string();
+	return scene_uri.view();
 }
 
 GltfImportWizard::GltfImportWizard(std::string gltf_path, std::string root) {

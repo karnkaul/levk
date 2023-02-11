@@ -31,6 +31,7 @@ class Editor : public Runtime {
 	std::string data_path{};
 
 	Scene scene{};
+	Uri<Scene> scene_uri{};
 	FreeCam free_cam{};
 	imcpp::ResourceList resource_list{};
 	imcpp::SceneGraph scene_graph{};

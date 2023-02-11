@@ -84,11 +84,9 @@ Editor::Editor(std::string data_path)
 }
 
 void Editor::save_scene() const {
-	auto json = dj::Json{};
-	scene.serialize(json);
-	auto filename = "test_scene.json";
-	json.to_file((fs::path{data_path} / filename).string().c_str());
-	logger::debug("Scene saved to {}", filename);
+	auto uri = scene_uri ? scene_uri : Uri<Scene>{"unnamed.scene.json"};
+	if (!save(scene, uri)) { return; }
+	logger::debug("Scene saved {}", uri.value());
 }
 
 void Editor::tick(Frame const& frame) {
@@ -113,7 +111,7 @@ void Editor::tick(Frame const& frame) {
 						scene.load_into_tree(Uri<StaticMesh>{uri});
 					}
 				} else if (asset_type == "scene") {
-					scene.from_json(drop.c_str());
+					if (load_into(scene, Uri<Scene>{uri}, {true})) { scene_uri = std::move(uri); }
 				}
 			}
 			break;
@@ -141,10 +139,7 @@ void Editor::tick(Frame const& frame) {
 			gltf_importer.reset();
 		} else if (result && result.should_load) {
 			if (result.scene) {
-				auto& resources = Service<Resources>::locate();
-				auto& file_reader = dynamic_cast<FileReader&>(resources.reader());
-				auto json = dj::Json::from_file(file_reader.absolute_path_for(result.scene.value()).c_str());
-				scene.deserialize(json);
+				if (load_into(scene, result.scene)) { scene_uri = std::move(result.scene); }
 			} else if (result.mesh) {
 				std::visit([&](auto const& uri) { scene.load_into_tree(uri); }, *result.mesh);
 			}

@@ -2,7 +2,7 @@
 
 namespace levk {
 Serializer::Result<Serializable> Serializer::deserialize(dj::Json const& json) const {
-	auto const type_name = std::string{json["type_name"].as_string()};
+	auto const type_name = json["type_name"].as<std::string>();
 	if (type_name.empty()) {
 		logger::warn("[Serializer] Missing type_name in JSON");
 		return {};

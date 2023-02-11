@@ -20,34 +20,24 @@ std::unique_ptr<MaterialBase> to_material_base(Uri<> const& parent, dj::Json con
 }
 } // namespace
 
-std::span<std::byte const> AssetLoader::load_bytes(Reader& reader, Uri<> const& uri, Bool silent) {
-	auto ret = reader.load(uri.value());
-	if (!ret && !silent) {
-		logger::error("[Load] Failed to load URI [{}]", uri.value());
-		return {};
-	}
-	return ret.bytes;
+std::span<std::byte const> AssetLoader::load_bytes(Reader& reader, Uri<> const& uri, std::uint8_t reader_flags) {
+	return reader.load(uri.value(), reader_flags).bytes;
 }
 
-dj::Json AssetLoader::load_json(Reader& reader, Uri<> const& uri, Bool silent) {
-	auto bytes = load_bytes(reader, uri, silent);
+dj::Json AssetLoader::load_json(Reader& reader, Uri<> const& uri, std::uint8_t reader_flags) {
+	auto bytes = load_bytes(reader, uri, reader_flags);
 	if (bytes.empty()) { return {}; }
-	auto ret = dj::Json::parse(std::string_view{reinterpret_cast<char const*>(bytes.data()), bytes.size()});
-	if (!ret && !silent) {
-		logger::error("[Load] Failed to load JSON [{}]", uri.value());
-		return {};
-	}
-	return ret;
+	return dj::Json::parse(std::string_view{reinterpret_cast<char const*>(bytes.data()), bytes.size()});
 }
 
-std::string AssetLoader::get_asset_type(Reader& reader, Uri<> const& uri, Bool silent) {
-	auto json = load_json(reader, uri, silent);
+std::string AssetLoader::get_asset_type(Reader& reader, Uri<> const& uri, std::uint8_t reader_flags) {
+	auto json = load_json(reader, uri, reader_flags);
 	if (!json) { return {}; }
 	return json["asset_type"].as<std::string>();
 }
 
-MeshType AssetLoader::get_mesh_type(Reader& reader, Uri<> const& uri, Bool silent) {
-	auto json = load_json(reader, uri, silent);
+MeshType AssetLoader::get_mesh_type(Reader& reader, Uri<> const& uri, std::uint8_t reader_flags) {
+	auto json = load_json(reader, uri, reader_flags);
 	if (!json || json["asset_type"].as_string() != "mesh") { return MeshType::eNone; }
 	auto const type = json["type"].as_string();
 	if (type == "skinned") { return MeshType::eSkinned; }

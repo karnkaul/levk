@@ -220,14 +220,10 @@ struct GltfExporter {
 		auto uri = fs::path{in.source_filename}.generic_string();
 		auto dst = out_dir / uri;
 		if (fs::exists(dst)) {
-			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
 			return uri;
 		}
 		fs::create_directories(dst.parent_path());
-		if (fs::exists(dst)) {
-			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
-			fs::remove(dst);
-		}
 		fs::copy_file(in_dir / in.source_filename, out_dir / uri);
 		import_logger.info("[Import] Image [{}] copied", uri);
 		exported.images.insert_or_assign(index, uri);
@@ -241,7 +237,7 @@ struct GltfExporter {
 		auto uri = fmt::format("{}.json", resource.name.out);
 		auto dst = out_dir / uri;
 		if (fs::exists(dst)) {
-			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
 			return uri;
 		}
 		auto const& in = in_root.materials[resource.index];
@@ -259,10 +255,6 @@ struct GltfExporter {
 		material.emissive_factor = {in.emissive_factor[0], in.emissive_factor[1], in.emissive_factor[2]};
 		auto json = dj::Json{};
 		to_json(json, material);
-		if (fs::exists(dst)) {
-			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
-			fs::remove(dst);
-		}
 		json.to_file(dst.string().c_str());
 		import_logger.info("[Import] Material [{}] imported", uri);
 		exported.materials.insert_or_assign(resource.index, uri);
@@ -275,7 +267,7 @@ struct GltfExporter {
 		auto uri = fmt::format("mesh_{}.geometry_{}.bin", mesh_index, primitive_index);
 		auto dst = out_dir / uri;
 		if (fs::exists(dst)) {
-			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
 			return uri;
 		}
 		auto bin = BinGeometry{};
@@ -293,7 +285,7 @@ struct GltfExporter {
 		auto uri = fmt::format("{}.json", resource.name.out);
 		auto dst = out_dir / uri;
 		if (fs::exists(dst)) {
-			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
 			return uri;
 		}
 		auto out_mesh = Mesh{.type = Mesh::Type::eStatic};
@@ -344,10 +336,6 @@ struct GltfExporter {
 		out_mesh.name = fs::path{resource.name.out}.stem().string();
 		auto json = dj::Json{};
 		to_json(json, out_mesh);
-		if (fs::exists(dst)) {
-			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
-			fs::remove(dst);
-		}
 		json.to_file(dst.string().c_str());
 		import_logger.info("[Import] Mesh [{}] imported", uri);
 		return uri;
@@ -357,7 +345,7 @@ struct GltfExporter {
 		auto uri = fmt::format("{}.bin", resource.name.out);
 		auto dst = out_dir / uri;
 		if (fs::exists(dst)) {
-			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
 			return uri;
 		}
 		if (!animation.write(dst.generic_string().c_str())) {
@@ -372,7 +360,7 @@ struct GltfExporter {
 		auto uri = fmt::format("{}.json", resource_skin.name.out);
 		auto dst = out_dir / uri;
 		if (fs::exists(dst)) {
-			import_logger.info("[Import] Import target exists, reusing: [{}]", dst.generic_string());
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
 			return uri;
 		}
 
@@ -451,10 +439,6 @@ struct GltfExporter {
 		asset.name = fs::path{resource_skin.name.out}.stem().string();
 		auto json = dj::Json{};
 		to_json(json, asset);
-		if (fs::exists(dst)) {
-			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
-			fs::remove(dst);
-		}
 		json.to_file(dst.string().c_str());
 		import_logger.info("[Import] Skeleton [{}] imported", uri);
 		exported.skeletons.insert_or_assign(resource_skin.index, uri);
@@ -503,11 +487,7 @@ GltfImporter GltfImporter::List::importer(std::string dst_dir, LogDispatch impor
 }
 
 Uri<Mesh> GltfImporter::import_mesh(GltfMesh const& mesh) const {
-	if (fs::exists(dst_dir)) {
-		import_logger.warn("[Import] Destination directory [{}] exists, assets may be overwritten", dst_dir);
-	} else {
-		fs::create_directories(dst_dir);
-	}
+	if (!fs::exists(dst_dir)) { fs::create_directories(dst_dir); }
 	return GltfExporter{import_logger, root, src_dir, dst_dir}.export_mesh(make_resource(mesh.name, "mesh", mesh.index));
 }
 } // namespace levk::asset

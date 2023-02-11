@@ -78,7 +78,9 @@ class Scene : public GraphicsRenderer, public Serializable {
 	Node::Tree const& nodes() const { return m_nodes; }
 	Node::Locator node_locator() { return m_nodes; }
 
-	bool from_json(char const* path);
+	bool detach_from(Entity& out_entity, TypeId::value_type component_type) const;
+
+	bool empty() const { return m_entities.empty(); }
 
 	void render_3d() const final;
 	void render_ui() const final {}
@@ -86,10 +88,6 @@ class Scene : public GraphicsRenderer, public Serializable {
 	std::string_view type_name() const override { return "scene"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
-
-	bool detach_from(Entity& out_entity, TypeId::value_type component_type) const;
-
-	bool empty() const { return m_entities.empty(); }
 
 	std::string name{};
 	Camera camera{};

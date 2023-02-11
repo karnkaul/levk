@@ -11,10 +11,10 @@ struct AssetLoader {
 	GraphicsDevice& graphics_device;
 	RenderResources& render_resources;
 
-	static std::span<std::byte const> load_bytes(Reader& reader, Uri<> const& uri, Bool silent = {false});
-	static dj::Json load_json(Reader& reader, Uri<> const& uri, Bool silent = {false});
-	static std::string get_asset_type(Reader& reader, Uri<> const& uri, Bool silent = {false});
-	static MeshType get_mesh_type(Reader& reader, Uri<> const& uri, Bool silent = {false});
+	static std::span<std::byte const> load_bytes(Reader& reader, Uri<> const& uri, std::uint8_t reader_flags = {});
+	static dj::Json load_json(Reader& reader, Uri<> const& uri, std::uint8_t reader_flags = {});
+	static std::string get_asset_type(Reader& reader, Uri<> const& uri, std::uint8_t reader_flags = {});
+	static MeshType get_mesh_type(Reader& reader, Uri<> const& uri, std::uint8_t reader_flags = {});
 
 	Ptr<Texture> load_texture(Uri<> const& uri, ColourSpace colour_space) const;
 	Ptr<Material> load_material(Uri<> const& uri) const;

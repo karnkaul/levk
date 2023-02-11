@@ -9,8 +9,8 @@ class Resources {
   public:
 	Resources(Reader& reader);
 
-	Ptr<StaticMesh> load(Uri<StaticMesh> const& uri);
-	Ptr<SkinnedMesh> load(Uri<SkinnedMesh> const& uri);
+	Ptr<StaticMesh const> load(Uri<StaticMesh> const& uri);
+	Ptr<SkinnedMesh const> load(Uri<SkinnedMesh> const& uri);
 
 	bool unload(Uri<StaticMesh> const& uri);
 	bool unload(Uri<SkinnedMesh> const& uri);
@@ -24,7 +24,7 @@ class Resources {
 
   private:
 	template <typename T, typename F>
-	Ptr<T> load(Uri<> const& uri, std::string_view const type, F func);
+	Ptr<T const> load(Uri<> const& uri, std::string_view const type, F func);
 
 	template <typename T, typename Map>
 	bool unload(Uri<> const& uri, Map& out);

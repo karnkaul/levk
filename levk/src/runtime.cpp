@@ -1,5 +1,11 @@
+#include <levk/asset/asset_loader.hpp>
 #include <levk/runtime.hpp>
+#include <levk/scene.hpp>
+#include <levk/serializer.hpp>
 #include <levk/util/error.hpp>
+#include <filesystem>
+
+#include <levk/scene.hpp>
 
 namespace levk {
 namespace {
@@ -28,6 +34,7 @@ Runtime::Runtime(std::unique_ptr<Reader> reader, ContextFactory const& context_f
 
 Runtime::ReturnCode Runtime::run() {
 	try {
+		setup_bindings();
 		m_context.show();
 		while (m_context.is_running()) {
 			auto frame = m_context.next_frame();
@@ -45,6 +52,30 @@ Runtime::ReturnCode Runtime::run() {
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
+}
+
+bool Runtime::load_into(Scene& out, Uri<Scene> const& uri, Bool reload_asset) const {
+	auto flags = std::uint8_t{};
+	if (reload_asset) { flags |= Reader::eReload; }
+	auto json = AssetLoader::load_json(*m_reader, uri, flags);
+	if (!json) { return {}; }
+	return out.deserialize(json);
+}
+
+bool Runtime::save(Scene const& scene, Uri<Scene> const& uri) const {
+	auto* file_reader = dynamic_cast<FileReader*>(m_reader.get());
+	if (!file_reader) { return false; }
+	auto json = dj::Json{};
+	scene.serialize(json);
+	return json.to_file(file_reader->absolute_path_for(uri.value()).c_str());
+}
+
+void Runtime::setup_bindings() {
+	m_component_factory.get().bind<SkeletonController>();
+	m_component_factory.get().bind<MeshRenderer>();
+
+	m_serializer.get().bind<LitMaterial>();
+	m_serializer.get().bind<UnlitMaterial>();
 }
 } // namespace levk
 

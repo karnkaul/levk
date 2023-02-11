@@ -293,10 +293,7 @@ void Scene::tick(Time dt) {
 	fill_to_if(m_entities, m_entity_refs, [](Id<Entity>, Entity const& e) { return e.active; });
 	std::sort(m_entity_refs.begin(), m_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
 	for (Entity& entity : m_entity_refs) { entity.tick(dt); }
-	auto destroy_entity = [&](Node const& node) {
-		//
-		m_entities.remove(node.entity);
-	};
+	auto destroy_entity = [&](Node const& node) { m_entities.remove(node.entity); };
 	for (auto const id : m_to_destroy) {
 		auto* entity = m_entities.find(id);
 		if (!entity) { continue; }
@@ -321,12 +318,6 @@ void Scene::render_3d() const {
 	for (Entity const& entity : m_const_entity_refs) {
 		for (auto const* rc : entity.m_render_components) { rc->render(); }
 	}
-}
-
-bool Scene::from_json(char const* path) {
-	auto json = dj::Json::from_file(path);
-	if (!json) { return false; }
-	return deserialize(json);
 }
 
 bool Scene::serialize(dj::Json& out) const {
