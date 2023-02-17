@@ -20,14 +20,6 @@ constexpr std::string_view from(AlphaMode const mode) {
 	default: return "opaque";
 	}
 }
-
-// std::bit_cast not available on GCC 10.x
-template <typename AlphaModeT>
-float bit_cast_f(AlphaModeT const mode) {
-	auto ret = float{};
-	std::memcpy(&ret, &mode, sizeof(mode));
-	return ret;
-}
 } // namespace
 
 Texture const& MaterialTextures::get_or(std::size_t info_index, Texture const& fallback) const {
@@ -75,7 +67,7 @@ void LitMaterial::write_sets(Shader& shader, TextureFallback const& fallback) co
 	};
 	auto const mat = MatUBO{
 		.albedo = Rgba::to_linear(albedo.to_vec4()),
-		.m_r_aco_am = {metallic, roughness, 0.0f, bit_cast_f(alpha_mode)},
+		.m_r_aco_am = {metallic, roughness, 0.0f, std::bit_cast<float>(alpha_mode)},
 		.emissive = Rgba::to_linear({emissive_factor, 1.0f}),
 	};
 	shader.write(2, 0, mat);

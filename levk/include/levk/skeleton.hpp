@@ -14,7 +14,7 @@ struct Skeleton {
 		Id<Node> root{};
 		std::vector<Id<Node>> joints{};
 		std::vector<Animation> animations{};
-		TUri<Skeleton> source{};
+		Uri<Skeleton> source{};
 	};
 
 	struct Joint {
@@ -35,7 +35,7 @@ struct Skeleton {
 			std::string name{};
 		};
 
-		TUri<Skeleton> skeleton{};
+		Uri<Skeleton> skeleton{};
 		Index<Source> source{};
 		std::vector<Id<Node>> target_nodes{};
 
@@ -45,10 +45,10 @@ struct Skeleton {
 	std::vector<Joint> joints{};
 	std::vector<Animation::Source> animation_sources{};
 	std::string name{};
-	TUri<Skeleton> self{};
+	Uri<Skeleton> self{};
 
 	Instance instantiate(Node::Tree& out, Id<Node> root) const;
 
-	void set_uri(TUri<Skeleton> uri) { self = std::move(uri); }
+	void set_uri(Uri<Skeleton> uri) { self = std::move(uri); }
 };
 } // namespace levk

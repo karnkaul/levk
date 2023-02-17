@@ -136,30 +136,53 @@ struct MapGltfNodesToJoints {
 	}
 };
 
-GltfAsset make_gltf_asset_view(std::string_view gltf_name, std::size_t index, std::string_view asset_type, Bool index_suffix = {true}) {
-	assert(!asset_type.empty());
-	auto ret = GltfAsset{.gltf_name = std::string{gltf_name}, .index = index};
-	bool const has_name = !gltf_name.empty() && gltf_name != "(Unnamed)";
-	ret.asset_name = has_name ? ret.gltf_name : asset_type;
-	if (index_suffix) { fmt::format_to(std::back_inserter(ret.asset_name), "_{}", index); }
-	if (has_name) { fmt::format_to(std::back_inserter(ret.asset_name), ".{}", asset_type); }
-	return ret;
-}
+struct GltfResource {
+	struct {
+		std::string in{};
+		std::string out{};
+		std::string log{};
+	} name{};
+	std::size_t index{};
+};
 
-GltfAsset::List make_gltf_asset_view_list(dj::Json const& json) {
-	auto ret = GltfAsset::List{};
+std::vector<GltfMesh> make_gltf_mesh_list(dj::Json const& json) {
+	auto ret = std::vector<GltfMesh>{};
 	for (auto const [mesh, index] : enumerate(json["meshes"].array_view())) {
 		auto const& primitives = mesh["primitives"];
 		if (!primitives || primitives.array_view().empty()) { continue; }
 		auto const& attributes = primitives[0]["attributes"];
 		if (attributes.object_view().empty()) { continue; }
-		auto asset_view = make_gltf_asset_view(mesh["name"].as_string(), index, "mesh", {false});
-		if (attributes.contains("JOINTS_0")) {
-			ret.skinned_meshes.push_back(std::move(asset_view));
-		} else {
-			ret.static_meshes.push_back(std::move(asset_view));
-		}
+		auto const mesh_type = attributes.contains("JOINTS_0") ? MeshType::eSkinned : MeshType::eStatic;
+		ret.push_back(GltfMesh{mesh["name"].as<std::string>(), mesh_type, index});
 	}
+	return ret;
+}
+
+std::vector<GltfScene> make_gltf_scene_list(dj::Json const& json) {
+	auto ret = std::vector<GltfScene>{};
+	for (auto const [scene, index] : enumerate(json["scenes"].array_view())) { ret.push_back(GltfScene{scene["name"].as<std::string>(), index}); }
+	return ret;
+}
+
+std::string log_name(std::string_view in, std::size_t index) {
+	auto ret = fmt::format("{}", index);
+	if (!in.empty()) { fmt::format_to(std::back_inserter(ret), " - {}", in); }
+	return ret;
+}
+
+std::string asset_name(std::string_view in, std::string_view type, std::size_t index) {
+	auto ret = std::string{};
+	ret.reserve(128);
+	if (!in.empty() && in != "(Unnamed)") { fmt::format_to(std::back_inserter(ret), "{}.", in); }
+	fmt::format_to(std::back_inserter(ret), "{}_{}", type, index);
+	return ret;
+}
+
+GltfResource make_resource(std::string_view in, std::string_view type, std::size_t index) {
+	auto ret = GltfResource{.index = index};
+	ret.name.in = in;
+	ret.name.out = asset_name(in, type, index);
+	ret.name.log = log_name(in, index);
 	return ret;
 }
 
@@ -167,7 +190,8 @@ struct GltfExporter {
 	LogDispatch const& import_logger;
 	gltf2cpp::Root const& in_root;
 	fs::path in_dir;
-	fs::path out_dir;
+	fs::path uri_prefix;
+	fs::path dir_uri;
 
 	struct {
 		std::unordered_map<Index<gltf2cpp::Image>, std::string> images{};
@@ -177,31 +201,31 @@ struct GltfExporter {
 		std::unordered_map<Index<gltf2cpp::Skin>, std::string> skeletons{};
 	} exported{};
 
-	std::optional<Index<gltf2cpp::Skin>> find_skin(GltfAsset const& mesh_asset) const {
+	std::optional<Index<gltf2cpp::Skin>> find_skin(GltfResource const& resource) const {
 		for (auto const [node, index] : enumerate(in_root.nodes)) {
-			if (node.mesh && *node.mesh == mesh_asset.index) {
+			if (node.mesh && *node.mesh == resource.index) {
 				if (!node.skin) {
-					import_logger.error("[Import] GLTF node [{}] with SkinnedMesh [{}] does not have a GLTF Skin", index, mesh_asset.asset_name);
+					import_logger.error("[Import] GLTF node [{}] with SkinnedMesh [{}] does not have a GLTF Skin", index, resource.name.log);
 					return {};
 				}
 				return *node.skin;
 			}
 		}
-		import_logger.error("[Import] No Skin found for SkinnedMesh [{}]", mesh_asset.asset_name);
+		import_logger.error("[Import] No Skin found for SkinnedMesh [{}]", resource.name.log);
 		return {};
 	}
 
 	std::string copy_image(gltf2cpp::Image const& in, std::size_t index) {
 		assert(!in.source_filename.empty());
 		if (auto it = exported.images.find(index); it != exported.images.end()) { return it->second; }
-		auto uri = fs::path{in.source_filename}.generic_string();
-		auto dst = out_dir / uri;
-		fs::create_directories(dst.parent_path());
+		auto uri = (dir_uri / in.source_filename).generic_string();
+		auto dst = uri_prefix / uri;
 		if (fs::exists(dst)) {
-			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
-			fs::remove(dst);
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
+			return uri;
 		}
-		fs::copy_file(in_dir / in.source_filename, out_dir / uri);
+		fs::create_directories(dst.parent_path());
+		fs::copy_file(in_dir / in.source_filename, dst);
 		import_logger.info("[Import] Image [{}] copied", uri);
 		exported.images.insert_or_assign(index, uri);
 		return uri;
@@ -209,9 +233,15 @@ struct GltfExporter {
 
 	std::string copy_image(gltf2cpp::Texture const& in, std::size_t index) { return copy_image(in_root.images[in.source], index); }
 
-	Uri<Material> export_material(GltfAsset const& material_asset) {
-		if (auto it = exported.materials.find(material_asset.index); it != exported.materials.end()) { return it->second; }
-		auto const& in = in_root.materials[material_asset.index];
+	Uri<Material> export_material(GltfResource const& resource) {
+		if (auto it = exported.materials.find(resource.index); it != exported.materials.end()) { return it->second; }
+		auto uri = (dir_uri / fmt::format("{}.json", resource.name.out)).generic_string();
+		auto dst = uri_prefix / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
+			return uri;
+		}
+		auto const& in = in_root.materials[resource.index];
 		auto material = asset::Material{};
 		material.albedo = Rgba::from(glm::vec4{in.pbr.base_color_factor[0], in.pbr.base_color_factor[1], in.pbr.base_color_factor[2], 1.0f});
 		material.metallic = in.pbr.metallic_factor;
@@ -224,42 +254,48 @@ struct GltfExporter {
 		if (auto i = in.pbr.metallic_roughness_texture) { textures[1] = {copy_image(in_root.textures[i->texture], i->texture), ColourSpace::eLinear}; }
 		if (auto i = in.emissive_texture) { textures[2] = {copy_image(in_root.textures[i->texture], i->texture), ColourSpace::eSrgb}; }
 		material.emissive_factor = {in.emissive_factor[0], in.emissive_factor[1], in.emissive_factor[2]};
-		auto uri = fmt::format("{}.json", material_asset.asset_name);
 		auto json = dj::Json{};
 		to_json(json, material);
-		auto dst = out_dir / uri;
-		if (fs::exists(dst)) {
-			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
-			fs::remove(dst);
-		}
 		json.to_file(dst.string().c_str());
 		import_logger.info("[Import] Material [{}] imported", uri);
-		exported.materials.insert_or_assign(material_asset.index, uri);
+		exported.materials.insert_or_assign(resource.index, uri);
 		return uri;
 	}
 
-	Uri<BinGeometry> export_geometry(gltf2cpp::Mesh::Primitive const& in, std::size_t index, std::vector<glm::uvec4> joints, std::vector<glm::vec4> weights) {
-		if (auto it = exported.geometries.find(index); it != exported.geometries.end()) { return it->second; }
+	Uri<BinGeometry> export_geometry(gltf2cpp::Mesh const& in, std::size_t primitive_index, std::size_t mesh_index, std::vector<glm::uvec4> joints,
+									 std::vector<glm::vec4> weights) {
+		if (auto it = exported.geometries.find(primitive_index); it != exported.geometries.end()) { return it->second; }
+		auto uri = (dir_uri / fmt::format("mesh_{}.geometry_{}.bin", mesh_index, primitive_index)).generic_string();
+		auto dst = uri_prefix / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
+			return uri;
+		}
 		auto bin = BinGeometry{};
-		bin.geometry = to_geometry(in);
+		bin.geometry = to_geometry(in.primitives[primitive_index]);
 		bin.joints = std::move(joints);
 		bin.weights = std::move(weights);
-		auto uri = fmt::format("{}.bin", make_gltf_asset_view({}, index, "geometry").asset_name);
-		[[maybe_unused]] bool const res = bin.write((out_dir / uri).string().c_str());
+		[[maybe_unused]] bool const res = bin.write(dst.string().c_str());
 		assert(res);
 		import_logger.info("[Import] BinGeometry [{}] imported", uri);
-		exported.geometries.insert_or_assign(index, uri);
+		exported.geometries.insert_or_assign(primitive_index, uri);
 		return uri;
 	}
 
-	Uri<Mesh> export_mesh(GltfAsset const& mesh_asset) {
+	Uri<Mesh> export_mesh(GltfResource const& resource) {
+		auto uri = (dir_uri / fmt::format("{}.json", resource.name.out)).generic_string();
+		auto dst = uri_prefix / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
+			return uri;
+		}
 		auto out_mesh = Mesh{.type = Mesh::Type::eStatic};
-		auto const& in_mesh = in_root.meshes[mesh_asset.index];
+		auto const& in_mesh = in_root.meshes[resource.index];
 		for (auto const& [in_primitive, primitive_index] : enumerate(in_mesh.primitives)) {
 			auto out_primitive = Mesh::Primitive{};
 			if (in_primitive.material) {
 				auto const& in_material = in_root.materials[*in_primitive.material];
-				out_primitive.material = export_material(make_gltf_asset_view(in_material.name, *in_primitive.material, "material"));
+				out_primitive.material = export_material(make_resource(in_material.name, "material", *in_primitive.material));
 			}
 			if (!in_primitive.geometry.joints.empty()) { out_mesh.type = Mesh::Type::eSkinned; }
 			auto joints = std::vector<glm::uvec4>{};
@@ -270,21 +306,21 @@ struct GltfExporter {
 				weights.resize(in_primitive.geometry.weights[0].size());
 				std::memcpy(weights.data(), in_primitive.geometry.weights[0].data(), std::span{in_primitive.geometry.weights[0]}.size_bytes());
 			}
-			out_primitive.geometry = export_geometry(in_primitive, primitive_index, std::move(joints), std::move(weights));
+			out_primitive.geometry = export_geometry(in_mesh, primitive_index, resource.index, std::move(joints), std::move(weights));
 			out_mesh.primitives.push_back(std::move(out_primitive));
 		}
 		if (out_mesh.primitives.empty()) {
-			import_logger.warn("[Import] Mesh [{}] has no primitives, skipping", mesh_asset.asset_name);
+			import_logger.warn("[Import] Mesh [{}] has no primitives, skipping", resource.name.log);
 			return {};
 		}
 		if (out_mesh.type == Mesh::Type::eSkinned) {
-			auto const skin = find_skin(mesh_asset);
+			auto const skin = find_skin(resource);
 			if (!skin) {
-				import_logger.error("[Import] Failed to locate GLTF Skin for SkinnedMesh [{}]", mesh_asset.asset_name);
+				import_logger.error("[Import] Failed to locate GLTF Skin for SkinnedMesh [{}]", resource.name.log);
 				return {};
 			}
 			if (*skin >= in_root.skins.size()) {
-				import_logger.error("[Import] SkinnedMesh [{}] has an invalid a GLTF Skin index: [{}]", mesh_asset.asset_name, *skin);
+				import_logger.error("[Import] SkinnedMesh [{}] has an invalid a GLTF Skin index: [{}]", resource.name.log, *skin);
 				return {};
 			}
 			auto const& in_skin = in_root.skins[*skin];
@@ -296,25 +332,23 @@ struct GltfExporter {
 			} else {
 				out_mesh.inverse_bind_matrices = std::vector<glm::mat4>(in_skin.joints.size(), glm::identity<glm::mat4x4>());
 			}
-			out_mesh.skeleton = export_skeleton(make_gltf_asset_view(in_skin.name, *skin, "skeleton", {false}));
+			out_mesh.skeleton = export_skeleton(make_resource(in_skin.name, "skeleton", *skin));
 		}
-		auto uri = fmt::format("{}.json", mesh_asset.asset_name);
-		out_mesh.name = fs::path{mesh_asset.asset_name}.stem().string();
+		out_mesh.name = fs::path{resource.name.out}.stem().string();
 		auto json = dj::Json{};
 		to_json(json, out_mesh);
-		auto dst = out_dir / uri;
-		if (fs::exists(dst)) {
-			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
-			fs::remove(dst);
-		}
 		json.to_file(dst.string().c_str());
 		import_logger.info("[Import] Mesh [{}] imported", uri);
 		return uri;
 	}
 
-	Uri<asset::BinSkeletalAnimation> export_skeletal_animation(GltfAsset const& asset, asset::BinSkeletalAnimation const& animation) {
-		auto uri = fmt::format("{}.bin", asset.asset_name);
-		auto dst = out_dir / uri;
+	Uri<asset::BinSkeletalAnimation> export_skeletal_animation(GltfResource const& resource, asset::BinSkeletalAnimation const& animation) {
+		auto uri = (dir_uri / fmt::format("{}.bin", resource.name.out)).generic_string();
+		auto dst = uri_prefix / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
+			return uri;
+		}
 		if (!animation.write(dst.generic_string().c_str())) {
 			import_logger.error("[Import] Failed to import Skeletal Animation: [{}]", uri);
 			return {};
@@ -323,17 +357,24 @@ struct GltfExporter {
 		return uri;
 	}
 
-	Uri<Skeleton> export_skeleton(GltfAsset const& asset_skin) {
+	Uri<Skeleton> export_skeleton(GltfResource const& resource_skin) {
+		auto uri = (dir_uri / fmt::format("{}.json", resource_skin.name.out)).generic_string();
+		auto dst = uri_prefix / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
+			return uri;
+		}
+
 		auto skin_node = Ptr<gltf2cpp::Node const>{};
 		for (auto& node : in_root.nodes) {
-			if (node.skin && *node.skin == asset_skin.index) { skin_node = &node; }
+			if (node.skin && *node.skin == resource_skin.index) { skin_node = &node; }
 		}
 		if (!skin_node) { return {}; }
 
 		assert(skin_node->mesh.has_value());
-		if (auto it = exported.skeletons.find(asset_skin.index); it != exported.skeletons.end()) { return it->second; }
+		if (auto it = exported.skeletons.find(resource_skin.index); it != exported.skeletons.end()) { return it->second; }
 
-		auto const& in = in_root.skins[asset_skin.index];
+		auto const& in = in_root.skins[resource_skin.index];
 		auto [joints, map] = MapGltfNodesToJoints{}(in, in_root.nodes);
 
 		auto animations = std::vector<BinSkeletalAnimation>{};
@@ -392,71 +433,65 @@ struct GltfExporter {
 
 		auto asset = Skeleton{.joints = std::move(joints)};
 		for (auto const [in_animation, index] : enumerate(animations)) {
-			auto const animation_prefix = make_gltf_asset_view(in_animation.name, index, "animation");
+			auto const animation_prefix = make_resource(in_animation.name, "animation", index);
 			asset.animations.push_back(export_skeletal_animation(animation_prefix, in_animation));
 		}
 
-		auto uri = fmt::format("{}.json", asset_skin.asset_name);
-		asset.name = fs::path{asset_skin.asset_name}.stem().string();
+		asset.name = fs::path{resource_skin.name.out}.stem().string();
 		auto json = dj::Json{};
 		to_json(json, asset);
-		auto dst = out_dir / uri;
-		if (fs::exists(dst)) {
-			import_logger.warn("[Import] Overwriting existing file: [{}]", dst.generic_string());
-			fs::remove(dst);
-		}
 		json.to_file(dst.string().c_str());
 		import_logger.info("[Import] Skeleton [{}] imported", uri);
-		exported.skeletons.insert_or_assign(asset_skin.index, uri);
+		exported.skeletons.insert_or_assign(resource_skin.index, uri);
 		return uri;
 	}
 };
 } // namespace
 
+void LogDispatch::print(logger::Level level, std::string message) const {
+	if (silenced[static_cast<std::size_t>(level)]) { return; }
+	auto const pipe = level == logger::Level::eError ? logger::Pipe::eStdErr : logger::Pipe::eStdOut;
+	log_to(pipe, {std::move(message), level});
+}
+
 GltfImporter::List GltfImporter::peek(std::string gltf_path, LogDispatch const& import_logger) {
 	auto ret = GltfImporter::List{};
-	ret.import_logger = import_logger;
 	if (!fs::is_regular_file(gltf_path)) {
 		import_logger.error("[Import] Invalid GLTF file path [{}]", gltf_path);
 		return ret;
 	}
-	static_cast<GltfAsset::List&>(ret) = make_gltf_asset_view_list(dj::Json::from_file(gltf_path.c_str()));
+	auto json = dj::Json::from_file(gltf_path.c_str());
+	ret.meshes = make_gltf_mesh_list(json);
+	ret.scenes = make_gltf_scene_list(json);
 	ret.gltf_path = std::move(gltf_path);
 	return ret;
 }
 
-void LogDispatch::print(logger::Level level, std::string_view message) const {
-	if (silenced[static_cast<std::size_t>(level)]) { return; }
-	auto const pipe = level == logger::Level::eError ? logger::Pipe::eStdErr : logger::Pipe::eStdOut;
-	log_to(pipe, {format(level, message), level});
-}
-
-GltfImporter GltfImporter::List::importer() const {
-	auto ret = GltfImporter{import_logger};
+GltfImporter GltfImporter::List::importer(std::string uri_prefix, std::string dir_uri, LogDispatch import_logger) const {
+	auto ret = GltfImporter{std::move(import_logger)};
 	if (gltf_path.empty()) {
-		import_logger.error("[Import] Empty GLTF file path");
+		ret.import_logger.error("[Import] Empty GLTF file path");
+		return ret;
+	}
+	if (uri_prefix.empty()) {
+		ret.import_logger.error("[Import] Empty URI prefix");
 		return ret;
 	}
 	ret.root = gltf2cpp::parse(gltf_path.c_str());
 	if (!ret.root) {
-		import_logger.error("[Import] Failed to parse GLTF [{}]", gltf_path);
+		ret.import_logger.error("[Import] Failed to parse GLTF [{}]", gltf_path);
 		return ret;
 	}
 	ret.src_dir = fs::path{gltf_path}.parent_path().string();
+	ret.uri_prefix = std::move(uri_prefix);
+	ret.dir_uri = std::move(dir_uri);
 	return ret;
 }
 
-Uri<Mesh> GltfImporter::import_mesh(GltfAsset const& mesh, std::string_view dest_dir) const {
-	if (dest_dir.empty()) {
-		import_logger.error("[Import] Empty destination directory");
-		return {};
-	}
-	if (fs::exists(dest_dir)) {
-		import_logger.warn("[Import] Destination directory [{}] exists, assets may be overwritten", dest_dir);
-	} else {
-		fs::create_directories(dest_dir);
-	}
-	return GltfExporter{import_logger, root, src_dir, dest_dir}.export_mesh(mesh);
+Uri<Mesh> GltfImporter::import_mesh(GltfMesh const& mesh) const {
+	auto const dst_dir = fs::path{uri_prefix} / dir_uri;
+	if (!fs::exists(dst_dir)) { fs::create_directories(dst_dir); }
+	return GltfExporter{import_logger, root, src_dir, uri_prefix, dir_uri}.export_mesh(make_resource(mesh.name, "mesh", mesh.index));
 }
 } // namespace levk::asset
 

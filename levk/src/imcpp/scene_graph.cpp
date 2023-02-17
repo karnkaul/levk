@@ -45,7 +45,7 @@ Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 		} else if (payload->IsDataType("skinned_mesh")) {
 			imcpp::TreeNode::leaf("(Instantiate skeleton)");
 			if (auto target = imcpp::DragDrop::Target{}) {
-				if (auto uri = imcpp::DragDrop::accept_string("skinned_mesh"); !uri.empty()) { scene.load_skinned_mesh_into_tree(uri); }
+				if (auto uri = imcpp::DragDrop::accept_string("skinned_mesh"); !uri.empty()) { scene.load_into_tree(Uri<SkinnedMesh>{uri}); }
 			}
 		}
 	}
@@ -114,7 +114,7 @@ void SceneGraph::handle_popups() {
 		ImGui::Text("Spawn Entity");
 		m_entity_name("Name");
 		if (!m_entity_name.empty() && ImGui::Button("Spawn")) {
-			m_scene->spawn({}, NodeCreateInfo{.name = std::string{m_entity_name.view()}});
+			m_scene->spawn(NodeCreateInfo{.name = std::string{m_entity_name.view()}});
 			m_entity_name = {};
 			popup.close_current();
 		}

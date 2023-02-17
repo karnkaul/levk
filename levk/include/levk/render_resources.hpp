@@ -13,7 +13,7 @@ struct RenderResources {
 	ResourceMap<SkinnedMesh> skinned_meshes{};
 	ResourceMap<Skeleton> skeletons{};
 
-	Ptr<Skeleton const> find_skeleton(Uri const& mesh_uri) const {
+	Ptr<Skeleton const> find_skeleton(Uri<SkinnedMesh> const& mesh_uri) const {
 		auto const* mesh = skinned_meshes.find(mesh_uri);
 		if (!mesh) { return {}; }
 		return skeletons.find(mesh->skeleton);

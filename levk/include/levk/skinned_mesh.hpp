@@ -8,7 +8,7 @@ struct Skeleton;
 struct SkinnedMesh {
 	std::vector<MeshPrimitive> primitives{};
 	std::vector<glm::mat4> inverse_bind_matrices{};
-	TUri<Skeleton> skeleton{};
+	Uri<Skeleton> skeleton{};
 	std::string name{"(Unnamed)"};
 };
 } // namespace levk

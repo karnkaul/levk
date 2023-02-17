@@ -58,6 +58,12 @@ class BindingMap {
 	Map const& entries() const { return m_entries; }
 
 	template <typename Type>
+	std::unique_ptr<Type> try_make(std::string const& type_name) const {
+		if (auto it = m_entries.find(type_name); it != m_entries.end()) { return dynamic_pointer_cast<Type>(it->second.factory()); }
+		return {};
+	}
+
+	template <typename Type>
 	bool bind_to(std::string_view type_name, Factory<Type> factory) {
 		return bind_to(std::string{type_name}, TypeId::make<Type>(), std::move(factory));
 	}

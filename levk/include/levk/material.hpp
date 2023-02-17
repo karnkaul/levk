@@ -11,7 +11,7 @@ struct TextureFallback {
 	Texture const& white;
 	Texture const& black;
 
-	Texture const& get_or(Uri const& uri, Texture const& fallback) const {
+	Texture const& get_or(Uri<Texture> const& uri, Texture const& fallback) const {
 		if (auto const* ret = textures.find(uri)) { return *ret; }
 		return fallback;
 	}
@@ -22,7 +22,7 @@ enum class AlphaMode : std::uint32_t { eOpaque = 0, eBlend, eMask };
 inline constexpr std::size_t max_textures_v{8};
 
 struct MaterialTextureInfo {
-	Uri uri{};
+	Uri<> uri{};
 	ColourSpace colour_space{ColourSpace::eSrgb};
 };
 

@@ -1,10 +1,9 @@
 #pragma once
-#include <levk/asset/uri.hpp>
-#include <levk/asset_id.hpp>
 #include <levk/engine.hpp>
 #include <levk/entity.hpp>
 #include <levk/resources.hpp>
 #include <levk/serializable.hpp>
+#include <levk/uri.hpp>
 #include <levk/util/monotonic_map.hpp>
 #include <levk/util/reader.hpp>
 #include <levk/util/time.hpp>
@@ -14,7 +13,7 @@
 namespace levk {
 struct StaticMeshRenderer {
 	std::vector<Transform> instances{};
-	TUri<StaticMesh> uri{};
+	Uri<StaticMesh> uri{};
 
 	void render(Entity const& entity) const;
 };
@@ -37,11 +36,11 @@ struct SkeletonController : Component {
 
 struct SkinnedMeshRenderer {
 	Skeleton::Instance skeleton{};
-	TUri<SkinnedMesh> uri{};
+	Uri<SkinnedMesh> uri{};
 
 	DynArray<glm::mat4> joint_matrices{};
 
-	void set_mesh(TUri<SkinnedMesh> uri, Skeleton::Instance skeleton);
+	void set_mesh(Uri<SkinnedMesh> uri, Skeleton::Instance skeleton);
 	void render(Entity const& entity) const;
 };
 
@@ -56,19 +55,21 @@ struct MeshRenderer : RenderComponent {
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
 	void inspect(imcpp::OpenWindow) override;
+	void add_assets(AssetList& out, dj::Json const& json) const override;
 };
 
 class Scene : public GraphicsRenderer, public Serializable {
   public:
 	struct Renderer;
 
-	bool load_mesh_into_tree(std::string_view uri);
-	bool load_static_mesh_into_tree(Uri const& uri);
-	bool load_skinned_mesh_into_tree(Uri const& uri);
-	bool add_to_tree(Uri const& uri, StaticMesh const& static_mesh);
-	bool add_to_tree(Uri const& uri, SkinnedMesh const& skinned_mesh);
+	static AssetList peek_assets(dj::Json const& json);
 
-	Node& spawn(Entity entity, Node::CreateInfo const& node_create_info = {});
+	bool load_into_tree(Uri<StaticMesh> const& uri);
+	bool load_into_tree(Uri<SkinnedMesh> const& uri);
+	bool add_to_tree(Uri<StaticMesh> const& uri, StaticMesh const& static_mesh);
+	bool add_to_tree(Uri<SkinnedMesh> const& uri, SkinnedMesh const& skinned_mesh);
+
+	Node& spawn(Node::CreateInfo const& node_create_info = {});
 	void tick(Time dt);
 	bool destroy(Id<Entity> entity);
 
@@ -80,7 +81,9 @@ class Scene : public GraphicsRenderer, public Serializable {
 	Node::Tree const& nodes() const { return m_nodes; }
 	Node::Locator node_locator() { return m_nodes; }
 
-	bool from_json(char const* path);
+	bool detach_from(Entity& out_entity, TypeId::value_type component_type) const;
+
+	bool empty() const { return m_entities.empty(); }
 
 	void render_3d() const final;
 	void render_ui() const final {}
@@ -88,10 +91,6 @@ class Scene : public GraphicsRenderer, public Serializable {
 	std::string_view type_name() const override { return "scene"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
-
-	bool detach_from(Entity& out_entity, TypeId::value_type component_type) const;
-
-	bool empty() const { return m_entities.empty(); }
 
 	std::string name{};
 	Camera camera{};

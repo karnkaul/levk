@@ -1,12 +1,13 @@
 #pragma once
 #include <levk/context.hpp>
 #include <levk/imcpp/engine_status.hpp>
-#include <levk/imcpp/log_renderer.hpp>
-#include <levk/imcpp/mesh_importer.hpp>
-#include <levk/imcpp/resource_list.hpp>
+#include <levk/imcpp/gltf_import_wizard.hpp>
+#include <levk/imcpp/log_display.hpp>
+#include <levk/imcpp/resource_display.hpp>
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/runtime.hpp>
 #include <levk/scene.hpp>
+#include <levk/util/async_task.hpp>
 #include <levk/util/reader.hpp>
 #include <main_menu.hpp>
 
@@ -28,21 +29,22 @@ class Editor : public Runtime {
 
 	void save_scene() const;
 
-	bool import_gltf(char const* in_path, std::string_view dest_dir);
-
 	std::string data_path{};
 
 	Scene scene{};
+	Uri<Scene> scene_uri{};
 	FreeCam free_cam{};
-	imcpp::ResourceList resource_list{};
+	imcpp::ResourceDisplay resource_display{};
 	imcpp::SceneGraph scene_graph{};
 	imcpp::EngineStatus engine_status{};
-	imcpp::LogRenderer log_renderer{};
-	imcpp::MeshImporter mesh_importer{};
+	imcpp::LogDisplay log_display{};
+	std::optional<imcpp::GltfImportWizard> gltf_importer{};
 	MainMenu main_menu{};
 
   private:
 	void tick(Frame const& frame) override;
 	void render() override;
+
+	std::unique_ptr<AsyncTask<void>> m_load{};
 };
 } // namespace levk

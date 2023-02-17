@@ -15,6 +15,47 @@ std::string trim_to_uri(std::string_view full, std::string_view data) {
 	while (!full.empty() && full.front() == '/') { full = full.substr(1); }
 	return std::string{full};
 }
+
+struct LoadScene : AsyncTask<void> {
+	Uri<Scene> uri;
+	Reader& reader;
+	Resources& resources;
+	GraphicsDevice& graphics_device;
+
+	LoadScene(Uri<Scene> uri, Reader& reader, Resources& resources, GraphicsDevice& graphics_device)
+		: uri(std::move(uri)), reader(reader), resources(resources), graphics_device(graphics_device) {}
+
+	void execute() override {
+		auto asset_list = AssetLoader::get_asset_list(uri, reader);
+		auto const total = asset_list.materials.size() + asset_list.meshes.size() + asset_list.skeletons.size();
+		auto done = std::size_t{};
+		auto increment_done = [&] {
+			++done;
+			set_progress(static_cast<float>(done) / static_cast<float>(total));
+		};
+		auto loader = AssetLoader{reader, graphics_device, resources.render};
+		set_status("Loading Materials");
+		for (auto const& material : asset_list.materials) {
+			loader.load_material(material);
+			increment_done();
+		}
+		set_status("Loading Skeletons");
+		for (auto const& skeleton : asset_list.skeletons) {
+			loader.load_skeleton(skeleton);
+			increment_done();
+		}
+		set_status("Loading Meshes");
+		for (auto const& mesh : asset_list.meshes) {
+			switch (loader.get_mesh_type(mesh, reader)) {
+			case MeshType::eStatic: loader.load_static_mesh(mesh); break;
+			case MeshType::eSkinned: loader.load_skinned_mesh(mesh); break;
+			default: break;
+			}
+			increment_done();
+		}
+		set_status("Done");
+	}
+};
 } // namespace
 
 void FreeCam::tick(Transform& transform, Input const& input, Time dt) {
@@ -72,10 +113,10 @@ Editor::Editor(std::string data_path)
 
 	main_menu.menus.window = {
 		imcpp::EditorWindow{.label = "Scene", .draw_to = [&](imcpp::OpenWindow w) { scene_graph.draw_to(w, scene); }},
-		imcpp::EditorWindow{.label = "Resources", .draw_to = [&](imcpp::OpenWindow w) { resource_list.draw_to(w, Service<Resources>::locate()); }},
+		imcpp::EditorWindow{.label = "Resources", .draw_to = [&](imcpp::OpenWindow w) { resource_display.draw_to(w, Service<Resources>::locate()); }},
 		imcpp::EditorWindow{
 			.label = "Engine", .init_size = {350.0f, 250.0f}, .draw_to = [&](imcpp::OpenWindow w) { engine_status.draw_to(w, m_context.engine.get()); }},
-		imcpp::EditorWindow{.label = "Log", .init_size = {600.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { log_renderer.draw_to(w); }},
+		imcpp::EditorWindow{.label = "Log", .init_size = {600.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { log_display.draw_to(w); }},
 	};
 	if constexpr (debug_v) {
 		main_menu.menus.window.push_back(MainMenu::Separator{});
@@ -84,55 +125,9 @@ Editor::Editor(std::string data_path)
 }
 
 void Editor::save_scene() const {
-	auto json = dj::Json{};
-	scene.serialize(json);
-	auto filename = "test_scene.json";
-	json.to_file((fs::path{data_path} / filename).string().c_str());
-	logger::debug("Scene saved to {}", filename);
-}
-
-bool Editor::import_gltf(char const* in_path, std::string_view dest_dir) {
-	auto src = fs::path{in_path};
-	auto dst = fs::path{data_path} / dest_dir;
-	auto src_filename = src.filename().stem();
-	auto export_path = dst / src_filename;
-	auto asset_list = asset::GltfImporter::peek(in_path);
-
-	if (!asset_list) { return {}; }
-
-	if (asset_list.static_meshes.empty() && asset_list.skinned_meshes.empty()) {
-		logger::error("No meshes found in {}\n", in_path);
-		return {};
-	}
-
-	bool is_skinned{};
-	auto mesh_asset = [&]() -> Ptr<asset::GltfAsset const> {
-		auto const func = [](asset::GltfAsset const& asset) { return asset.index == 0; };
-		if (auto it = std::find_if(asset_list.static_meshes.begin(), asset_list.static_meshes.end(), func); it != asset_list.static_meshes.end()) {
-			return &*it;
-		}
-		if (auto it = std::find_if(asset_list.skinned_meshes.begin(), asset_list.skinned_meshes.end(), func); it != asset_list.skinned_meshes.end()) {
-			is_skinned = true;
-			return &*it;
-		}
-		return nullptr;
-	}();
-
-	auto importer = asset_list.importer();
-	if (!importer) { return {}; }
-
-	auto mesh_uri = importer.import_mesh(*mesh_asset, dst.string());
-	if (mesh_uri.value().empty()) {
-		logger::error("Import failed! {}\n", mesh_asset->asset_name);
-		return {};
-	}
-	mesh_uri = (fs::path{dest_dir} / mesh_uri.value()).generic_string();
-
-	if (is_skinned) {
-		return scene.load_skinned_mesh_into_tree(mesh_uri.value());
-	} else {
-		return scene.load_static_mesh_into_tree(mesh_uri.value());
-	}
+	auto uri = scene_uri ? scene_uri : Uri<Scene>{"unnamed.scene.json"};
+	if (!save(scene, uri)) { return; }
+	logger::debug("Scene saved {}", uri.value());
 }
 
 void Editor::tick(Frame const& frame) {
@@ -143,17 +138,23 @@ void Editor::tick(Frame const& frame) {
 		auto path = fs::path{drop};
 		if (path.extension() == ".gltf") {
 			auto export_path = path.filename().stem();
-			mesh_importer.setup(drop.c_str(), data_path);
+			gltf_importer.emplace(drop.c_str(), data_path);
 			break;
 		}
 		if (path.extension() == ".json") {
 			auto uri = trim_to_uri(fs::path{drop}.generic_string(), data_path);
 			if (!uri.empty()) {
-				auto const asset_type = AssetLoader::get_asset_type(*m_reader, drop);
+				auto const asset_type = AssetLoader::get_asset_type(drop, *m_reader);
 				if (asset_type == "mesh") {
-					scene.load_mesh_into_tree(uri);
+					if (AssetLoader::get_mesh_type(drop, *m_reader) == MeshType::eSkinned) {
+						scene.load_into_tree(Uri<SkinnedMesh>{uri});
+					} else {
+						scene.load_into_tree(Uri<StaticMesh>{uri});
+					}
 				} else if (asset_type == "scene") {
-					scene.from_json(drop.c_str());
+					m_load = std::make_unique<LoadScene>(uri, *m_reader, m_context.resources.get(), m_context.engine.get().device());
+					scene_uri = std::move(uri);
+					m_load->run();
 				}
 			}
 			break;
@@ -174,7 +175,35 @@ void Editor::tick(Frame const& frame) {
 	}
 
 	main_menu.display_windows();
-	if (auto mesh_uri = mesh_importer.update()) { scene.load_mesh_into_tree(mesh_uri.value()); }
+
+	if (m_load) {
+		if (!ImGui::IsPopupOpen("Loading")) { imcpp::Modal::open("Loading"); }
+		if (auto loading = imcpp::Modal{"Loading"}) {
+			ImGui::Text("%.*s", static_cast<int>(m_load->status().size()), m_load->status().data());
+			ImGui::ProgressBar(m_load->progress());
+			if (m_load->ready()) {
+				loading.close_current();
+				load_into(scene, Uri<Scene>{scene_uri});
+				m_load.reset();
+			}
+		}
+	}
+
+	if (gltf_importer) {
+		auto result = gltf_importer->update();
+		if (result.inactive) {
+			gltf_importer.reset();
+		} else if (result && result.should_load) {
+			if (result.scene) {
+				scene_uri = std::move(result.scene);
+				m_load = std::make_unique<LoadScene>(scene_uri, *m_reader, m_context.resources.get(), m_context.engine.get().device());
+				m_load->run();
+			} else if (result.mesh) {
+				std::visit([&](auto const& uri) { scene.load_into_tree(uri); }, *result.mesh);
+			}
+			gltf_importer.reset();
+		}
+	}
 }
 
 void Editor::render() { m_context.render(scene, clear_colour); }

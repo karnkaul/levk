@@ -1,4 +1,5 @@
 #pragma once
+#include <levk/asset/asset_list.hpp>
 #include <levk/imcpp/common.hpp>
 #include <levk/serializable.hpp>
 #include <levk/util/id.hpp>
@@ -14,6 +15,7 @@ class Component : public Serializable {
 
 	virtual void tick(Time dt) = 0;
 	virtual void inspect(imcpp::OpenWindow);
+	virtual void add_assets(AssetList& /*out*/, dj::Json const&) const {}
 
 	Id<Component> id() const { return m_self; }
 	Entity& entity() const;

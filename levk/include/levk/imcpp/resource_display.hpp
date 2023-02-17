@@ -4,10 +4,10 @@
 #include <levk/util/path_tree.hpp>
 
 namespace levk::imcpp {
-class ResourceList {
+class ResourceDisplay {
   public:
 	struct Inspect {
-		Uri uri{};
+		Uri<> uri{};
 		TypeId type{};
 
 		explicit operator bool() const { return type != TypeId{} && uri; }

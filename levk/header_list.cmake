@@ -1,5 +1,6 @@
 set(util_headers
   include/levk/util/async_queue.hpp
+  include/levk/util/async_task.hpp
   include/levk/util/binary_file.hpp
   include/levk/util/bool.hpp
   include/levk/util/cli_opts.hpp
@@ -21,6 +22,7 @@ set(util_headers
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
   include/levk/util/reader.hpp
+  include/levk/util/signal.hpp
   include/levk/util/thread_pool.hpp
   include/levk/util/time.hpp
   include/levk/util/type_id.hpp
@@ -43,21 +45,21 @@ set(imcpp_headers
   include/levk/imcpp/drag_drop.hpp
   include/levk/imcpp/editor_window.hpp
   include/levk/imcpp/engine_status.hpp
+  include/levk/imcpp/gltf_import_wizard.hpp
   include/levk/imcpp/input_text.hpp
   include/levk/imcpp/inspector.hpp
-  include/levk/imcpp/log_renderer.hpp
-  include/levk/imcpp/mesh_importer.hpp
+  include/levk/imcpp/log_display.hpp
   include/levk/imcpp/reflector.hpp
-  include/levk/imcpp/resource_list.hpp
+  include/levk/imcpp/resource_display.hpp
   include/levk/imcpp/ring_buffer.hpp
   include/levk/imcpp/scene_graph.hpp
 )
 
 set(assets_headers
+  include/levk/asset/asset_list.hpp
   include/levk/asset/asset_loader.hpp
   include/levk/asset/common.hpp
   include/levk/asset/gltf_importer.hpp
-  include/levk/asset/uri.hpp
 )
 
 set(levk_headers
@@ -66,7 +68,6 @@ set(levk_headers
   ${imcpp_headers}
   ${assets_headers}
 
-  include/levk/asset_id.hpp
   include/levk/camera.hpp
   include/levk/component_factory.hpp
   include/levk/component.hpp

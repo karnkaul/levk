@@ -1,6 +1,6 @@
 #include <imgui.h>
 #include <levk/imcpp/drag_drop.hpp>
-#include <levk/imcpp/resource_list.hpp>
+#include <levk/imcpp/resource_display.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/fixed_string.hpp>
 
@@ -9,7 +9,7 @@ namespace {
 template <typename Map>
 PathTree build_tree(Map const& map) {
 	auto builder = PathTree::Builder{};
-	auto func = [&](Uri const& uri, auto const&) { builder.add(uri.value()); };
+	auto func = [&](Uri<> const& uri, auto const&) { builder.add(uri.value()); };
 	map.for_each(func);
 	return builder.build();
 }
@@ -29,7 +29,7 @@ TypeId list_resource_type_tabs() {
 }
 
 struct Inspector {
-	void operator()(Uri const& uri, Texture& texture) const {
+	void operator()(Uri<> const& uri, Texture& texture) const {
 		auto const extent = texture.extent();
 		TreeNode::leaf(FixedString{"{}", uri.value()}.c_str());
 		if (auto drag = DragDrop::Source{}) { DragDrop::set_string("texture", uri.value()); }
@@ -38,15 +38,15 @@ struct Inspector {
 		ImGui::Text("%s", FixedString{"Colour Space: {}", texture.colour_space() == ColourSpace::eLinear ? "linear" : "sRGB"}.c_str());
 	}
 
-	void operator()(Uri const& uri, Material const& material) const {
+	void operator()(Uri<> const& uri, Material const& material) const {
 		ImGui::Text("%s", FixedString{"{}", uri.value()}.c_str());
 		ImGui::Text("%s", FixedString{"Shader: {}", material.shader_id()}.c_str());
 		if (auto* lit = material.as<LitMaterial>()) {
 			for (auto [texture, index] : enumerate(lit->textures.textures)) {
 				if (auto tn = TreeNode{FixedString{"texture[{}]", index}.c_str()}) {
 					auto& tex_uri = lit->textures.textures[index].uri;
-					std::string_view const label = tex_uri ? tex_uri.value() : "[None]";
-					TreeNode::leaf(label.data());
+					FixedString<128> const label = tex_uri ? tex_uri.value() : "[None]";
+					TreeNode::leaf(label.c_str());
 					if (tex_uri) {
 						if (auto drag = DragDrop::Source{}) { DragDrop::set_string("texture", tex_uri.value()); }
 					}
@@ -59,7 +59,7 @@ struct Inspector {
 	}
 
 	template <typename MeshT>
-	void mesh_common(Uri const& uri, MeshT& mesh) const {
+	void mesh_common(Uri<> const& uri, MeshT& mesh) const {
 		ImGui::Text("%s", FixedString{"{}", uri.value()}.c_str());
 		ImGui::Text("%s", FixedString{"Name: {}", mesh.name}.c_str());
 		for (auto [primitive, index] : enumerate(mesh.primitives)) {
@@ -76,11 +76,11 @@ struct Inspector {
 		}
 	}
 
-	void operator()(Uri const& uri, StaticMesh& mesh) const { mesh_common(uri, mesh); }
+	void operator()(Uri<> const& uri, StaticMesh& mesh) const { mesh_common(uri, mesh); }
 
-	void operator()(Uri const& uri, SkinnedMesh& mesh) const {
+	void operator()(Uri<> const& uri, SkinnedMesh& mesh) const {
 		mesh_common(uri, mesh);
-		std::string_view const label = mesh.skeleton ? mesh.skeleton.value() : "[None]";
+		FixedString<128> const label = mesh.skeleton ? mesh.skeleton.value() : "[None]";
 		TreeNode::leaf(FixedString<128>{"Skeleton: {}", label}.c_str());
 		if (uri) {
 			if (auto drag = DragDrop::Source{}) { DragDrop::set_string("skeleton", uri.value()); }
@@ -90,14 +90,14 @@ struct Inspector {
 		}
 	}
 
-	void operator()(Uri const& uri, Skeleton const& skeleton) const {
+	void operator()(Uri<> const& uri, Skeleton const& skeleton) const {
 		ImGui::Text("%s", FixedString{"{}", uri.value()}.c_str());
 		ImGui::Text("%s", FixedString{"Name: {}", skeleton.name}.c_str());
 	}
 };
 } // namespace
 
-void ResourceList::draw_to(NotClosed<Window>, Resources& out) {
+void ResourceDisplay::draw_to(NotClosed<Window>, Resources& out) {
 	resource_type = list_resource_type_tabs();
 	list_resources(out, resource_type);
 	if (auto i = static_cast<bool>(inspecting)) {
@@ -117,7 +117,7 @@ void ResourceList::draw_to(NotClosed<Window>, Resources& out) {
 }
 
 template <typename T>
-void ResourceList::list_resources(std::string_view type_name, ResourceMap<T>& map, PathTree& out_tree, std::uint64_t signature) {
+void ResourceDisplay::list_resources(std::string_view type_name, ResourceMap<T>& map, PathTree& out_tree, std::uint64_t signature) {
 	if (m_signature != signature) { out_tree = build_tree(map); }
 	for (auto const& sub_tree : out_tree.children) {
 		if (walk(type_name, sub_tree)) {
@@ -144,7 +144,7 @@ void ResourceList::list_resources(std::string_view type_name, ResourceMap<T>& ma
 	}
 }
 
-void ResourceList::list_resources(Resources& resources, TypeId type) {
+void ResourceDisplay::list_resources(Resources& resources, TypeId type) {
 	auto const signature = resources.signature();
 	if (type == TypeId::make<Texture>()) { return list_resources("texture", resources.render.textures, m_trees.textures, signature); }
 	if (type == TypeId::make<Material>()) { return list_resources("material", resources.render.materials, m_trees.materials, signature); }
@@ -154,7 +154,7 @@ void ResourceList::list_resources(Resources& resources, TypeId type) {
 	m_signature = signature;
 }
 
-bool ResourceList::walk(std::string_view type_name, PathTree const& path_tree) {
+bool ResourceDisplay::walk(std::string_view type_name, PathTree const& path_tree) {
 	if (path_tree.name.empty()) { return false; }
 	if (path_tree.is_directory()) {
 		if (auto tn = TreeNode{FixedString<128>{"{}##{}", path_tree.name, type_name}.c_str()}) {

@@ -2,10 +2,14 @@
 #include <string>
 
 namespace levk {
-class Uri {
+template <typename Type = void>
+class Uri;
+
+template <>
+class Uri<void> {
   public:
-	struct Hasher;
 	struct Builder;
+	struct Hasher;
 
 	Uri() = default;
 
@@ -17,7 +21,8 @@ class Uri {
 	std::string const& value() const { return m_value; }
 	std::size_t hash() const { return m_hash; }
 
-	explicit operator bool() const { return !m_value.empty() && m_hash > 0; }
+	bool is_empty() const { return m_value.empty() || m_hash == 0; }
+	explicit operator bool() const { return !is_empty(); }
 
 	bool operator==(Uri const& rhs) const { return m_hash == rhs.m_hash; }
 
@@ -27,22 +32,32 @@ class Uri {
 	std::string concat(std::string_view suffix) const;
 
   private:
+	Uri(std::string value, std::size_t hash) : m_value(std::move(value)), m_hash(hash) {}
+
 	std::string m_value{};
 	std::size_t m_hash{};
+
+	template <typename T>
+	friend class Uri;
 };
 
-struct Uri::Hasher {
-	std::size_t operator()(Uri const& uri) const { return uri.hash(); }
+template <typename Type>
+class Uri : public Uri<> {
+  public:
+	using Uri<>::Uri;
+
+	Uri(Uri<> uri) : Uri(std::move(uri.m_value), uri.m_hash) {}
 };
 
-struct Uri::Builder {
+struct Uri<>::Hasher {
+	std::size_t operator()(Uri<> const& uri) const { return uri.hash(); }
+};
+
+struct Uri<>::Builder {
 	std::string root_dir{};
 	std::string sub_dir{};
 
 	std::string build(std::string_view uri) const;
 	std::string operator()(std::string_view uri) const { return build(uri); }
 };
-
-template <typename Type>
-using TUri = Uri;
 } // namespace levk
