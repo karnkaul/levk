@@ -162,7 +162,7 @@ Uri<Scene> GltfImportWizard::ScenePage::import_scene(Shared& out) {
 	auto scene_path = fs::path{out.root_path} / scene_uri.view();
 	auto json = dj::Json{};
 	scene.serialize(json);
-	json.to_file(scene_path.c_str());
+	json.to_file(scene_path.string().c_str());
 	return scene_uri.view();
 }
 

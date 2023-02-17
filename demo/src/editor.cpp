@@ -15,6 +15,47 @@ std::string trim_to_uri(std::string_view full, std::string_view data) {
 	while (!full.empty() && full.front() == '/') { full = full.substr(1); }
 	return std::string{full};
 }
+
+struct LoadScene : AsyncTask<void> {
+	Uri<Scene> uri;
+	Reader& reader;
+	Resources& resources;
+	GraphicsDevice& graphics_device;
+
+	LoadScene(Uri<Scene> uri, Reader& reader, Resources& resources, GraphicsDevice& graphics_device)
+		: uri(std::move(uri)), reader(reader), resources(resources), graphics_device(graphics_device) {}
+
+	void execute() override {
+		auto asset_list = AssetLoader::get_asset_list(uri, reader);
+		auto const total = asset_list.materials.size() + asset_list.meshes.size() + asset_list.skeletons.size();
+		auto done = std::size_t{};
+		auto increment_done = [&] {
+			++done;
+			set_progress(static_cast<float>(done) / static_cast<float>(total));
+		};
+		auto loader = AssetLoader{reader, graphics_device, resources.render};
+		set_status("Loading Materials");
+		for (auto const& material : asset_list.materials) {
+			loader.load_material(material);
+			increment_done();
+		}
+		set_status("Loading Skeletons");
+		for (auto const& skeleton : asset_list.skeletons) {
+			loader.load_skeleton(skeleton);
+			increment_done();
+		}
+		set_status("Loading Meshes");
+		for (auto const& mesh : asset_list.meshes) {
+			switch (loader.get_mesh_type(mesh, reader)) {
+			case MeshType::eStatic: loader.load_static_mesh(mesh); break;
+			case MeshType::eSkinned: loader.load_skinned_mesh(mesh); break;
+			default: break;
+			}
+			increment_done();
+		}
+		set_status("Done");
+	}
+};
 } // namespace
 
 void FreeCam::tick(Transform& transform, Input const& input, Time dt) {
@@ -111,20 +152,9 @@ void Editor::tick(Frame const& frame) {
 						scene.load_into_tree(Uri<StaticMesh>{uri});
 					}
 				} else if (asset_type == "scene") {
-					{
-						auto asset_list = AssetLoader::get_asset_list(uri, *m_reader);
-						auto loader = AssetLoader{*m_reader, m_context.engine.get().device(), m_context.resources.get().render};
-						for (auto const& material : asset_list.materials) { loader.load_material(material); }
-						for (auto const& skeleton : asset_list.skeletons) { loader.load_skeleton(skeleton); }
-						for (auto const& mesh : asset_list.meshes) {
-							switch (loader.get_mesh_type(mesh, *m_reader)) {
-							case MeshType::eStatic: loader.load_static_mesh(mesh); break;
-							case MeshType::eSkinned: loader.load_skinned_mesh(mesh); break;
-							default: break;
-							}
-						}
-					}
-					if (load_into(scene, Uri<Scene>{uri}, {true})) { scene_uri = std::move(uri); }
+					m_load = std::make_unique<LoadScene>(uri, *m_reader, m_context.resources.get(), m_context.engine.get().device());
+					scene_uri = std::move(uri);
+					m_load->run();
 				}
 			}
 			break;
@@ -146,13 +176,28 @@ void Editor::tick(Frame const& frame) {
 
 	main_menu.display_windows();
 
+	if (m_load) {
+		if (!ImGui::IsPopupOpen("Loading")) { imcpp::Modal::open("Loading"); }
+		if (auto loading = imcpp::Modal{"Loading"}) {
+			ImGui::Text("%.*s", static_cast<int>(m_load->status().size()), m_load->status().data());
+			ImGui::ProgressBar(m_load->progress());
+			if (m_load->ready()) {
+				loading.close_current();
+				load_into(scene, Uri<Scene>{scene_uri});
+				m_load.reset();
+			}
+		}
+	}
+
 	if (gltf_importer) {
 		auto result = gltf_importer->update();
 		if (result.inactive) {
 			gltf_importer.reset();
 		} else if (result && result.should_load) {
 			if (result.scene) {
-				if (load_into(scene, result.scene)) { scene_uri = std::move(result.scene); }
+				scene_uri = std::move(result.scene);
+				m_load = std::make_unique<LoadScene>(scene_uri, *m_reader, m_context.resources.get(), m_context.engine.get().device());
+				m_load->run();
 			} else if (result.mesh) {
 				std::visit([&](auto const& uri) { scene.load_into_tree(uri); }, *result.mesh);
 			}

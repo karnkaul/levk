@@ -7,6 +7,7 @@
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/runtime.hpp>
 #include <levk/scene.hpp>
+#include <levk/util/async_task.hpp>
 #include <levk/util/reader.hpp>
 #include <main_menu.hpp>
 
@@ -43,5 +44,7 @@ class Editor : public Runtime {
   private:
 	void tick(Frame const& frame) override;
 	void render() override;
+
+	std::unique_ptr<AsyncTask<void>> m_load{};
 };
 } // namespace levk
