@@ -47,14 +47,15 @@ set(imcpp_headers
   include/levk/imcpp/gltf_import_wizard.hpp
   include/levk/imcpp/input_text.hpp
   include/levk/imcpp/inspector.hpp
-  include/levk/imcpp/logger.hpp
+  include/levk/imcpp/log_display.hpp
   include/levk/imcpp/reflector.hpp
-  include/levk/imcpp/resource_list.hpp
+  include/levk/imcpp/resource_display.hpp
   include/levk/imcpp/ring_buffer.hpp
   include/levk/imcpp/scene_graph.hpp
 )
 
 set(assets_headers
+  include/levk/asset/asset_list.hpp
   include/levk/asset/asset_loader.hpp
   include/levk/asset/common.hpp
   include/levk/asset/gltf_importer.hpp

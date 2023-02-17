@@ -55,11 +55,14 @@ struct MeshRenderer : RenderComponent {
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
 	void inspect(imcpp::OpenWindow) override;
+	void add_assets(AssetList& out, dj::Json const& json) const override;
 };
 
 class Scene : public GraphicsRenderer, public Serializable {
   public:
 	struct Renderer;
+
+	static AssetList peek_assets(dj::Json const& json);
 
 	bool load_into_tree(Uri<StaticMesh> const& uri);
 	bool load_into_tree(Uri<SkinnedMesh> const& uri);

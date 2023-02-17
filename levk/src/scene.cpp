@@ -163,8 +163,10 @@ bool MeshRenderer::serialize(dj::Json& out) const {
 		[&](StaticMeshRenderer const& smr) {
 			out["type"] = "static";
 			out["mesh"] = smr.uri.value();
-			auto& instances = out["instances"];
-			for (auto const& in_instance : smr.instances) { asset::to_json(instances.push_back({}), in_instance); }
+			if (!smr.instances.empty()) {
+				auto& instances = out["instances"];
+				for (auto const& in_instance : smr.instances) { asset::to_json(instances.push_back({}), in_instance); }
+			}
 		},
 		[&](SkinnedMeshRenderer const& smr) {
 			out["type"] = "skinned";
@@ -237,6 +239,24 @@ void MeshRenderer::inspect(imcpp::OpenWindow) {
 			popup.close_current();
 		}
 	}
+}
+
+void MeshRenderer::add_assets(AssetList& out, dj::Json const& json) const {
+	auto const type = json["type"].as_string();
+	if ((type == "static" || type == "skinned") && json.contains("mesh")) { out.meshes.insert(json["mesh"].as<std::string>()); }
+}
+
+AssetList Scene::peek_assets(dj::Json const& json) {
+	auto ret = AssetList{};
+	auto& serializer = Service<Serializer>::locate();
+	for (auto const& in_entity : json["entities"].array_view()) {
+		for (auto const& in_component : in_entity["components"].array_view()) {
+			auto component = serializer.try_make<Component>(in_component["type_name"].as<std::string>());
+			if (!component) { continue; }
+			component->add_assets(ret, in_component);
+		}
+	}
+	return ret;
 }
 
 bool Scene::load_into_tree(Uri<StaticMesh> const& uri) {
@@ -331,9 +351,11 @@ bool Scene::serialize(dj::Json& out) const {
 		asset::to_json(out_node["transform"], in_node.transform);
 		out_node["id"] = in_node.id().value();
 		out_node["parent"] = in_node.parent().value();
-		auto out_children = dj::Json{};
-		for (auto id : in_node.children()) { out_children.push_back(id.value()); }
-		out_node["children"] = std::move(out_children);
+		if (!in_node.children().empty()) {
+			auto out_children = dj::Json{};
+			for (auto id : in_node.children()) { out_children.push_back(id.value()); }
+			out_node["children"] = std::move(out_children);
+		}
 		if (in_node.entity) { out_node["entity"] = in_node.entity.value(); }
 		out_nodes.push_back(std::move(out_node));
 	}

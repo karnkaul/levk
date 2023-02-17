@@ -5,8 +5,8 @@ target_sources(${PROJECT_NAME} PRIVATE
   gltf_import_wizard.cpp
   imcpp_common.cpp
   inspector.cpp
-  logger.cpp
+  log_display.cpp
   reflector.cpp
-  resource_list.cpp
+  resource_display.cpp
   scene_graph.cpp
 )

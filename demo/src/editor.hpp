@@ -2,8 +2,8 @@
 #include <levk/context.hpp>
 #include <levk/imcpp/engine_status.hpp>
 #include <levk/imcpp/gltf_import_wizard.hpp>
-#include <levk/imcpp/logger.hpp>
-#include <levk/imcpp/resource_list.hpp>
+#include <levk/imcpp/log_display.hpp>
+#include <levk/imcpp/resource_display.hpp>
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/runtime.hpp>
 #include <levk/scene.hpp>
@@ -33,10 +33,10 @@ class Editor : public Runtime {
 	Scene scene{};
 	Uri<Scene> scene_uri{};
 	FreeCam free_cam{};
-	imcpp::ResourceList resource_list{};
+	imcpp::ResourceDisplay resource_display{};
 	imcpp::SceneGraph scene_graph{};
 	imcpp::EngineStatus engine_status{};
-	imcpp::Logger logger{};
+	imcpp::LogDisplay log_display{};
 	std::optional<imcpp::GltfImportWizard> gltf_importer{};
 	MainMenu main_menu{};
 

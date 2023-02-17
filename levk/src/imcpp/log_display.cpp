@@ -1,6 +1,6 @@
 #include <imgui.h>
 #include <imgui_internal.h>
-#include <levk/imcpp/logger.hpp>
+#include <levk/imcpp/log_display.hpp>
 #include <levk/util/fixed_string.hpp>
 #include <levk/util/logger.hpp>
 #include <algorithm>
@@ -8,9 +8,9 @@
 namespace levk::imcpp {
 namespace {
 struct Access : logger::Accessor {
-	Logger& out;
+	LogDisplay& out;
 
-	Access(Logger& out) : out(out) {}
+	Access(LogDisplay& out) : out(out) {}
 
 	static constexpr ImVec4 colour_for(logger::Level const level) {
 		switch (level) {
@@ -37,11 +37,11 @@ struct Access : logger::Accessor {
 };
 } // namespace
 
-Logger::Logger() noexcept {
+LogDisplay::LogDisplay() noexcept {
 	for (auto& level : show_levels.t) { level = true; }
 }
 
-void Logger::draw_to(NotClosed<Window> w) {
+void LogDisplay::draw_to(NotClosed<Window> w) {
 	ImGui::Checkbox("Error", &show_levels[logger::Level::eError]);
 	ImGui::SameLine();
 	ImGui::Checkbox("Warn", &show_levels[logger::Level::eWarn]);

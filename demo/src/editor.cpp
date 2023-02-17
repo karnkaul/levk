@@ -72,10 +72,10 @@ Editor::Editor(std::string data_path)
 
 	main_menu.menus.window = {
 		imcpp::EditorWindow{.label = "Scene", .draw_to = [&](imcpp::OpenWindow w) { scene_graph.draw_to(w, scene); }},
-		imcpp::EditorWindow{.label = "Resources", .draw_to = [&](imcpp::OpenWindow w) { resource_list.draw_to(w, Service<Resources>::locate()); }},
+		imcpp::EditorWindow{.label = "Resources", .draw_to = [&](imcpp::OpenWindow w) { resource_display.draw_to(w, Service<Resources>::locate()); }},
 		imcpp::EditorWindow{
 			.label = "Engine", .init_size = {350.0f, 250.0f}, .draw_to = [&](imcpp::OpenWindow w) { engine_status.draw_to(w, m_context.engine.get()); }},
-		imcpp::EditorWindow{.label = "Log", .init_size = {600.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { logger.draw_to(w); }},
+		imcpp::EditorWindow{.label = "Log", .init_size = {600.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { log_display.draw_to(w); }},
 	};
 	if constexpr (debug_v) {
 		main_menu.menus.window.push_back(MainMenu::Separator{});
@@ -103,14 +103,27 @@ void Editor::tick(Frame const& frame) {
 		if (path.extension() == ".json") {
 			auto uri = trim_to_uri(fs::path{drop}.generic_string(), data_path);
 			if (!uri.empty()) {
-				auto const asset_type = AssetLoader::get_asset_type(*m_reader, drop);
+				auto const asset_type = AssetLoader::get_asset_type(drop, *m_reader);
 				if (asset_type == "mesh") {
-					if (AssetLoader::get_mesh_type(*m_reader, drop) == MeshType::eSkinned) {
+					if (AssetLoader::get_mesh_type(drop, *m_reader) == MeshType::eSkinned) {
 						scene.load_into_tree(Uri<SkinnedMesh>{uri});
 					} else {
 						scene.load_into_tree(Uri<StaticMesh>{uri});
 					}
 				} else if (asset_type == "scene") {
+					{
+						auto asset_list = AssetLoader::get_asset_list(uri, *m_reader);
+						auto loader = AssetLoader{*m_reader, m_context.engine.get().device(), m_context.resources.get().render};
+						for (auto const& material : asset_list.materials) { loader.load_material(material); }
+						for (auto const& skeleton : asset_list.skeletons) { loader.load_skeleton(skeleton); }
+						for (auto const& mesh : asset_list.meshes) {
+							switch (loader.get_mesh_type(mesh, *m_reader)) {
+							case MeshType::eStatic: loader.load_static_mesh(mesh); break;
+							case MeshType::eSkinned: loader.load_skinned_mesh(mesh); break;
+							default: break;
+							}
+						}
+					}
 					if (load_into(scene, Uri<Scene>{uri}, {true})) { scene_uri = std::move(uri); }
 				}
 			}

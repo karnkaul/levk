@@ -1,6 +1,6 @@
 #include <imgui.h>
 #include <levk/imcpp/drag_drop.hpp>
-#include <levk/imcpp/resource_list.hpp>
+#include <levk/imcpp/resource_display.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/fixed_string.hpp>
 
@@ -97,7 +97,7 @@ struct Inspector {
 };
 } // namespace
 
-void ResourceList::draw_to(NotClosed<Window>, Resources& out) {
+void ResourceDisplay::draw_to(NotClosed<Window>, Resources& out) {
 	resource_type = list_resource_type_tabs();
 	list_resources(out, resource_type);
 	if (auto i = static_cast<bool>(inspecting)) {
@@ -117,7 +117,7 @@ void ResourceList::draw_to(NotClosed<Window>, Resources& out) {
 }
 
 template <typename T>
-void ResourceList::list_resources(std::string_view type_name, ResourceMap<T>& map, PathTree& out_tree, std::uint64_t signature) {
+void ResourceDisplay::list_resources(std::string_view type_name, ResourceMap<T>& map, PathTree& out_tree, std::uint64_t signature) {
 	if (m_signature != signature) { out_tree = build_tree(map); }
 	for (auto const& sub_tree : out_tree.children) {
 		if (walk(type_name, sub_tree)) {
@@ -144,7 +144,7 @@ void ResourceList::list_resources(std::string_view type_name, ResourceMap<T>& ma
 	}
 }
 
-void ResourceList::list_resources(Resources& resources, TypeId type) {
+void ResourceDisplay::list_resources(Resources& resources, TypeId type) {
 	auto const signature = resources.signature();
 	if (type == TypeId::make<Texture>()) { return list_resources("texture", resources.render.textures, m_trees.textures, signature); }
 	if (type == TypeId::make<Material>()) { return list_resources("material", resources.render.materials, m_trees.materials, signature); }
@@ -154,7 +154,7 @@ void ResourceList::list_resources(Resources& resources, TypeId type) {
 	m_signature = signature;
 }
 
-bool ResourceList::walk(std::string_view type_name, PathTree const& path_tree) {
+bool ResourceDisplay::walk(std::string_view type_name, PathTree const& path_tree) {
 	if (path_tree.name.empty()) { return false; }
 	if (path_tree.is_directory()) {
 		if (auto tn = TreeNode{FixedString<128>{"{}##{}", path_tree.name, type_name}.c_str()}) {

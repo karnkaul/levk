@@ -57,7 +57,7 @@ Runtime::ReturnCode Runtime::run() {
 bool Runtime::load_into(Scene& out, Uri<Scene> const& uri, Bool reload_asset) const {
 	auto flags = std::uint8_t{};
 	if (reload_asset) { flags |= Reader::eReload; }
-	auto json = AssetLoader::load_json(*m_reader, uri, flags);
+	auto json = AssetLoader::load_json(uri, *m_reader, flags);
 	if (!json) { return {}; }
 	return out.deserialize(json);
 }

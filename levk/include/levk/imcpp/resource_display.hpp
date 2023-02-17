@@ -4,7 +4,7 @@
 #include <levk/util/path_tree.hpp>
 
 namespace levk::imcpp {
-class ResourceList {
+class ResourceDisplay {
   public:
 	struct Inspect {
 		Uri<> uri{};

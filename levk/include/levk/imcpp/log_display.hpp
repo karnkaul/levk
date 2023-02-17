@@ -7,9 +7,9 @@
 #include <array>
 
 namespace levk::imcpp {
-class Logger {
+class LogDisplay {
   public:
-	Logger() noexcept;
+	LogDisplay() noexcept;
 
 	void draw_to(NotClosed<Window> w);
 

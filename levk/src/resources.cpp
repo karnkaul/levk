@@ -7,7 +7,7 @@
 namespace levk {
 Resources::Resources(Reader& reader) : m_reader(&reader) {}
 
-MeshType Resources::get_mesh_type(Uri<> const& uri) const { return AssetLoader::get_mesh_type(*m_reader, uri); }
+MeshType Resources::get_mesh_type(Uri<> const& uri) const { return AssetLoader::get_mesh_type(uri, *m_reader); }
 
 Ptr<StaticMesh const> Resources::load(Uri<StaticMesh> const& uri) { return load<StaticMesh>(uri, "StaticMesh", &AssetLoader::load_static_mesh); }
 
