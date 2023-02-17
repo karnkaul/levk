@@ -27,14 +27,15 @@ struct GltfImporter {
 	LogDispatch import_logger{};
 	gltf2cpp::Root root{};
 	std::string src_dir{};
-	std::string dst_dir{};
+	std::string uri_prefix{};
+	std::string dir_uri{};
 
 	struct List {
 		std::string gltf_path{};
 		std::vector<GltfMesh> meshes{};
 		std::vector<GltfScene> scenes{};
 
-		GltfImporter importer(std::string dst_dir, LogDispatch import_logger = {}) const;
+		GltfImporter importer(std::string uri_prefix, std::string dir_uri, LogDispatch import_logger = {}) const;
 
 		explicit operator bool() const { return !gltf_path.empty(); }
 	};

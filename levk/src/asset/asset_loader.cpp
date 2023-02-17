@@ -9,13 +9,9 @@ namespace levk {
 namespace {
 namespace fs = std::filesystem;
 
-std::unique_ptr<MaterialBase> to_material_base(Uri<> const& parent, dj::Json const& json) {
+std::unique_ptr<MaterialBase> to_material_base(dj::Json const& json) {
 	auto ret = Service<Serializer>::locate().deserialize_as<MaterialBase>(json);
 	if (!ret) { return {}; }
-	for (auto& info : ret.value->textures.textures) {
-		if (!info.uri) { continue; }
-		info.uri = parent.append(info.uri.value());
-	}
 	return std::move(ret.value);
 }
 } // namespace
@@ -68,7 +64,7 @@ Ptr<Material> AssetLoader::load_material(Uri<> const& uri) const {
 	if (auto ret = render_resources.materials.find(uri)) { return ret; }
 	auto json = load_json(reader, uri);
 	if (!json) { return {}; }
-	auto mat = to_material_base(uri.parent(), json);
+	auto mat = to_material_base(json);
 	if (!mat) {
 		logger::error("[Load] Failed to load Material [{}]", uri.value());
 		return {};
@@ -82,33 +78,13 @@ Ptr<Material> AssetLoader::load_material(Uri<> const& uri) const {
 
 Ptr<StaticMesh> AssetLoader::load_static_mesh(Uri<> const& uri) const {
 	if (auto ret = render_resources.static_meshes.find(uri)) { return ret; }
-	auto json = load_json(reader, uri);
+	auto const json = load_json(reader, uri);
 	if (!json) { return {}; }
 	if (json["type"].as_string() != "static") {
 		logger::error("[Load] JSON is not a StaticMesh [{}]", uri.value());
 		return {};
 	}
-	auto dir_uri = Uri{uri.parent()};
-	auto mesh = StaticMesh{};
-	mesh.name = json["name"].as_string();
-	auto asset = asset::Mesh{};
-	asset::from_json(json, asset);
-	for (auto const& in_primitive : asset.primitives) {
-		assert(!in_primitive.geometry.value().empty());
-		auto bin_geometry = asset::BinGeometry{};
-		auto bin_geometry_uri = Uri{dir_uri.append(in_primitive.geometry.value())};
-		if (!bin_geometry.read(reader.load(bin_geometry_uri.value()).bytes)) {
-			logger::error("[Load] Failed to read bin geometry [{}]", bin_geometry_uri.value());
-			continue;
-		}
-		auto geometry = graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
-		auto material_uri = Uri<Material>{};
-		if (!in_primitive.material.value().empty()) {
-			material_uri = Uri{dir_uri}.append(in_primitive.material.value());
-			load_material(material_uri);
-		}
-		mesh.primitives.push_back(MeshPrimitive{std::move(geometry), std::move(material_uri)});
-	}
+	auto mesh = load_mesh<StaticMesh>(json);
 	logger::info("[Load] [{}] StaticMesh loaded", uri.value());
 	return &render_resources.static_meshes.add(uri, std::move(mesh));
 }
@@ -123,16 +99,14 @@ Ptr<Skeleton> AssetLoader::load_skeleton(Uri<> const& uri) const {
 	}
 	auto asset = asset::Skeleton{};
 	asset::from_json(json, asset);
-	auto dir_uri = Uri{uri.parent()};
 	auto skeleton = Skeleton{};
 	skeleton.name = std::string{json["name"].as_string()};
 	skeleton.joints = std::move(asset.joints);
 	for (auto const& in_animation : asset.animations) {
-		auto animation_uri = Uri{dir_uri.append(in_animation.value())};
-		auto const in_animation_asset = load_json(reader, animation_uri);
+		auto const in_animation_asset = load_json(reader, in_animation);
 		if (!in_animation_asset) { continue; }
 		auto out_animation_asset = asset::BinSkeletalAnimation{};
-		if (!out_animation_asset.read(reader.load(animation_uri.value()).bytes)) {
+		if (!out_animation_asset.read(reader.load(in_animation.value()).bytes)) {
 			logger::warn("[Load] Failed to load SkeletalAnimation at: [{}]", in_animation.value());
 			continue;
 		}
@@ -151,37 +125,40 @@ Ptr<Skeleton> AssetLoader::load_skeleton(Uri<> const& uri) const {
 Ptr<SkinnedMesh> AssetLoader::load_skinned_mesh(Uri<> const& uri) const {
 	if (auto ret = render_resources.skinned_meshes.find(uri)) { return ret; }
 	auto const json = load_json(reader, uri);
+	if (!json) { return {}; }
 	if (json["type"].as_string() != "skinned") {
 		logger::error("[Load] JSON is not a SkinnedMesh [{}]", uri.value());
 		return {};
 	}
-	auto dir_uri = Uri{uri.parent()};
-	auto mesh = SkinnedMesh{};
-	mesh.name = json["name"].as_string();
+	auto mesh = load_mesh<SkinnedMesh>(json);
+	logger::info("[Load] [{}] SkinnedMesh loaded", mesh.name);
+	return &render_resources.skinned_meshes.add(uri, std::move(mesh));
+}
+
+template <typename MeshT>
+MeshT AssetLoader::load_mesh(dj::Json const& json) const {
+	auto ret = MeshT{};
+	ret.name = json["name"].as_string();
 	auto asset = asset::Mesh{};
 	asset::from_json(json, asset);
 	for (auto const& in_primitive : asset.primitives) {
 		assert(!in_primitive.geometry.value().empty());
 		auto bin_geometry = asset::BinGeometry{};
-		auto bin_geometry_uri = Uri{dir_uri.append(in_primitive.geometry.value())};
-		if (!bin_geometry.read(reader.load(bin_geometry_uri.value()).bytes)) {
-			logger::error("[Load] Failed to read bin geometry [{}]", bin_geometry_uri.value());
+		if (!bin_geometry.read(reader.load(in_primitive.geometry.value()).bytes)) {
+			logger::error("[Load] Failed to read bin geometry [{}]", in_primitive.geometry.value());
 			continue;
 		}
 		auto geometry = graphics_device.make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
-		auto material_uri = Uri<Material>{};
-		if (!in_primitive.material.value().empty()) {
-			material_uri = Uri{dir_uri}.append(in_primitive.material.value());
-			load_material(material_uri);
+		if (!in_primitive.material.value().empty()) { load_material(in_primitive.material); }
+		ret.primitives.push_back(MeshPrimitive{std::move(geometry), in_primitive.material});
+	}
+	if constexpr (std::same_as<MeshT, SkinnedMesh>) {
+		ret.inverse_bind_matrices = asset.inverse_bind_matrices;
+		if (auto const& skeleton = json["skeleton"]) {
+			auto skeleton_uri = Uri<Skeleton>{skeleton.as<std::string>()};
+			if (load_skeleton(skeleton_uri)) { ret.skeleton = std::move(skeleton_uri); }
 		}
-		mesh.primitives.push_back(MeshPrimitive{std::move(geometry), std::move(material_uri)});
 	}
-	mesh.inverse_bind_matrices = asset.inverse_bind_matrices;
-	if (auto const& skeleton = json["skeleton"]) {
-		auto const skeleton_uri = dir_uri.append(skeleton.as_string());
-		if (load_skeleton(skeleton_uri)) { mesh.skeleton = skeleton_uri; }
-	}
-	logger::info("[Load] [{}] SkinnedMesh loaded", mesh.name);
-	return &render_resources.skinned_meshes.add(uri, std::move(mesh));
+	return ret;
 }
 } // namespace levk

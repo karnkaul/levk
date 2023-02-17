@@ -21,5 +21,9 @@ struct AssetLoader {
 	Ptr<StaticMesh> load_static_mesh(Uri<> const& uri) const;
 	Ptr<Skeleton> load_skeleton(Uri<> const& uri) const;
 	Ptr<SkinnedMesh> load_skinned_mesh(Uri<> const& uri) const;
+
+  private:
+	template <typename MeshT>
+	MeshT load_mesh(dj::Json const& json) const;
 };
 } // namespace levk

@@ -26,9 +26,8 @@ struct GltfImportWizard::Walk {
 
 	Uri<> const& import_mesh(std::size_t index) {
 		if (auto it = imported_meshes.find(index); it != imported_meshes.end()) { return it->second; }
-		auto uri_mesh = importer.import_mesh(get_mesh(index));
-		assert(!uri_mesh.value().empty());
-		auto uri = (fs::path{export_uri.view()} / uri_mesh.value()).generic_string();
+		auto uri = importer.import_mesh(get_mesh(index));
+		assert(!uri.value().empty());
 		auto [it, _] = imported_meshes.insert_or_assign(index, std::move(uri));
 		return it->second;
 	}
@@ -102,10 +101,8 @@ void GltfImportWizard::MeshPage::update(Shared& out) {
 
 std::variant<Uri<StaticMesh>, Uri<SkinnedMesh>> GltfImportWizard::MeshPage::import_mesh(Shared& out) {
 	auto& selected_entry = entries[selected];
-	auto const dir = fs::path{out.root_path} / selected_entry.export_uri.view();
-	auto importer = out.asset_list.importer(dir.string());
-	auto uri = importer.import_mesh(selected_entry.mesh);
-	auto ret = (fs::path{selected_entry.export_uri.view()} / uri.value()).generic_string();
+	auto importer = out.asset_list.importer(out.root_path, std::string{selected_entry.export_uri.view()});
+	auto ret = importer.import_mesh(selected_entry.mesh);
 	if (selected_entry.mesh.mesh_type == MeshType::eSkinned) { return Uri<SkinnedMesh>{std::move(ret)}; }
 	return Uri<StaticMesh>{std::move(ret)};
 }
@@ -155,13 +152,13 @@ void GltfImportWizard::ScenePage::update(Shared& out) {
 }
 
 Uri<Scene> GltfImportWizard::ScenePage::import_scene(Shared& out) {
-	auto export_path = (fs::path{out.root_path} / assets_dir.view()).string();
+	auto const export_path = fs::path{out.root_path} / assets_dir.view();
 	if (fs::exists(export_path)) {
-		logger::warn("[Import] Deleting [{}]", export_path);
+		logger::warn("[Import] Deleting [{}]", assets_dir.view());
 		fs::remove_all(export_path);
 	}
 	auto scene = Scene{};
-	auto ret = Walk{out.asset_list.importer(export_path), assets_dir, out, scene}(entries[selected].scene);
+	auto ret = Walk{out.asset_list.importer(out.root_path, std::string{assets_dir.view()}), assets_dir, out, scene}(entries[selected].scene);
 	auto scene_path = fs::path{out.root_path} / scene_uri.view();
 	auto json = dj::Json{};
 	scene.serialize(json);
