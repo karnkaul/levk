@@ -16,44 +16,61 @@ std::string trim_to_uri(std::string_view full, std::string_view data) {
 	return std::string{full};
 }
 
-struct LoadScene : AsyncTask<void> {
-	Uri<Scene> uri;
-	Reader& reader;
-	Resources& resources;
-	GraphicsDevice& graphics_device;
+enum class LoadType { eStaticMesh, eSkinnedMesh, eScene };
 
-	LoadScene(Uri<Scene> uri, Reader& reader, Resources& resources, GraphicsDevice& graphics_device)
-		: uri(std::move(uri)), reader(reader), resources(resources), graphics_device(graphics_device) {}
+struct AssetListLoader : AsyncTask<Uri<>> {
+	AssetList list;
+	AssetLoader loader;
+	Uri<> ret;
+	LoadType load_type{};
 
-	void execute() override {
-		auto asset_list = AssetLoader::get_asset_list(uri, reader);
-		auto const total = asset_list.materials.size() + asset_list.meshes.size() + asset_list.skeletons.size();
+	AssetListLoader(AssetList list, AssetLoader loader, Uri<> ret, LoadType load_type)
+		: list(std::move(list)), loader(loader), ret(std::move(ret)), load_type(load_type) {}
+
+	AssetListLoader(Uri<Scene> const& uri, Editor& editor)
+		: AssetListLoader(AssetLoader::get_asset_list(uri, editor.reader(), Reader::eReload), make_loader(editor), uri, LoadType::eScene) {}
+
+	AssetListLoader(Uri<StaticMesh> const& uri, Editor& editor) : AssetListLoader(for_mesh(uri), make_loader(editor), uri, LoadType::eStaticMesh) {}
+	AssetListLoader(Uri<SkinnedMesh> const& uri, Editor& editor) : AssetListLoader(for_mesh(uri), make_loader(editor), uri, LoadType::eSkinnedMesh) {}
+
+	static AssetList for_mesh(Uri<asset::Mesh> uri) {
+		auto ret = AssetList{};
+		ret.meshes.insert(std::move(uri));
+		return ret;
+	}
+
+	static AssetLoader make_loader(Editor& editor) {
+		return AssetLoader{editor.reader(), editor.context().engine.get().device(), editor.context().resources.get().render};
+	}
+
+	Uri<> execute() override {
+		auto const total = list.materials.size() + list.meshes.size() + list.skeletons.size();
 		auto done = std::size_t{};
 		auto increment_done = [&] {
 			++done;
-			set_progress(static_cast<float>(done) / static_cast<float>(total));
+			this->set_progress(static_cast<float>(done) / static_cast<float>(total));
 		};
-		auto loader = AssetLoader{reader, graphics_device, resources.render};
-		set_status("Loading Materials");
-		for (auto const& material : asset_list.materials) {
+		this->set_status("Loading Materials");
+		for (auto const& material : list.materials) {
 			loader.load_material(material);
 			increment_done();
 		}
-		set_status("Loading Skeletons");
-		for (auto const& skeleton : asset_list.skeletons) {
+		this->set_status("Loading Skeletons");
+		for (auto const& skeleton : list.skeletons) {
 			loader.load_skeleton(skeleton);
 			increment_done();
 		}
-		set_status("Loading Meshes");
-		for (auto const& mesh : asset_list.meshes) {
-			switch (loader.get_mesh_type(mesh, reader)) {
+		this->set_status("Loading Meshes");
+		for (auto const& mesh : list.meshes) {
+			switch (AssetLoader::get_mesh_type(mesh, loader.reader)) {
 			case MeshType::eStatic: loader.load_static_mesh(mesh); break;
 			case MeshType::eSkinned: loader.load_skinned_mesh(mesh); break;
 			default: break;
 			}
 			increment_done();
 		}
-		set_status("Done");
+		this->set_status("Done");
+		return std::move(ret);
 	}
 };
 } // namespace
@@ -152,8 +169,7 @@ void Editor::tick(Frame const& frame) {
 						scene.load_into_tree(Uri<StaticMesh>{uri});
 					}
 				} else if (asset_type == "scene") {
-					m_load = std::make_unique<LoadScene>(uri, *m_reader, m_context.resources.get(), m_context.engine.get().device());
-					scene_uri = std::move(uri);
+					m_load = std::make_unique<AssetListLoader>(Uri<Scene>{std::move(uri)}, *this);
 					m_load->run();
 				}
 			}
@@ -182,8 +198,13 @@ void Editor::tick(Frame const& frame) {
 			ImGui::Text("%.*s", static_cast<int>(m_load->status().size()), m_load->status().data());
 			ImGui::ProgressBar(m_load->progress());
 			if (m_load->ready()) {
+				switch (dynamic_cast<AssetListLoader&>(*m_load).load_type) {
+				case LoadType::eStaticMesh: scene.load_into_tree(Uri<StaticMesh>{m_load->get()}); break;
+				case LoadType::eSkinnedMesh: scene.load_into_tree(Uri<SkinnedMesh>{m_load->get()}); break;
+				case LoadType::eScene: load_into(scene, Uri<Scene>{m_load->get()}); break;
+				default: break;
+				}
 				loading.close_current();
-				load_into(scene, Uri<Scene>{scene_uri});
 				m_load.reset();
 			}
 		}
@@ -195,12 +216,11 @@ void Editor::tick(Frame const& frame) {
 			gltf_importer.reset();
 		} else if (result && result.should_load) {
 			if (result.scene) {
-				scene_uri = std::move(result.scene);
-				m_load = std::make_unique<LoadScene>(scene_uri, *m_reader, m_context.resources.get(), m_context.engine.get().device());
-				m_load->run();
+				m_load = std::make_unique<AssetListLoader>(std::move(result.scene), *this);
 			} else if (result.mesh) {
-				std::visit([&](auto const& uri) { scene.load_into_tree(uri); }, *result.mesh);
+				m_load = std::visit([&](auto const& uri) { return std::make_unique<AssetListLoader>(uri, *this); }, *result.mesh);
 			}
+			m_load->run();
 			gltf_importer.reset();
 		}
 	}

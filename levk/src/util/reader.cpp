@@ -55,6 +55,7 @@ bool FileReader::mount(std::string_view directory) {
 }
 
 FileReader::Data FileReader::load(std::string const& uri, std::uint8_t flags) {
+	if (uri.empty()) { return {}; }
 	auto lock = std::unique_lock{m_impl->mutex};
 	if (auto it = m_impl->loaded.find(uri); it != m_impl->loaded.end()) {
 		auto& entry = it->second;

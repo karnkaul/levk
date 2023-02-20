@@ -21,6 +21,10 @@ class Runtime {
 	bool load_into(Scene& out, Uri<Scene> const& uri, Bool reload_asset = {}) const;
 	bool save(Scene const& scene, Uri<Scene> const& uri) const;
 
+	Reader& reader() const { return *m_reader; }
+	Context const& context() const { return m_context; }
+	Context& context() { return m_context; }
+
 	Rgba clear_colour{};
 
   protected:

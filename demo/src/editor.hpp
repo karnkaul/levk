@@ -45,6 +45,6 @@ class Editor : public Runtime {
 	void tick(Frame const& frame) override;
 	void render() override;
 
-	std::unique_ptr<AsyncTask<void>> m_load{};
+	std::unique_ptr<AsyncTask<Uri<>>> m_load{};
 };
 } // namespace levk
