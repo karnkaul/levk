@@ -10,6 +10,7 @@ target_sources(levk PRIVATE
   component_factory.cpp
   component.cpp
   context.cpp
+  disk_vfs.cpp
   engine.cpp
   entity.cpp
   geometry.cpp

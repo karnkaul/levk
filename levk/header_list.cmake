@@ -2,6 +2,7 @@ set(util_headers
   include/levk/util/async_queue.hpp
   include/levk/util/async_task.hpp
   include/levk/util/binary_file.hpp
+  include/levk/util/bit_flags.hpp
   include/levk/util/bool.hpp
   include/levk/util/cli_opts.hpp
   include/levk/util/contiguous_storage.hpp
@@ -62,17 +63,25 @@ set(assets_headers
   include/levk/asset/gltf_importer.hpp
 )
 
+set(vfs_headers
+  include/levk/vfs/data_monitor.hpp
+  include/levk/vfs/data_sink.hpp
+  include/levk/vfs/data_source.hpp
+)
+
 set(levk_headers
   ${util_headers}
   ${impl_headers}
   ${imcpp_headers}
   ${assets_headers}
+  ${vfs_headers}
 
   include/levk/camera.hpp
   include/levk/component_factory.hpp
   include/levk/component.hpp
   include/levk/context.hpp
   include/levk/defines.hpp
+  include/levk/disk_vfs.hpp
   include/levk/engine.hpp
   include/levk/entity.hpp
   include/levk/geometry.hpp

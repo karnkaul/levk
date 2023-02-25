@@ -43,6 +43,8 @@ class Signal {
 
 	void operator()(Args const&... args) const { dispatch(args...); }
 
+	bool empty() const { return m_storage->empty(); }
+
   private:
 	struct Entry {
 		Callback callback{};

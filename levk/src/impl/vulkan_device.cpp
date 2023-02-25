@@ -788,11 +788,6 @@ struct PipelineStorage {
 };
 
 struct ShaderStorage {
-	struct Meta {
-		std::string uri{};
-		std::size_t hash{};
-	};
-
 	struct Entry {
 		struct {
 			std::string uri{};
