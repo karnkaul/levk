@@ -7,9 +7,10 @@
 namespace levk {
 namespace fs = std::filesystem;
 
-DiskVfs::DiskVfs(std::string mount_point) : m_monitor(mount_point) {
-	if (!fs::is_directory(mount_point)) { throw Error{"Invalid mount point: " + mount_point}; }
-	m_mount_point = std::move(mount_point);
+DiskVfs::DiskVfs(std::string_view mount_point) : m_monitor(std::string{mount_point}) {
+	auto path = fs::path{mount_point}.generic_string();
+	if (!fs::is_directory(mount_point)) { throw Error{"Invalid mount point: " + path}; }
+	m_mount_point = std::move(path);
 }
 
 ByteArray DiskVfs::read(Uri<> const& uri) const {

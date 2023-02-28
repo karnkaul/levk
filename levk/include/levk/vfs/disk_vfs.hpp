@@ -6,7 +6,7 @@
 namespace levk {
 class DiskVfs : public DataSink {
   public:
-	DiskVfs(std::string mount_point);
+	DiskVfs(std::string_view mount_point);
 
 	UriMonitor& uri_monitor() { return m_monitor; }
 	void dispatch_modified() { m_monitor.dispatch_modified(); }

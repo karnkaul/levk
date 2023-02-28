@@ -23,10 +23,11 @@ dj::Json DataSource::read_json(Uri<> const& uri, std::string_view const extensio
 }
 
 Uri<> DataSource::trim_to_uri(std::string_view path) const {
-	auto const it = path.find(mount_point());
+	auto p = fs::path{path}.generic_string();
+	auto const it = p.find(mount_point());
 	if (it == std::string_view::npos) { return {}; }
-	auto ret = Uri{path.substr(it + mount_point().size() + 1)};
-	assert(ret.absolute_path(mount_point()) == path);
+	auto ret = Uri{p.substr(it + mount_point().size() + 1)};
+	assert(ret.absolute_path(mount_point()) == p);
 	return ret;
 }
 } // namespace levk
