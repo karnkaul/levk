@@ -233,6 +233,22 @@ struct GltfExporter {
 
 	std::string copy_image(gltf2cpp::Texture const& in, std::size_t index) { return copy_image(in_root.images[in.source], index); }
 
+	Uri<Texture> export_texture(gltf2cpp::Texture const& in, std::size_t index, ColourSpace colour_space) {
+		auto image_uri = copy_image(in_root.images[in.source], index);
+		auto uri = (dir_uri / fmt::format("{}.json", in_root.images[in.source].source_filename)).generic_string();
+		auto dst = uri_prefix / uri;
+		if (fs::exists(dst)) {
+			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
+			return uri;
+		}
+		auto json = dj::Json{};
+		json["image"] = std::move(image_uri);
+		json["colour_space"] = colour_space == ColourSpace::eLinear ? "linear" : "sRGB";
+		json.to_file(dst.string().c_str());
+		import_logger.info("[Import] Texture [{}] imported", uri);
+		return uri;
+	}
+
 	Uri<Material> export_material(GltfResource const& resource) {
 		if (auto it = exported.materials.find(resource.index); it != exported.materials.end()) { return it->second; }
 		auto uri = (dir_uri / fmt::format("{}.json", resource.name.out)).generic_string();
@@ -249,10 +265,10 @@ struct GltfExporter {
 		material.alpha_mode = from(in.alpha_mode);
 		material.alpha_cutoff = in.alpha_cutoff;
 		material.name = in.name;
-		auto& textures = material.textures.textures;
-		if (auto i = in.pbr.base_color_texture) { textures[0] = {copy_image(in_root.textures[i->texture], i->texture), ColourSpace::eSrgb}; }
-		if (auto i = in.pbr.metallic_roughness_texture) { textures[1] = {copy_image(in_root.textures[i->texture], i->texture), ColourSpace::eLinear}; }
-		if (auto i = in.emissive_texture) { textures[2] = {copy_image(in_root.textures[i->texture], i->texture), ColourSpace::eSrgb}; }
+		auto& textures = material.textures.uris;
+		if (auto i = in.pbr.base_color_texture) { textures[0] = {export_texture(in_root.textures[i->texture], i->texture, ColourSpace::eSrgb)}; }
+		if (auto i = in.pbr.metallic_roughness_texture) { textures[1] = {export_texture(in_root.textures[i->texture], i->texture, ColourSpace::eLinear)}; }
+		if (auto i = in.emissive_texture) { textures[2] = {export_texture(in_root.textures[i->texture], i->texture, ColourSpace::eSrgb)}; }
 		material.emissive_factor = {in.emissive_factor[0], in.emissive_factor[1], in.emissive_factor[2]};
 		auto json = dj::Json{};
 		to_json(json, material);

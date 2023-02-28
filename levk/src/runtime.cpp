@@ -1,4 +1,3 @@
-#include <levk/asset/asset_loader.hpp>
 #include <levk/runtime.hpp>
 #include <levk/scene.hpp>
 #include <levk/serializer.hpp>
@@ -29,8 +28,8 @@ fs::path find_dir(fs::path exe, std::span<std::string_view const> patterns) {
 }
 } // namespace
 
-Runtime::Runtime(std::unique_ptr<Reader> reader, ContextFactory const& context_factory)
-	: m_reader(std::move(reader)), m_context(context_factory.make(*m_reader)) {}
+Runtime::Runtime(DataSource const& data_source, UriMonitor& uri_monitor, ContextFactory const& context_factory)
+	: m_context(context_factory.make(data_source, uri_monitor, m_serializer.get())), m_scene_manager(m_context.providers.get()) {}
 
 Runtime::ReturnCode Runtime::run() {
 	try {
@@ -54,21 +53,7 @@ Runtime::ReturnCode Runtime::run() {
 	return EXIT_SUCCESS;
 }
 
-bool Runtime::load_into(Scene& out, Uri<Scene> const& uri, Bool reload_asset) const {
-	auto flags = std::uint8_t{};
-	if (reload_asset) { flags |= Reader::eReload; }
-	auto json = AssetLoader::load_json(uri, *m_reader, flags);
-	if (!json) { return {}; }
-	return out.deserialize(json);
-}
-
-bool Runtime::save(Scene const& scene, Uri<Scene> const& uri) const {
-	auto* file_reader = dynamic_cast<FileReader*>(m_reader.get());
-	if (!file_reader) { return false; }
-	auto json = dj::Json{};
-	scene.serialize(json);
-	return json.to_file(file_reader->absolute_path_for(uri.value()).c_str());
-}
+void Runtime::render() { m_context.render(active_scene(), clear_colour); }
 
 void Runtime::setup_bindings() {
 	m_component_factory.get().bind<SkeletonController>();

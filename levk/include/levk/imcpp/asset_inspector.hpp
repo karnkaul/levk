@@ -1,10 +1,10 @@
 #pragma once
+#include <levk/asset/asset_providers.hpp>
 #include <levk/imcpp/common.hpp>
-#include <levk/resources.hpp>
 #include <levk/util/path_tree.hpp>
 
 namespace levk::imcpp {
-class ResourceDisplay {
+class AssetInspector {
   public:
 	struct Inspect {
 		Uri<> uri{};
@@ -13,7 +13,7 @@ class ResourceDisplay {
 		explicit operator bool() const { return type != TypeId{} && uri; }
 	};
 
-	void draw_to(NotClosed<Window> window, Resources& out);
+	void draw_to(NotClosed<Window> window, AssetProviders& out);
 
 	Inspect inspecting{};
 	TypeId resource_type{};
@@ -26,8 +26,8 @@ class ResourceDisplay {
 	};
 
 	template <typename T>
-	void list_resources(std::string_view type_name, ResourceMap<T>& map, PathTree& out_tree, std::uint64_t signature);
-	void list_resources(Resources& resources, TypeId type);
+	void list_assets(std::string_view type_name, AssetProvider<T>& provider, PathTree& out_tree);
+	void list_assets(AssetProviders& providers, TypeId type);
 
 	bool walk(std::string_view type_name, PathTree const& path_tree);
 

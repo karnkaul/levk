@@ -15,14 +15,12 @@ set(util_headers
   include/levk/util/flex_array.hpp
   include/levk/util/hash_combine.hpp
   include/levk/util/id.hpp
-  include/levk/util/loader.hpp
   include/levk/util/logger.hpp
   include/levk/util/monotonic_map.hpp
   include/levk/util/nvec3.hpp
   include/levk/util/path_tree.hpp
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
-  include/levk/util/reader.hpp
   include/levk/util/signal.hpp
   include/levk/util/thread_pool.hpp
   include/levk/util/time.hpp
@@ -42,6 +40,7 @@ set(impl_headers
 )
 
 set(imcpp_headers
+  include/levk/imcpp/asset_inspector.hpp
   include/levk/imcpp/common.hpp
   include/levk/imcpp/drag_drop.hpp
   include/levk/imcpp/editor_window.hpp
@@ -51,22 +50,27 @@ set(imcpp_headers
   include/levk/imcpp/inspector.hpp
   include/levk/imcpp/log_display.hpp
   include/levk/imcpp/reflector.hpp
-  include/levk/imcpp/resource_display.hpp
   include/levk/imcpp/ring_buffer.hpp
   include/levk/imcpp/scene_graph.hpp
 )
 
 set(assets_headers
   include/levk/asset/asset_list.hpp
-  include/levk/asset/asset_loader.hpp
+  include/levk/asset/asset_provider.hpp
+  include/levk/asset/asset_providers.hpp
   include/levk/asset/common.hpp
   include/levk/asset/gltf_importer.hpp
+  include/levk/asset/material_provider.hpp
+  include/levk/asset/mesh_provider.hpp
+  include/levk/asset/shader_provider.hpp
+  include/levk/asset/texture_provider.hpp
 )
 
 set(vfs_headers
-  include/levk/vfs/data_monitor.hpp
   include/levk/vfs/data_sink.hpp
   include/levk/vfs/data_source.hpp
+  include/levk/vfs/disk_vfs.hpp
+  include/levk/vfs/uri_monitor.hpp
 )
 
 set(levk_headers
@@ -81,7 +85,6 @@ set(levk_headers
   include/levk/component.hpp
   include/levk/context.hpp
   include/levk/defines.hpp
-  include/levk/disk_vfs.hpp
   include/levk/engine.hpp
   include/levk/entity.hpp
   include/levk/geometry.hpp
@@ -96,11 +99,9 @@ set(levk_headers
   include/levk/mesh_primitive.hpp
   include/levk/node.hpp
   include/levk/pixel_map.hpp
-  include/levk/render_resources.hpp
-  include/levk/resource_map.hpp
-  include/levk/resources.hpp
   include/levk/rgba.hpp
   include/levk/runtime.hpp
+  include/levk/scene_manager.hpp
   include/levk/scene.hpp
   include/levk/service.hpp
   include/levk/serializable.hpp

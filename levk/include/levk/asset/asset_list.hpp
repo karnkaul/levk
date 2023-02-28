@@ -6,8 +6,10 @@ namespace levk {
 struct AssetList {
 	using Set = std::unordered_set<Uri<>, Uri<>::Hasher>;
 
-	Set meshes{};
+	Set shaders{};
+	Set textures{};
 	Set materials{};
+	Set meshes{};
 	Set skeletons{};
 	Set animations{};
 };

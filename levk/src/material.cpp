@@ -1,6 +1,6 @@
 #include <levk/asset/common.hpp>
+#include <levk/asset/texture_provider.hpp>
 #include <levk/material.hpp>
-#include <levk/resources.hpp>
 #include <levk/service.hpp>
 #include <levk/util/enumerate.hpp>
 #include <cstring>
@@ -22,20 +22,12 @@ constexpr std::string_view from(AlphaMode const mode) {
 }
 } // namespace
 
-Texture const& MaterialTextures::get_or(std::size_t info_index, Texture const& fallback) const {
-	if (info_index >= textures.size() || !textures[info_index].uri) { return fallback; }
-	auto const& resources = Service<Resources>::locate();
-	auto const* ret = resources.render.textures.find(textures[info_index].uri);
-	return ret ? *ret : fallback;
-}
-
 bool MaterialTextures::serialize(dj::Json& out) const {
-	for (auto [info, index] : enumerate(textures)) {
-		if (!info.uri) { continue; }
+	for (auto [uri, index] : enumerate(uris)) {
+		if (!uri) { continue; }
 		auto& out_info = out.push_back({});
 		out_info["index"] = index;
-		out_info["uri"] = info.uri.value();
-		out_info["colour_space"] = info.colour_space == ColourSpace::eLinear ? "linear" : "sRGB";
+		out_info["uri"] = uri.value();
 	}
 	return true;
 }
@@ -43,23 +35,31 @@ bool MaterialTextures::serialize(dj::Json& out) const {
 bool MaterialTextures::deserialize(dj::Json const& json) {
 	for (auto const& in_info : json.array_view()) {
 		auto const index = in_info["index"].as<std::size_t>();
-		if (index >= textures.size()) { continue; }
-		auto& out_info = textures[index];
-		out_info.colour_space = in_info["colour_space"].as_string() == "linear" ? ColourSpace::eLinear : ColourSpace::eSrgb;
-		out_info.uri = in_info["uri"].as<std::string>();
+		if (index >= uris.size()) { continue; }
+		uris[index] = in_info["uri"].as<std::string>();
 	}
 	return true;
 }
 
-void UnlitMaterial::write_sets(Shader& shader, TextureFallback const& fallback) const {
-	shader.update(1, 0, textures.get_or(0, fallback.white));
+bool MaterialBase::serialize(dj::Json& out) const {
+	textures.serialize(out["textures"]);
+	return true;
+}
+
+bool MaterialBase::deserialize(dj::Json const& json) {
+	textures.deserialize(json["textures"]);
+	return true;
+}
+
+void UnlitMaterial::write_sets(Shader& shader, TextureProvider const& provider) const {
+	shader.update(1, 0, provider.get(textures.uris[0]));
 	shader.write(2, 0, Rgba::to_srgb(tint.to_vec4()));
 }
 
-void LitMaterial::write_sets(Shader& shader, TextureFallback const& fallback) const {
-	shader.update(1, 0, textures.get_or(0, fallback.white));
-	shader.update(1, 1, textures.get_or(1, fallback.white));
-	shader.update(1, 2, textures.get_or(2, fallback.black));
+void LitMaterial::write_sets(Shader& shader, TextureProvider const& provider) const {
+	shader.update(1, 0, provider.get(textures.uris[0]));
+	shader.update(1, 1, provider.get(textures.uris[1]));
+	shader.update(1, 2, provider.get(textures.uris[2], "black"));
 	struct MatUBO {
 		glm::vec4 albedo;
 		glm::vec4 m_r_aco_am;
@@ -74,16 +74,16 @@ void LitMaterial::write_sets(Shader& shader, TextureFallback const& fallback) co
 }
 
 bool UnlitMaterial::serialize(dj::Json& out) const {
-	textures.serialize(out["textures"]);
+	MaterialBase::serialize(out);
 	asset::to_json(out["tint"], tint);
 	asset::to_json(out["render_mode"], mode);
-	out["shader"] = shader;
+	out["shader"] = shader.value();
 	out["name"] = name;
 	return true;
 }
 
 bool UnlitMaterial::deserialize(dj::Json const& json) {
-	textures.deserialize(json);
+	MaterialBase::deserialize(json);
 	asset::from_json(json["tint"], tint);
 	asset::from_json(json["render_mode"], mode);
 	shader = json["shader"].as<std::string>();
@@ -92,7 +92,7 @@ bool UnlitMaterial::deserialize(dj::Json const& json) {
 }
 
 bool LitMaterial::serialize(dj::Json& out) const {
-	textures.serialize(out["textures"]);
+	MaterialBase::serialize(out);
 	asset::to_json(out["albedo"], albedo);
 	asset::to_json(out["emissive_factor"], emissive_factor);
 	asset::to_json(out["render_mode"], mode);
@@ -100,14 +100,14 @@ bool LitMaterial::serialize(dj::Json& out) const {
 	out["roughness"] = roughness;
 	out["alpha_cutoff"] = alpha_cutoff;
 	out["alpha_mode"] = from(alpha_mode);
-	out["shader"] = shader;
+	out["shader"] = shader.value();
 	out["name"] = name;
 	return true;
 }
 
 bool LitMaterial::deserialize(dj::Json const& json) {
 	assert(json["type_name"].as_string() == type_name());
-	textures.deserialize(json["textures"]);
+	MaterialBase::deserialize(json);
 	asset::from_json(json["albedo"], albedo);
 	asset::from_json(json["emissive_factor"], emissive_factor, emissive_factor);
 	asset::from_json(json["render_mode"], mode);
@@ -115,7 +115,7 @@ bool LitMaterial::deserialize(dj::Json const& json) {
 	roughness = json["roughness"].as<float>(roughness);
 	alpha_cutoff = json["alpha_cutoff"].as<float>(alpha_cutoff);
 	alpha_mode = to_alpha_mode(json["alpha_mode"].as_string());
-	shader = json["shader"].as_string(shader);
+	shader = json["shader"].as_string(shader.value());
 	name = json["name"].as_string();
 	return true;
 }

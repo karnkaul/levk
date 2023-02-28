@@ -3,15 +3,14 @@
 #include <levk/camera.hpp>
 #include <levk/lights.hpp>
 #include <levk/rgba.hpp>
+#include <levk/util/dyn_array.hpp>
 #include <levk/util/ptr.hpp>
-#include <cstdint>
-#include <span>
 
 namespace levk {
 class Window;
 struct StaticMesh;
 struct SkinnedMesh;
-struct RenderResources;
+class AssetProviders;
 
 using Extent2D = glm::uvec2;
 
@@ -60,6 +59,11 @@ struct Vsync {
 	std::uint8_t flags{};
 };
 
+struct ShaderCode {
+	DynArray<std::uint32_t> spir_v{};
+	std::size_t hash{};
+};
+
 struct GraphicsDeviceInfo {
 	std::string_view name{};
 	bool validation{};
@@ -93,6 +97,7 @@ struct GraphicsRenderer {
 
 struct RenderInfo {
 	GraphicsRenderer const& renderer;
+	AssetProviders const& providers;
 	Camera const& camera;
 	Lights const& lights;
 	Extent2D extent;
@@ -101,14 +106,14 @@ struct RenderInfo {
 };
 
 struct StaticMeshRenderInfo {
-	RenderResources const& resources;
+	AssetProviders const& providers;
 	StaticMesh const& mesh;
 	glm::mat4 const& parent;
 	std::span<Transform const> instances;
 };
 
 struct SkinnedMeshRenderInfo {
-	RenderResources const& resources;
+	AssetProviders const& providers;
 	SkinnedMesh const& mesh;
 	std::span<glm::mat4 const> joints;
 };

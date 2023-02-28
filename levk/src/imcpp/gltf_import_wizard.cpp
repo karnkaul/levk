@@ -37,7 +37,7 @@ struct GltfImportWizard::Walk {
 		auto& out_node = scene.spawn(NodeCreateInfo{.transform = asset::from(in_node.transform), .name = in_node.name, .parent = parent});
 		if (in_node.mesh) {
 			auto uri = import_mesh(*in_node.mesh);
-			scene.get(out_node.entity).attach(std::make_unique<MeshRenderer>(StaticMeshRenderer{.uri = std::move(uri)}));
+			scene.get(out_node.entity).attach(std::make_unique<MeshRenderer>(StaticMeshRenderer{.mesh = std::move(uri)}));
 		}
 		parent = out_node.id();
 		for (auto const node_index : in_node.children) { add_node(node_index, parent); }

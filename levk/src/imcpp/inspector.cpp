@@ -46,11 +46,17 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 				component.inspect(w);
 				if (type_id) {
 					ImGui::Separator();
-					if (ImGui::Button("Detach")) { scene.detach_from(*entity, type_id); }
+					if (ImGui::Button("Detach")) {
+						scene.detach_from(*entity, type_id);
+						return false;
+					}
 				}
 			}
+			return true;
 		};
-		for (auto const& [type_id, component] : entity->component_map()) { inspect_component(type_id, *component); }
+		for (auto const& [type_id, component] : entity->component_map()) {
+			if (!inspect_component(type_id, *component)) { break; }
+		}
 		if (ImGui::Button("Attach...")) { Popup::open("inspector.attach"); }
 		break;
 	}

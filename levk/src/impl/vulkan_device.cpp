@@ -4,13 +4,13 @@
 #include <vk_mem_alloc.h>
 #include <glm/gtc/color_space.hpp>
 #include <glm/mat4x4.hpp>
+#include <levk/asset/asset_providers.hpp>
 #include <levk/geometry.hpp>
 #include <levk/impl/defer_queue.hpp>
 #include <levk/impl/desktop_window.hpp>
 #include <levk/impl/vulkan_device.hpp>
 #include <levk/impl/vulkan_surface.hpp>
 #include <levk/material.hpp>
-#include <levk/render_resources.hpp>
 #include <levk/skinned_mesh.hpp>
 #include <levk/static_mesh.hpp>
 #include <levk/surface.hpp>
@@ -23,7 +23,6 @@
 #include <levk/util/hash_combine.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/ptr.hpp>
-#include <levk/util/reader.hpp>
 #include <levk/util/unique.hpp>
 #include <levk/util/zip_ranges.hpp>
 #include <levk/window.hpp>
@@ -32,15 +31,12 @@
 #include <vulkan/vulkan_hash.hpp>
 #include <algorithm>
 #include <atomic>
-#include <filesystem>
 #include <map>
 #include <numeric>
 #include <optional>
 #include <unordered_set>
 
 namespace levk {
-namespace fs = std::filesystem;
-
 namespace {
 template <typename T, typename U = T>
 using Pair = std::pair<T, U>;
@@ -48,14 +44,6 @@ using Pair = std::pair<T, U>;
 constexpr vk::Format srgb_formats_v[] = {vk::Format::eR8G8B8A8Srgb, vk::Format::eB8G8R8A8Srgb, vk::Format::eA8B8G8R8SrgbPack32};
 constexpr vk::Format linear_formats_v[] = {vk::Format::eR8G8B8A8Unorm, vk::Format::eB8G8R8A8Unorm};
 constexpr std::size_t buffering_v{2};
-
-constexpr std::string_view spir_v_compiler_v = "glslc";
-constexpr std::string_view dev_null_v =
-#if defined(_WIN32)
-	"NUL";
-#else
-	"/dev/null";
-#endif
 
 constexpr bool is_linear(vk::Format format) {
 	return std::find(std::begin(linear_formats_v), std::end(linear_formats_v), format) != std::end(linear_formats_v);
@@ -116,50 +104,6 @@ class Defer {
 
 	Unique<Type, Deleter> m_t{};
 };
-
-bool is_glsl(fs::path const& path) {
-	auto const ext = path.extension();
-	return ext == ".vert" || ext == ".frag";
-}
-
-bool try_compiler() {
-	auto const cmd = fmt::format("{} --version > {}", spir_v_compiler_v, dev_null_v);
-	return std::system(cmd.c_str()) == 0;
-}
-
-bool compiler_available() {
-	static std::atomic<bool> s_ret{};
-	if (s_ret) { return s_ret; }
-	return s_ret = try_compiler();
-}
-
-std::string to_spir_v(std::string_view glsl_path) { return fmt::format("{}.spv", glsl_path); }
-
-bool try_compile(std::string& out_error, char const* glsl_path, char const* spir_v_path, bool debug) {
-	if (!compiler_available()) {
-		out_error = "Shader compiler not available";
-		return false;
-	}
-	if (!glsl_path || !*glsl_path) {
-		out_error = "GLSL path is empty";
-		return false;
-	}
-	if (!fs::is_regular_file(glsl_path)) {
-		out_error = fmt::format("File doesn't exist [{}]", glsl_path);
-		return false;
-	}
-	auto const dst = spir_v_path && *spir_v_path ? std::string{spir_v_path} : to_spir_v(glsl_path);
-	char const* debug_str = debug ? " -g " : "";
-	auto const cmd = fmt::format("{} {} {} -o {}", spir_v_compiler_v, debug_str, glsl_path, dst);
-	if (std::system(cmd.c_str()) == 0) { return true; }
-	out_error = fmt::format("Failed to compile [{}]", glsl_path);
-	return false;
-}
-
-void compile(char const* glsl_path, char const* spir_v_path, bool debug) {
-	auto error = std::string{};
-	if (!try_compile(error, glsl_path, spir_v_path, debug)) { throw Error{error}; }
-}
 
 vk::Result wait(vk::Device device, vk::ArrayProxy<vk::Fence> const& fences) {
 	return device.waitForFences(fences, true, std::numeric_limits<std::uint64_t>::max());
@@ -440,15 +384,16 @@ struct DearImGui {
 };
 
 struct SpirV {
-	std::span<std::byte const> bytes{};
+	std::span<std::uint32_t const> code{};
 	std::size_t hash{};
 
-	static SpirV from(Reader& out, std::string const& uri, std::uint8_t flags = {}) {
-		auto data = out.load(uri, flags | Reader::eComputeHash);
-		return {data.bytes, data.hash};
+	static SpirV from(ShaderProvider& provider, Uri<ShaderCode> const& uri) {
+		auto data = provider.load(uri);
+		if (!data) { return {}; }
+		return {data->spir_v.span(), data->hash};
 	}
 
-	explicit operator bool() const { return !bytes.empty() && hash > 0; }
+	explicit operator bool() const { return !code.empty() && hash > 0; }
 };
 
 struct VertexInput {
@@ -787,59 +732,6 @@ struct PipelineStorage {
 	}
 };
 
-struct ShaderStorage {
-	struct Entry {
-		struct {
-			std::string uri{};
-			std::size_t hash{};
-		} glsl_meta{};
-		std::string spir_v_uri{};
-		SpirV spir_v{};
-	};
-
-	std::unordered_map<std::string, Entry> map{};
-
-	SpirV from_glsl(FileReader& reader, std::string const& uri) {
-		auto entry = Entry{};
-		entry.spir_v_uri = to_spir_v(uri);
-		entry.glsl_meta.uri = uri;
-		auto const glsl_path = reader.absolute_path_for(entry.glsl_meta.uri);
-		auto const spir_v_path = reader.absolute_path_for(entry.spir_v_uri);
-		compile(glsl_path.c_str(), spir_v_path.c_str(), false);
-		logger::info("[ShaderCompiler] Compiled GLSL [{}] to SPIR-V [{}]", uri, entry.spir_v_uri);
-		entry.glsl_meta.hash = reader.load(entry.glsl_meta.uri, Reader::eComputeHash).hash;
-		entry.spir_v = SpirV::from(reader, entry.spir_v_uri, Reader::eReload);
-		if (!entry.spir_v) { throw Error{"TODO: error"}; }
-		auto [it, _] = map.insert_or_assign(uri, std::move(entry));
-		return it->second.spir_v;
-	}
-
-	SpirV get(Reader& reader, std::string const& uri) {
-		auto* file_reader = dynamic_cast<FileReader*>(&reader);
-		if (auto it = map.find(uri); it != map.end()) {
-			auto& entry = it->second;
-			if (file_reader) {
-				if (entry.glsl_meta.hash && reader.load(entry.glsl_meta.uri, Reader::eComputeHash).hash != entry.glsl_meta.hash) {
-					return from_glsl(*file_reader, uri);
-				}
-			}
-			if (!entry.spir_v) { entry.spir_v = SpirV::from(reader, uri); }
-			return entry.spir_v;
-		}
-		auto entry = Entry{};
-		if (is_glsl(uri.c_str())) {
-			if (!file_reader) { throw Error{"Cannot compile GLSL to SPIR-V without FileReader"}; }
-			return from_glsl(*file_reader, uri);
-		}
-
-		entry.spir_v = SpirV::from(reader, uri);
-		if (!entry.spir_v) { throw Error{"TODO: error"}; }
-
-		entry.spir_v_uri = uri;
-		return entry.spir_v;
-	}
-};
-
 struct SamplerStorage {
 	struct Hasher {
 		std::size_t operator()(TextureSampler const& sampler) const { return make_combined_hash(sampler.min, sampler.mag, sampler.wrap_s, sampler.wrap_t); }
@@ -1003,11 +895,8 @@ struct VulkanDevice::Impl {
 	DearImGui dear_imgui{};
 	Index<> buffered_index{};
 
-	Ptr<Reader> reader{};
-
 	std::mutex mutex{};
 	PipelineStorage<> pipelines{};
-	ShaderStorage shaders{};
 	SamplerStorage samplers{};
 
 	RenderCmd cmd_3d{};
@@ -1690,18 +1579,10 @@ DearImGui make_imgui(Window const& window, VulkanDevice const& device) {
 	return true;
 }
 
-std::vector<std::uint32_t> to_spirv_code(std::span<std::byte const> bytes) {
-	auto ret = std::vector<std::uint32_t>{};
-	ret.resize(bytes.size() / sizeof(std::uint32_t));
-	std::memcpy(ret.data(), bytes.data(), bytes.size());
-	return ret;
-}
-
-std::vector<SetLayout> make_set_layouts(std::span<std::byte const> vert, std::span<std::byte const> frag) {
+std::vector<SetLayout> make_set_layouts(std::span<std::uint32_t const> vert, std::span<std::uint32_t const> frag) {
 	std::map<std::uint32_t, std::map<std::uint32_t, vk::DescriptorSetLayoutBinding>> set_layout_bindings{};
-	auto populate = [&set_layout_bindings](std::span<std::byte const> code, vk::ShaderStageFlagBits stage) {
-		auto const spv = to_spirv_code(code);
-		auto compiler = spirv_cross::CompilerGLSL{spv.data(), spv.size()};
+	auto populate = [&set_layout_bindings](std::span<std::uint32_t const> code, vk::ShaderStageFlagBits stage) {
+		auto compiler = spirv_cross::CompilerGLSL{code.data(), code.size()};
 		auto resources = compiler.get_shader_resources();
 		auto set_resources = [&compiler, &set_layout_bindings, stage](std::span<spirv_cross::Resource const> resources, vk::DescriptorType const type) {
 			for (auto const& resource : resources) {
@@ -1756,9 +1637,8 @@ struct PipeInfo {
 };
 
 vk::UniqueShaderModule make_shader_module(vk::Device device, SpirV const& spirv) {
-	assert(spirv.hash > 0 && !spirv.bytes.empty());
-	auto const code = to_spirv_code(spirv.bytes);
-	auto smci = vk::ShaderModuleCreateInfo{{}, spirv.bytes.size(), code.data()};
+	assert(spirv.hash > 0 && !spirv.code.empty());
+	auto smci = vk::ShaderModuleCreateInfo{{}, spirv.code.size_bytes(), spirv.code.data()};
 	return device.createShaderModuleUnique(smci);
 }
 
@@ -1840,7 +1720,7 @@ vk::UniquePipeline make_pipeline(vk::Device device, PipeInfo const& info) {
 template <std::size_t Buffering>
 void PipelineStorage<Buffering>::populate(Value& out, Vma const& vma, SpirV vert, SpirV frag) {
 	if (out.pipeline_layout) { return; }
-	out.set_layouts = make_set_layouts(vert.bytes, frag.bytes);
+	out.set_layouts = make_set_layouts(vert.code, frag.code);
 	for (auto const& layout : out.set_layouts) {
 		auto const dslci = vk::DescriptorSetLayoutCreateInfo{{}, static_cast<std::uint32_t>(layout.bindings.span().size()), layout.bindings.span().data()};
 		out.descriptor_set_layouts.push_back(vma.device.createDescriptorSetLayoutUnique(dslci));
@@ -2252,7 +2132,7 @@ void DearImGui::render(vk::CommandBuffer cb) {
 	if (auto* data = ImGui::GetDrawData()) { ImGui_ImplVulkan_RenderDrawData(data, cb); }
 }
 
-VulkanDevice::VulkanDevice(Reader& reader) : impl(std::make_unique<Impl>()) { impl->reader = &reader; }
+VulkanDevice::VulkanDevice() : impl(std::make_unique<Impl>()) {}
 VulkanDevice::VulkanDevice(VulkanDevice&&) noexcept = default;
 VulkanDevice& VulkanDevice::operator=(VulkanDevice&&) noexcept = default;
 VulkanDevice::~VulkanDevice() noexcept = default;
@@ -2311,11 +2191,10 @@ constexpr RenderMode combine(RenderMode const in, RenderMode def) {
 	return def;
 }
 
-template <typename RenderInfoT>
-void render_mesh(VulkanDevice const& device, RenderInfoT const& info, RenderCmd cmd, RenderPassView rp, RenderMode drm) {
+template <typename InfoT>
+void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, RenderPassView rp, RenderMode drm) {
 	static Material const s_default_mat{std::make_unique<UnlitMaterial>()};
 	auto const& limits = device.impl->gpu.properties.limits;
-	auto const texture_fallback = TextureFallback{info.resources.textures, *device.impl->white_texture, *device.impl->black_texture};
 	for (auto const& primitive : info.mesh.primitives) {
 		auto const* vmg = primitive.geometry.template as<VulkanMeshGeometry>();
 		assert(vmg);
@@ -2323,7 +2202,7 @@ void render_mesh(VulkanDevice const& device, RenderInfoT const& info, RenderCmd 
 			logger::error("[GraphicsDevice] Attempt to call draw outside active render pass");
 			return;
 		}
-		auto const& material = info.resources.materials.get_or(primitive.material, s_default_mat);
+		auto const& material = info.providers.material().get(primitive.material, s_default_mat);
 		drm = combine(material.render_mode(), drm);
 		auto const state = PipelineState{
 			.mode = from(drm.type),
@@ -2333,15 +2212,16 @@ void render_mesh(VulkanDevice const& device, RenderInfoT const& info, RenderCmd 
 		auto cb = cmd.cb;
 		auto const& vlayout = vmg->impl->vertex_layout();
 		auto const i = device.impl->buffered_index;
-		auto vert = device.impl->shaders.get(*device.impl->reader, vlayout.shader_uri);
-		auto frag = device.impl->shaders.get(*device.impl->reader, material.shader_id());
+		auto vert = SpirV::from(info.providers.shader(), vlayout.shader_uri);
+		auto frag = SpirV::from(info.providers.shader(), material.shader_id());
+		if (!vert || !frag) { return; }
 		auto pipe = device.impl->pipelines.get(device.impl->vma, state, vlayout.input, rp, {vert, frag}, i);
 		auto shader = VulkanShader{pipe, device.impl->samplers};
 		auto const line_width = std::clamp(drm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
 		pipe.bind(cb, cmd.extent, line_width);
 		update_view(device, shader);
-		material.write_sets(shader, texture_fallback);
-		if constexpr (std::same_as<RenderInfoT, SkinnedMeshRenderInfo>) {
+		material.write_sets(shader, info.providers.texture());
+		if constexpr (std::same_as<InfoT, SkinnedMeshRenderInfo>) {
 			assert(primitive.geometry.has_joints());
 			auto joints_set = vmg->impl->joints_set();
 			assert(joints_set);
@@ -2534,8 +2414,8 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	device.impl->cmd_3d = {};
 
 	// trace 3D output image to native render pass
-	auto fs_quad_vert = device.impl->shaders.get(*device.impl->reader, "shaders/fs_quad.vert");
-	auto fs_quad_frag = device.impl->shaders.get(*device.impl->reader, "shaders/fs_quad.frag");
+	auto fs_quad_vert = SpirV::from(info.providers.shader(), "shaders/fs_quad.vert");
+	auto fs_quad_frag = SpirV::from(info.providers.shader(), "shaders/fs_quad.frag");
 	auto fs_quad_pipe = device.impl->pipelines.get(device.impl->vma, {}, {}, {*device.impl->fs_quad.rp, vk::SampleCountFlagBits::e1},
 												   {fs_quad_vert, fs_quad_frag}, device.impl->buffered_index);
 	// bind 3D output image to 0, 0

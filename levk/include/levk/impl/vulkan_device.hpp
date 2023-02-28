@@ -5,8 +5,6 @@
 #include <memory>
 
 namespace levk {
-struct Reader;
-
 struct TextureSampler;
 struct TextureCreateInfo;
 class Texture;
@@ -15,7 +13,7 @@ class MeshGeometry;
 struct VulkanDevice {
 	struct Impl;
 
-	VulkanDevice(Reader& reader);
+	VulkanDevice();
 	VulkanDevice(VulkanDevice&&) noexcept;
 	VulkanDevice& operator=(VulkanDevice&&) noexcept;
 	~VulkanDevice() noexcept;

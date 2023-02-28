@@ -1,21 +1,22 @@
 #pragma once
 #include <levk/engine.hpp>
 #include <levk/entity.hpp>
-#include <levk/resources.hpp>
 #include <levk/serializable.hpp>
+#include <levk/skeleton.hpp>
 #include <levk/uri.hpp>
 #include <levk/util/monotonic_map.hpp>
-#include <levk/util/reader.hpp>
 #include <levk/util/time.hpp>
 #include <unordered_set>
 #include <variant>
 
 namespace levk {
+class Serializer;
+
 struct StaticMeshRenderer {
 	std::vector<Transform> instances{};
-	Uri<StaticMesh> uri{};
+	Uri<StaticMesh> mesh{};
 
-	void render(Entity const& entity) const;
+	void render(Scene const& scene, Entity const& entity) const;
 };
 
 struct SkeletonController : Component {
@@ -36,12 +37,12 @@ struct SkeletonController : Component {
 
 struct SkinnedMeshRenderer {
 	Skeleton::Instance skeleton{};
-	Uri<SkinnedMesh> uri{};
+	Uri<SkinnedMesh> mesh{};
 
 	DynArray<glm::mat4> joint_matrices{};
 
 	void set_mesh(Uri<SkinnedMesh> uri, Skeleton::Instance skeleton);
-	void render(Entity const& entity) const;
+	void render(Scene const& scene, Entity const& entity) const;
 };
 
 struct MeshRenderer : RenderComponent {
@@ -62,7 +63,7 @@ class Scene : public GraphicsRenderer, public Serializable {
   public:
 	struct Renderer;
 
-	static AssetList peek_assets(dj::Json const& json);
+	static AssetList peek_assets(Serializer const& serializer, dj::Json const& json);
 
 	bool load_into_tree(Uri<StaticMesh> const& uri);
 	bool load_into_tree(Uri<SkinnedMesh> const& uri);

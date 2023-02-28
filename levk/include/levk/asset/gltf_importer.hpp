@@ -2,7 +2,6 @@
 #include <gltf2cpp/gltf2cpp.hpp>
 #include <levk/asset/common.hpp>
 #include <levk/graphics_device.hpp>
-#include <levk/render_resources.hpp>
 #include <levk/util/logger.hpp>
 
 namespace levk::asset {

@@ -1,27 +1,16 @@
 #include <fmt/format.h>
 #include <levk/uri.hpp>
 #include <levk/util/hash_combine.hpp>
+#include <filesystem>
 
 namespace levk {
-namespace {
-std::string append_path(std::string_view prefix, std::string_view suffix) {
-	bool const slash = !prefix.empty() && !suffix.empty();
-	return fmt::format("{}{}{}", prefix, slash ? "/" : "", suffix);
-}
-
-template <std::size_t N>
-std::string append_paths(std::string_view prefix, std::string_view const (&suffixes)[N]) {
-	auto ret = std::string{prefix};
-	for (auto suffix : suffixes) { ret = append_path(ret, suffix); }
-	return ret;
-}
-} // namespace
+namespace fs = std::filesystem;
 
 Uri<void>::Uri(std::string value) : m_value(std::move(value)) {
 	for (char const c : m_value) { hash_combine(m_hash, c); }
 }
 
-std::string Uri<void>::absolute_path(std::string_view root_dir) const { return append_path(root_dir, m_value); }
+std::string Uri<void>::absolute_path(std::string_view root_dir) const { return (fs::path{root_dir} / m_value).generic_string(); }
 
 std::string Uri<void>::parent() const {
 	auto it = m_value.find_last_of('/');
@@ -29,9 +18,9 @@ std::string Uri<void>::parent() const {
 	return m_value.substr(0, it);
 }
 
-std::string Uri<void>::append(std::string_view suffix) const { return append_path(m_value, suffix); }
+std::string Uri<void>::append(std::string_view suffix) const { return (fs::path{m_value} / suffix).generic_string(); }
 
 std::string Uri<void>::concat(std::string_view suffix) const { return fmt::format("{}{}", m_value, suffix); }
 
-std::string Uri<void>::Builder::build(std::string_view uri) const { return append_paths(root_dir, {sub_dir, uri}); }
+std::string Uri<void>::Builder::build(std::string_view uri) const { return (fs::path{root_dir} / sub_dir / uri).generic_string(); }
 } // namespace levk

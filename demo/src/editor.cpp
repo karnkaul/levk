@@ -1,6 +1,5 @@
 #include <imgui.h>
 #include <editor.hpp>
-#include <levk/asset/asset_loader.hpp>
 #include <levk/asset/gltf_importer.hpp>
 #include <filesystem>
 
@@ -8,30 +7,23 @@ namespace levk {
 namespace {
 namespace fs = std::filesystem;
 
-std::string trim_to_uri(std::string_view full, std::string_view data) {
-	auto const i = full.find(data);
-	if (i == std::string_view::npos) { return {}; }
-	full = full.substr(i + data.size());
-	while (!full.empty() && full.front() == '/') { full = full.substr(1); }
-	return std::string{full};
-}
-
 enum class LoadType { eStaticMesh, eSkinnedMesh, eScene };
 
 struct AssetListLoader : AsyncTask<Uri<>> {
 	AssetList list;
-	AssetLoader loader;
+	AssetProviders& providers;
 	Uri<> ret;
 	LoadType load_type{};
 
-	AssetListLoader(AssetList list, AssetLoader loader, Uri<> ret, LoadType load_type)
-		: list(std::move(list)), loader(loader), ret(std::move(ret)), load_type(load_type) {}
+	AssetListLoader(AssetList list, AssetProviders& providers, Uri<> ret, LoadType load_type)
+		: list(std::move(list)), providers(providers), ret(std::move(ret)), load_type(load_type) {}
 
 	AssetListLoader(Uri<Scene> const& uri, Editor& editor)
-		: AssetListLoader(AssetLoader::get_asset_list(uri, editor.reader(), Reader::eReload), make_loader(editor), uri, LoadType::eScene) {}
-
-	AssetListLoader(Uri<StaticMesh> const& uri, Editor& editor) : AssetListLoader(for_mesh(uri), make_loader(editor), uri, LoadType::eStaticMesh) {}
-	AssetListLoader(Uri<SkinnedMesh> const& uri, Editor& editor) : AssetListLoader(for_mesh(uri), make_loader(editor), uri, LoadType::eSkinnedMesh) {}
+		: AssetListLoader(editor.context().providers.get().build_asset_list(uri), editor.context().providers.get(), uri, LoadType::eScene) {}
+	AssetListLoader(Uri<StaticMesh> const& uri, Editor& editor)
+		: AssetListLoader(for_mesh(uri), editor.context().providers.get(), uri, LoadType::eStaticMesh) {}
+	AssetListLoader(Uri<SkinnedMesh> const& uri, Editor& editor)
+		: AssetListLoader(for_mesh(uri), editor.context().providers.get(), uri, LoadType::eSkinnedMesh) {}
 
 	static AssetList for_mesh(Uri<asset::Mesh> uri) {
 		auto ret = AssetList{};
@@ -39,32 +31,38 @@ struct AssetListLoader : AsyncTask<Uri<>> {
 		return ret;
 	}
 
-	static AssetLoader make_loader(Editor& editor) {
-		return AssetLoader{editor.reader(), editor.context().engine.get().device(), editor.context().resources.get().render};
-	}
-
 	Uri<> execute() override {
-		auto const total = list.materials.size() + list.meshes.size() + list.skeletons.size();
+		auto const total = list.shaders.size() + list.textures.size() + list.materials.size() + list.meshes.size() + list.skeletons.size();
 		auto done = std::size_t{};
 		auto increment_done = [&] {
 			++done;
 			this->set_progress(static_cast<float>(done) / static_cast<float>(total));
 		};
+		this->set_status("Loading Shaders");
+		for (auto const& uri : list.shaders) {
+			providers.shader().load(uri);
+			increment_done();
+		}
+		this->set_status("Loading Textures");
+		for (auto const& uri : list.textures) {
+			providers.texture().load(uri);
+			increment_done();
+		}
 		this->set_status("Loading Materials");
-		for (auto const& material : list.materials) {
-			loader.load_material(material);
+		for (auto const& uri : list.materials) {
+			providers.material().load(uri);
 			increment_done();
 		}
 		this->set_status("Loading Skeletons");
-		for (auto const& skeleton : list.skeletons) {
-			loader.load_skeleton(skeleton);
+		for (auto const& uri : list.skeletons) {
+			providers.skeleton().load(uri);
 			increment_done();
 		}
 		this->set_status("Loading Meshes");
-		for (auto const& mesh : list.meshes) {
-			switch (AssetLoader::get_mesh_type(mesh, loader.reader)) {
-			case MeshType::eStatic: loader.load_static_mesh(mesh); break;
-			case MeshType::eSkinned: loader.load_skinned_mesh(mesh); break;
+		for (auto const& uri : list.meshes) {
+			switch (providers.mesh_type(uri)) {
+			case MeshType::eStatic: providers.static_mesh().load(uri); break;
+			case MeshType::eSkinned: providers.skinned_mesh().load(uri); break;
 			default: break;
 			}
 			increment_done();
@@ -118,55 +116,56 @@ void FreeCam::tick(Transform& transform, Input const& input, Time dt) {
 	prev_cursor = input.cursor;
 }
 
-Editor::Editor(std::string data_path)
-	: Runtime(std::make_unique<FileReader>(data_path), DesktopContextFactory{}), data_path(std::move(data_path)), free_cam{&m_context.engine.get().window()} {
+Editor::Editor(std::unique_ptr<DiskVfs> vfs)
+	: Runtime(*vfs, vfs->uri_monitor(), DesktopContextFactory{}), m_free_cam{&m_context.engine.get().window()}, m_vfs(std::move(vfs)) {
 	auto file_menu = [&] {
-		if (ImGui::MenuItem("Save", nullptr, false, !scene.empty())) { save_scene(); }
+		if (ImGui::MenuItem("Save", nullptr, false, !active_scene().empty())) { save_scene(); }
 		ImGui::Separator();
 		if (ImGui::MenuItem("Exit")) { m_context.shutdown(); }
 	};
 
-	main_menu.menus.lists.push_back(MainMenu::List{.label = "File", .callback = file_menu});
+	m_main_menu.menus.lists.push_back(MainMenu::List{.label = "File", .callback = file_menu});
 
-	main_menu.menus.window = {
-		imcpp::EditorWindow{.label = "Scene", .draw_to = [&](imcpp::OpenWindow w) { scene_graph.draw_to(w, scene); }},
-		imcpp::EditorWindow{.label = "Resources", .draw_to = [&](imcpp::OpenWindow w) { resource_display.draw_to(w, Service<Resources>::locate()); }},
+	m_main_menu.menus.window = {
+		imcpp::EditorWindow{.label = "Scene", .draw_to = [&](imcpp::OpenWindow w) { m_scene_graph.draw_to(w, active_scene()); }},
+		imcpp::EditorWindow{.label = "Resources", .draw_to = [&](imcpp::OpenWindow w) { m_asset_inspector.draw_to(w, m_context.providers.get()); }},
 		imcpp::EditorWindow{
-			.label = "Engine", .init_size = {350.0f, 250.0f}, .draw_to = [&](imcpp::OpenWindow w) { engine_status.draw_to(w, m_context.engine.get()); }},
-		imcpp::EditorWindow{.label = "Log", .init_size = {600.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { log_display.draw_to(w); }},
+			.label = "Engine", .init_size = {350.0f, 250.0f}, .draw_to = [&](imcpp::OpenWindow w) { m_engine_status.draw_to(w, m_context.engine.get()); }},
+		imcpp::EditorWindow{.label = "Log", .init_size = {600.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { m_log_display.draw_to(w); }},
 	};
 	if constexpr (debug_v) {
-		main_menu.menus.window.push_back(MainMenu::Separator{});
-		main_menu.menus.window.push_back(MainMenu::Custom{.label = "Dear ImGui Demo", .draw = [](bool& show) { ImGui::ShowDemoWindow(&show); }});
+		m_main_menu.menus.window.push_back(MainMenu::Separator{});
+		m_main_menu.menus.window.push_back(MainMenu::Custom{.label = "Dear ImGui Demo", .draw = [](bool& show) { ImGui::ShowDemoWindow(&show); }});
 	}
 }
 
 void Editor::save_scene() const {
-	auto uri = scene_uri ? scene_uri : Uri<Scene>{"unnamed.scene.json"};
-	if (!save(scene, uri)) { return; }
+	auto uri = m_scene_uri ? m_scene_uri : Uri<Scene>{"unnamed.scene.json"};
+	auto json = dj::Json{};
+	active_scene().serialize(json);
+	if (!m_vfs->write_json(json, uri)) { return; }
 	logger::debug("Scene saved {}", uri.value());
 }
 
 void Editor::tick(Frame const& frame) {
-	if (frame.state.focus_changed() && frame.state.is_in_focus()) { static_cast<FileReader*>(m_reader.get())->reload_out_of_date(); }
+	if (frame.state.focus_changed() && frame.state.is_in_focus()) { m_context.providers.get().uri_monitor().dispatch_modified(); }
 	if (frame.state.input.chord(Key::eW, Key::eLeftControl) || frame.state.input.chord(Key::eW, Key::eRightControl)) { m_context.shutdown(); }
 
 	for (auto const& drop : frame.state.drops) {
 		auto path = fs::path{drop};
 		if (path.extension() == ".gltf") {
 			auto export_path = path.filename().stem();
-			gltf_importer.emplace(drop.c_str(), data_path);
+			m_gltf_importer.emplace(drop.c_str(), std::string{m_context.data_source().mount_point()});
 			break;
 		}
 		if (path.extension() == ".json") {
-			auto uri = trim_to_uri(fs::path{drop}.generic_string(), data_path);
-			if (!uri.empty()) {
-				auto const asset_type = AssetLoader::get_asset_type(drop, *m_reader);
+			if (auto uri = m_context.data_source().trim_to_uri(drop)) {
+				auto const asset_type = m_context.providers.get().asset_type(uri);
 				if (asset_type == "mesh") {
-					if (AssetLoader::get_mesh_type(drop, *m_reader) == MeshType::eSkinned) {
-						scene.load_into_tree(Uri<SkinnedMesh>{uri});
+					if (m_context.providers.get().mesh_type(uri) == MeshType::eSkinned) {
+						active_scene().load_into_tree(Uri<SkinnedMesh>{uri});
 					} else {
-						scene.load_into_tree(Uri<StaticMesh>{uri});
+						active_scene().load_into_tree(Uri<StaticMesh>{uri});
 					}
 				} else if (asset_type == "scene") {
 					m_load = std::make_unique<AssetListLoader>(Uri<Scene>{std::move(uri)}, *this);
@@ -177,20 +176,20 @@ void Editor::tick(Frame const& frame) {
 		}
 	}
 
-	scene.tick(frame.dt);
-	free_cam.tick(scene.camera.transform, frame.state.input, frame.dt);
+	active_scene().tick(frame.dt);
+	m_free_cam.tick(active_scene().camera.transform, frame.state.input, frame.dt);
 
 	// test code
 	if (frame.state.input.chord(Key::eS, Key::eLeftControl)) { save_scene(); }
 	// test code
 
-	auto result = main_menu.display_menu();
+	auto result = m_main_menu.display_menu();
 	switch (result.action) {
 	case MainMenu::Action::eExit: m_context.shutdown(); break;
 	default: break;
 	}
 
-	main_menu.display_windows();
+	m_main_menu.display_windows();
 
 	if (m_load) {
 		if (!ImGui::IsPopupOpen("Loading")) { imcpp::Modal::open("Loading"); }
@@ -199,9 +198,13 @@ void Editor::tick(Frame const& frame) {
 			ImGui::ProgressBar(m_load->progress());
 			if (m_load->ready()) {
 				switch (dynamic_cast<AssetListLoader&>(*m_load).load_type) {
-				case LoadType::eStaticMesh: scene.load_into_tree(Uri<StaticMesh>{m_load->get()}); break;
-				case LoadType::eSkinnedMesh: scene.load_into_tree(Uri<SkinnedMesh>{m_load->get()}); break;
-				case LoadType::eScene: load_into(scene, Uri<Scene>{m_load->get()}); break;
+				case LoadType::eStaticMesh: active_scene().load_into_tree(Uri<StaticMesh>{m_load->get()}); break;
+				case LoadType::eSkinnedMesh: active_scene().load_into_tree(Uri<SkinnedMesh>{m_load->get()}); break;
+				case LoadType::eScene: {
+					m_scene_uri = m_load->get();
+					m_scene_manager.get().load(m_scene_uri);
+					break;
+				}
 				default: break;
 				}
 				loading.close_current();
@@ -210,10 +213,10 @@ void Editor::tick(Frame const& frame) {
 		}
 	}
 
-	if (gltf_importer) {
-		auto result = gltf_importer->update();
+	if (m_gltf_importer) {
+		auto result = m_gltf_importer->update();
 		if (result.inactive) {
-			gltf_importer.reset();
+			m_gltf_importer.reset();
 		} else if (result && result.should_load) {
 			if (result.scene) {
 				m_load = std::make_unique<AssetListLoader>(std::move(result.scene), *this);
@@ -221,10 +224,8 @@ void Editor::tick(Frame const& frame) {
 				m_load = std::visit([&](auto const& uri) { return std::make_unique<AssetListLoader>(uri, *this); }, *result.mesh);
 			}
 			m_load->run();
-			gltf_importer.reset();
+			m_gltf_importer.reset();
 		}
 	}
 }
-
-void Editor::render() { m_context.render(scene, clear_colour); }
 } // namespace levk

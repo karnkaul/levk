@@ -1,37 +1,19 @@
 #pragma once
-#include <levk/resource_map.hpp>
 #include <levk/serializable.hpp>
 #include <levk/shader.hpp>
 #include <levk/texture.hpp>
+#include <levk/uri.hpp>
 #include <levk/util/ptr.hpp>
 
 namespace levk {
-struct TextureFallback {
-	ResourceMap<Texture> const& textures;
-	Texture const& white;
-	Texture const& black;
-
-	Texture const& get_or(Uri<Texture> const& uri, Texture const& fallback) const {
-		if (auto const* ret = textures.find(uri)) { return *ret; }
-		return fallback;
-	}
-};
+class TextureProvider;
 
 enum class AlphaMode : std::uint32_t { eOpaque = 0, eBlend, eMask };
 
 inline constexpr std::size_t max_textures_v{8};
 
-struct MaterialTextureInfo {
-	Uri<> uri{};
-	ColourSpace colour_space{ColourSpace::eSrgb};
-};
-
 struct MaterialTextures : Serializable {
-	using TextureInfo = MaterialTextureInfo;
-
-	std::array<TextureInfo, max_textures_v> textures{};
-
-	Texture const& get_or(std::size_t info_index, Texture const& fallback) const;
+	std::array<Uri<Texture>, max_textures_v> uris{};
 
 	std::string_view type_name() const override { return "MaterialTextures"; }
 	bool serialize(dj::Json& out) const override;
@@ -42,12 +24,15 @@ class MaterialBase : public Serializable {
   public:
 	virtual ~MaterialBase() = default;
 
-	virtual void write_sets(Shader& pipeline, TextureFallback const& fallback) const = 0;
+	virtual void write_sets(Shader& shader, TextureProvider const& texture_provider) const = 0;
 	virtual RenderMode const& render_mode() const = 0;
-	virtual std::string const& shader_id() const = 0;
+	virtual Uri<ShaderCode> const& shader_id() const = 0;
 	virtual std::unique_ptr<MaterialBase> clone() const = 0;
 
 	Texture const& texture_or(std::size_t info_index, Texture const& fallback) const;
+
+	bool serialize(dj::Json& out) const override;
+	bool deserialize(dj::Json const& json) override;
 
 	MaterialTextures textures{};
 };
@@ -62,9 +47,9 @@ class Material {
 	template <std::derived_from<MaterialBase> T>
 	Material(std::unique_ptr<T>&& t) : m_model(std::move(t)) {}
 
-	void write_sets(Shader& shader, TextureFallback const& fallback) const { m_model->write_sets(shader, fallback); }
+	void write_sets(Shader& shader, TextureProvider const& provider) const { m_model->write_sets(shader, provider); }
 	RenderMode const& render_mode() const { return m_model->render_mode(); }
-	std::string const& shader_id() const { return m_model->shader_id(); }
+	Uri<ShaderCode> const& shader_id() const { return m_model->shader_id(); }
 
 	template <std::derived_from<MaterialBase> T>
 	Ptr<T> as() const {
@@ -84,12 +69,12 @@ class UnlitMaterial : public MaterialBase {
   public:
 	Rgba tint{white_v};
 	RenderMode mode{};
-	std::string shader{"shaders/unlit.frag"};
+	Uri<ShaderCode> shader{"shaders/unlit.frag"};
 	std::string name{"unlit"};
 
-	void write_sets(Shader& shader, TextureFallback const& fallback) const override;
+	void write_sets(Shader& shader, TextureProvider const& provider) const override;
 	RenderMode const& render_mode() const override { return mode; }
-	std::string const& shader_id() const override { return shader; }
+	Uri<ShaderCode> const& shader_id() const override { return shader; }
 	std::unique_ptr<MaterialBase> clone() const override { return std::make_unique<UnlitMaterial>(*this); }
 
 	std::string_view type_name() const override { return "UnlitMaterial"; }
@@ -106,12 +91,12 @@ class LitMaterial : public MaterialBase {
 	RenderMode mode{};
 	float alpha_cutoff{};
 	AlphaMode alpha_mode{AlphaMode::eOpaque};
-	std::string shader{"shaders/lit.frag"};
+	Uri<ShaderCode> shader{"shaders/lit.frag"};
 	std::string name{"lit"};
 
-	void write_sets(Shader& pipeline, TextureFallback const& fallback) const override;
+	void write_sets(Shader& shader, TextureProvider const& provider) const override;
 	RenderMode const& render_mode() const override { return mode; }
-	std::string const& shader_id() const override { return shader; }
+	Uri<ShaderCode> const& shader_id() const override { return shader; }
 	std::unique_ptr<MaterialBase> clone() const override { return std::make_unique<LitMaterial>(*this); }
 
 	std::string_view type_name() const override { return "LitMaterial"; }

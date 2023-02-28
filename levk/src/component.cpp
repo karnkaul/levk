@@ -1,19 +1,14 @@
 #include <imgui.h>
 #include <levk/component.hpp>
 #include <levk/defines.hpp>
-#include <levk/scene.hpp>
+#include <levk/scene_manager.hpp>
+#include <levk/service.hpp>
 #include <cassert>
 
 namespace levk {
-Entity& Component::entity() const {
-	assert(m_entity);
-	return scene().get(m_entity);
-}
+Scene& Component::active_scene() const { return Service<SceneManager>::locate().active_scene(); }
 
-Scene& Component::scene() const {
-	assert(m_scene);
-	return *m_scene;
-}
+Ptr<Entity> Component::owning_entity() const { return active_scene().find(m_entity); }
 
 void Component::inspect(imcpp::OpenWindow) {
 	if constexpr (debug_v) { ImGui::Text("[Not customized]"); }

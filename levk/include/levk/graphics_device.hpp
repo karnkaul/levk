@@ -30,13 +30,13 @@ class GraphicsDevice {
 	bool set_vsync(Vsync::Type desired) { return m_model->set_vsync(desired); }
 	bool set_render_scale(float scale) { return m_model->set_render_scale(scale); }
 
-	void render(GraphicsRenderer const& renderer, Camera const& camera, Lights const& lights, glm::uvec2 extent, Rgba clear);
+	void render(GraphicsRenderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights, glm::uvec2 extent, Rgba clear);
 
 	MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints = {}) { return m_model->make_mesh_geometry(geometry, joints); }
 	Texture make_texture(Image::View image, Texture::CreateInfo create_info = {}) { return m_model->make_texture(image, std::move(create_info)); }
 
-	void render(StaticMesh const& mesh, RenderResources const& resources, std::span<Transform const> instances, glm::mat4 const& parent = matrix_identity_v);
-	void render(SkinnedMesh const& mesh, RenderResources const& resources, std::span<glm::mat4 const> joints);
+	void render(StaticMesh const& mesh, AssetProviders const& providers, std::span<Transform const> instances, glm::mat4 const& parent = matrix_identity_v);
+	void render(SkinnedMesh const& mesh, AssetProviders const& providers, std::span<glm::mat4 const> joints);
 
 	RenderStats stats() const { return m_model->stats(); }
 
@@ -94,13 +94,11 @@ class GraphicsDevice {
 	std::unique_ptr<Base> m_model{};
 };
 
-struct Reader;
-
 struct GraphicsDeviceFactory {
-	virtual GraphicsDevice make(Reader& reader) const = 0;
+	virtual GraphicsDevice make() const = 0;
 };
 
 struct VulkanDeviceFactory : GraphicsDeviceFactory {
-	GraphicsDevice make(Reader& reader) const override;
+	GraphicsDevice make() const override;
 };
 } // namespace levk

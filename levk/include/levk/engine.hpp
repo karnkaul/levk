@@ -30,7 +30,7 @@ class Engine {
 	GraphicsDevice& device() const;
 
 	Frame next_frame();
-	void render(GraphicsRenderer const& renderer, Camera const& camera, Lights const& lights, Rgba clear = black_v);
+	void render(GraphicsRenderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights, Rgba clear = black_v);
 
 	Time delta_time() const;
 	int framerate() const;
