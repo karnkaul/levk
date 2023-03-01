@@ -24,10 +24,10 @@ https://user-images.githubusercontent.com/16272243/212808493-0ccdd6b3-f409-4cfb-
 - [x] Instanced static mesh renderer
 - [x] Skinned mesh renderer
 - [x] Scene (in-game)
-- [ ] Workspace (editor)
-  - [x] Asset (de)serialization
-  - [ ] Scene management
+- [x] Asset (de)serialization + hot reload
+- [x] Scene management
 - [ ] Fonts and text
+- [ ] Audio
 - [ ] In-game UI
 - [ ] AABB collisions
 - [ ] Advanced lighting

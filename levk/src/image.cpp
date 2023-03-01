@@ -30,7 +30,7 @@ Image::Image(char const* file_path, std::string name) : m_name{std::move(name)} 
 	m_extent = glm::uvec2{glm::ivec2{x, y}};
 }
 
-auto Image::view() const -> View { return View{.bytes = m_storage.get().bytes(), .extent = m_extent}; }
+auto Image::view() const -> View { return View{.storage = m_storage.get().bytes(), .extent = m_extent}; }
 
 Image::operator bool() const {
 	if (m_extent.x == 0 || m_extent.y == 0) { return false; }

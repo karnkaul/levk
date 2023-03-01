@@ -13,7 +13,7 @@ Rgba const& PixelMap::operator[](Index2D index) const {
 }
 
 PixelMap::View PixelMap::view() const {
-	return View{.bytes = {reinterpret_cast<std::byte const*>(m_pixels.data()), m_pixels.size_bytes()}, .extent = m_extent};
+	return View{.storage = {reinterpret_cast<std::byte const*>(m_pixels.data()), m_pixels.size_bytes()}, .extent = m_extent};
 }
 } // namespace levk
 

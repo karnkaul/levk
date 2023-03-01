@@ -5,6 +5,8 @@
 #include <levk/window.hpp>
 
 namespace levk {
+struct FontLibrary;
+
 struct EngineCreateInfo {
 	glm::uvec2 window_extent{1280u, 720u};
 	char const* window_title{"levk"};
@@ -27,7 +29,8 @@ class Engine {
 	explicit Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& create_info = {}) noexcept(false);
 
 	Window& window() const;
-	GraphicsDevice& device() const;
+	GraphicsDevice& graphics_device() const;
+	FontLibrary const& font_library() const;
 
 	Frame next_frame();
 	void render(GraphicsRenderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights, Rgba clear = black_v);

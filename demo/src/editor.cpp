@@ -3,9 +3,38 @@
 #include <levk/asset/gltf_importer.hpp>
 #include <filesystem>
 
+#include <levk/font_face.hpp>
+#include <levk/font_library.hpp>
+
 namespace levk {
 namespace {
 namespace fs = std::filesystem;
+
+void write_ppm([[maybe_unused]] DataSink const& ds, std::span<std::byte const> bytes, Extent2D extent) {
+	auto str = std::string{};
+	fmt::format_to(std::back_inserter(str), "P3 {} {} 255\n\n", extent.x, extent.y);
+	for (std::uint32_t y = 0; y < extent.y; ++y) {
+		for (std::uint32_t x = 0; x < extent.x; ++x) {
+			auto const index = static_cast<std::size_t>(y * extent.x + x);
+			assert(index < bytes.size());
+			auto const value = static_cast<int>(bytes[index]);
+			assert(value >= 0 && value <= 255);
+			fmt::format_to(std::back_inserter(str), "{} {} {} ", value, value, value);
+		}
+		fmt::format_to(std::back_inserter(str), "\n");
+	}
+	// ds.write_text(str, "test.ppm");
+}
+
+void test(DataSink const& ds, FontLibrary const& ttf) {
+	auto bytes = ds.read("fonts/test.otf");
+	if (!bytes) { return; }
+	auto face = FontFace{ttf.load(std::move(bytes))};
+	if (!face) { return; }
+	auto const& glyph = face.get(FontFace::Key{Codepoint{'k'}, TextHeight{72}});
+	if (!glyph.pixmap.storage) { return; }
+	write_ppm(ds, glyph.pixmap.storage.span(), glyph.pixmap.extent);
+}
 
 enum class LoadType { eStaticMesh, eSkinnedMesh, eScene };
 
@@ -137,6 +166,8 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 		m_main_menu.menus.window.push_back(MainMenu::Separator{});
 		m_main_menu.menus.window.push_back(MainMenu::Custom{.label = "Dear ImGui Demo", .draw = [](bool& show) { ImGui::ShowDemoWindow(&show); }});
 	}
+
+	test(*m_vfs, m_context.engine.get().font_library());
 }
 
 void Editor::save_scene() const {

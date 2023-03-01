@@ -1,3 +1,4 @@
+#include <impl/ft_lib_wrapper.hpp>
 #include <levk/component_factory.hpp>
 #include <levk/engine.hpp>
 #include <levk/scene.hpp>
@@ -26,6 +27,7 @@ struct Fps {
 struct Engine::Impl {
 	Window window;
 	GraphicsDevice graphics_device;
+	std::unique_ptr<FontLibrary> font_library{};
 	DeltaTime dt{};
 	Fps fps{};
 
@@ -45,6 +47,8 @@ Engine::Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& creat
 	: m_impl(std::make_unique<Impl>(std::move(window), std::move(device))) {
 	m_impl->window.create(create_info.window_extent, create_info.window_title);
 	m_impl->graphics_device.create({m_impl->window});
+	m_impl->font_library = make_font_library();
+	if (!m_impl->font_library->init()) { logger::error("[Engine] Failed to initialize FontLibrary!"); }
 
 	Service<Window>::provide(&m_impl->window);
 	Service<GraphicsDevice>::provide(&m_impl->graphics_device);
@@ -53,7 +57,8 @@ Engine::Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& creat
 }
 
 Window& Engine::window() const { return m_impl->window; }
-GraphicsDevice& Engine::device() const { return m_impl->graphics_device; }
+GraphicsDevice& Engine::graphics_device() const { return m_impl->graphics_device; }
+FontLibrary const& Engine::font_library() const { return *m_impl->font_library; }
 
 Frame Engine::next_frame() {
 	m_impl->window.poll();

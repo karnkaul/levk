@@ -87,7 +87,10 @@ set(levk_headers
   include/levk/defines.hpp
   include/levk/engine.hpp
   include/levk/entity.hpp
+  include/levk/font_face.hpp
+  include/levk/font_library.hpp
   include/levk/geometry.hpp
+  include/levk/glyph.hpp
   include/levk/graphics_common.hpp
   include/levk/graphics_device.hpp
   include/levk/image.hpp

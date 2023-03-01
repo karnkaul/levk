@@ -4,6 +4,8 @@ add_subdirectory(asset)
 
 target_sources(levk PRIVATE
   impl/desktop_window.cpp
+  impl/ft_lib_wrapper.cpp
+  impl/ft_lib_wrapper.hpp
   impl/vulkan_device.cpp
 
   vfs/data_sink.cpp
@@ -17,6 +19,7 @@ target_sources(levk PRIVATE
   context.cpp
   engine.cpp
   entity.cpp
+  font_face.cpp
   geometry.cpp
   graphics_device.cpp
   image.cpp
@@ -34,3 +37,10 @@ target_sources(levk PRIVATE
   uri.cpp
   window.cpp
 )
+
+if(LEVK_USE_FREETYPE)
+  target_sources(levk PRIVATE
+    impl/ft_library.cpp
+    impl/ft_library.hpp
+  )
+endif()

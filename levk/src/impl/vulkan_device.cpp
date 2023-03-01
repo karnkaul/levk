@@ -1927,7 +1927,7 @@ Defer<UniqueImage> make_image(VulkanDevice const& device, std::span<Image::View 
 	auto const extent = vk::Extent2D{images[0].extent.x, images[0].extent.y};
 	auto ret = Defer<UniqueImage>{device.impl->defer, device.impl->vma.get().make_image(info, extent, type)};
 
-	auto const accumulate_size = [](std::size_t total, Image::View const& i) { return total + i.bytes.size(); };
+	auto const accumulate_size = [](std::size_t total, Image::View const& i) { return total + i.storage.size(); };
 	auto const size = std::accumulate(images.begin(), images.end(), std::size_t{}, accumulate_size);
 	auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst, size, true);
 	if (!staging.get().buffer) {
@@ -1937,8 +1937,8 @@ Defer<UniqueImage> make_image(VulkanDevice const& device, std::span<Image::View 
 
 	auto* ptr = static_cast<std::byte*>(staging.get().ptr);
 	for (auto const& image : images) {
-		std::memcpy(ptr, image.bytes.data(), image.bytes.size());
-		ptr += image.bytes.size();
+		std::memcpy(ptr, image.storage.data(), image.storage.size());
+		ptr += image.storage.size();
 	}
 
 	auto isrl = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, info.array_layers);
@@ -2017,7 +2017,7 @@ VulkanTexture::Impl::Impl(VulkanDevice const& device, Image::View image, CreateI
 		image = magenta_pixmap_v.view();
 		mip_mapped = false;
 	}
-	if (image.bytes.empty()) {
+	if (image.storage.empty()) {
 		logger::warn("[Texture] invalid image bytes: [empty]");
 		image = magenta_pixmap_v.view();
 		mip_mapped = false;

@@ -3,7 +3,6 @@ project(levk-ext)
 find_package(Threads)
 
 file(ARCHIVE_EXTRACT INPUT "${CMAKE_CURRENT_SOURCE_DIR}/src.zip" DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}")
-
 add_subdirectory(src/vk_dynamic)
 add_library(vk-dynamic::vk-dynamic ALIAS vk-dynamic)
 
@@ -55,6 +54,10 @@ set(GLTF2CPP_DYNARRAY_DEBUG_VIEW ON)
 set(GLTF2CPP_BUILD_TESTS ON)
 add_subdirectory(src/gltf2cpp)
 
+if(LEVK_USE_FREETYPE)
+  add_subdirectory(src/freetype)
+endif()
+
 add_library(levk-ext INTERFACE)
 add_library(levk::ext ALIAS levk-ext)
 
@@ -69,6 +72,8 @@ target_link_libraries(levk-ext INTERFACE
   djson::djson
   fmt::fmt
   gltf2cpp::gltf2cpp
+
+  $<$<BOOL:${LEVK_USE_FREETYPE}>:freetype::freetype>
   Threads::Threads
 )
 

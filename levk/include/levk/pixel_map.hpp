@@ -10,9 +10,18 @@ using Extent2D = glm::uvec2;
 
 constexpr std::size_t to_1d_index(Index2D const index2d, std::size_t columns) { return index2d.y * columns + index2d.x; }
 
+template <typename Storage>
+struct Bitmap {
+	using storage_t = Storage;
+
+	Storage storage{};
+	Extent2D extent{};
+	std::uint8_t channels{4};
+};
+
 class PixelMap {
   public:
-	struct View;
+	using View = Bitmap<std::span<std::byte const>>;
 
 	constexpr PixelMap(std::span<Rgba> rgba, Extent2D extent) : m_pixels(rgba), m_extent(extent) {}
 
@@ -39,11 +48,6 @@ class PixelMap {
 	Extent2D m_extent{};
 };
 
-struct PixelMap::View {
-	std::span<std::byte const> bytes{};
-	Extent2D extent{};
-};
-
 template <std::uint32_t Width, std::uint32_t Height>
 class FixedPixelMap : public PixelMap {
   public:
@@ -67,6 +71,7 @@ class FixedPixelMap : public PixelMap {
 
 class DynPixelMap : public PixelMap {
   public:
+	DynPixelMap() = default;
 	DynPixelMap(Extent2D extent) : m_storage(static_cast<std::size_t>(extent.x * extent.y)) { repoint(m_pixels, extent); }
 
   private:
