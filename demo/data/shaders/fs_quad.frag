@@ -7,5 +7,5 @@ layout (location = 0) in vec2 in_uv;
 layout (location = 0) out vec4 out_rgba;
 
 void main() {
-	out_rgba = texture(tex, in_uv);
+	out_rgba = vec4(vec3(texture(tex, in_uv)), 1.0);
 }
