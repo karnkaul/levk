@@ -72,7 +72,7 @@ class FixedPixelMap : public PixelMap {
 class DynPixelMap : public PixelMap {
   public:
 	DynPixelMap() = default;
-	DynPixelMap(Extent2D extent) : m_storage(static_cast<std::size_t>(extent.x * extent.y)) { repoint(m_pixels, extent); }
+	DynPixelMap(Extent2D extent) : m_storage(static_cast<std::size_t>(extent.x * extent.y)) { repoint(m_storage.span(), extent); }
 
   private:
 	DynArray<Rgba> m_storage{};

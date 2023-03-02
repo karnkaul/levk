@@ -20,6 +20,7 @@ struct Geometry {
 	std::vector<std::uint32_t> indices{};
 
 	Geometry& append(std::span<Vertex const> vs, std::span<std::uint32_t const> is);
+	Geometry& append_quad(glm::vec2 size, glm::vec3 rgb = glm::vec3{1.0f}, glm::vec3 origin = {});
 	Geometry& append_cube(glm::vec3 size, glm::vec3 rgb = glm::vec3{1.0f}, glm::vec3 origin = {});
 
 	Packed pack() const;
@@ -46,6 +47,7 @@ struct MeshJoints {
 	std::span<glm::vec4 const> weights{};
 };
 
+Geometry make_quad(glm::vec2 size, glm::vec3 rgb = glm::vec3{1.0f}, glm::vec3 origin = {});
 Geometry make_cube(glm::vec3 size, glm::vec3 rgb = glm::vec3{1.0f}, glm::vec3 origin = {});
 Geometry make_cubed_sphere(float diam, std::uint32_t quads_per_side, glm::vec3 rgb = glm::vec3{1.0f});
 Geometry make_cone(float xz_diam, float y_height, std::uint32_t xz_points, glm::vec3 rgb = glm::vec3{1.0f});

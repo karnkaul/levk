@@ -218,11 +218,21 @@ struct Vma::Image {
 	Allocation allocation{};
 	vk::Image image{};
 	vk::UniqueImageView view{};
+
 	vk::Extent2D extent{};
+	vk::ImageViewType type{};
+	std::uint32_t mip_levels{};
+	std::uint32_t array_layers{};
 
 	ImageView image_view() const { return {image, *view, extent}; }
 
 	bool operator==(Image const& rhs) const { return allocation.allocation == rhs.allocation.allocation; }
+};
+
+struct CopyImage {
+	Vma::Image const& image;
+	vk::ImageLayout layout{};
+	glm::ivec2 offset{};
 };
 
 using UniqueBuffer = Unique<Vma::Buffer, Vma::Deleter>;
@@ -370,6 +380,7 @@ struct FsQuad {
 	vk::UniqueRenderPass rp{};
 
 	Framebuffer make_framebuffer(VulkanDevice const& device, ImageView const& output_image);
+	RenderPassView view() const { return {*rp, vk::SampleCountFlagBits::e1}; }
 };
 
 struct DearImGui {
@@ -851,8 +862,7 @@ VulkanMeshGeometry::VulkanMeshGeometry(VulkanMeshGeometry&&) noexcept = default;
 VulkanMeshGeometry& VulkanMeshGeometry::operator=(VulkanMeshGeometry&&) noexcept = default;
 VulkanMeshGeometry::~VulkanMeshGeometry() noexcept = default;
 
-class VulkanTexture::Impl {
-  public:
+struct VulkanTexture::Impl {
 	using CreateInfo = TextureCreateInfo;
 
 	Impl(VulkanDevice const& device, Image::View image, CreateInfo const& info = {});
@@ -863,10 +873,8 @@ class VulkanTexture::Impl {
 
 	TextureSampler sampler{};
 
-  protected:
 	Impl(VulkanDevice const& device, TextureSampler sampler);
 
-  private:
 	Ptr<VulkanDevice const> m_device{};
 	Defer<UniqueImage> m_image{};
 	ImageCreateInfo m_info{};
@@ -907,16 +915,12 @@ struct VulkanDevice::Impl {
 	HostBuffer<> view_ubo{};
 	HostBuffer<> dir_lights_ssbo{};
 
-	std::optional<Texture> white_texture{};
-	std::optional<Texture> black_texture{};
-
 	GraphicsDeviceInfo info{};
 	RenderMode default_render_mode{};
 
 	struct {
 		struct {
 			std::uint64_t draw_calls{};
-			std::uint64_t triangles{};
 		} per_frame{};
 	} stats{};
 };
@@ -1841,13 +1845,13 @@ VertexLayout skinned_vertex_layout() {
 	return ret;
 }
 
-ImageBarrier full_barrier(ImageView const& image, std::uint32_t levels, std::uint32_t layers, vk::ImageLayout const src, vk::ImageLayout const dst) {
+ImageBarrier full_barrier(Vma::Image const& image, vk::ImageLayout const src, vk::ImageLayout const dst) {
 	auto ret = ImageBarrier{};
 	ret.barrier.srcAccessMask = ret.barrier.dstAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite;
 	ret.barrier.oldLayout = src;
 	ret.barrier.newLayout = dst;
 	ret.barrier.image = image.image;
-	ret.barrier.subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, levels, 0, layers};
+	ret.barrier.subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, image.mip_levels, 0, image.array_layers};
 	ret.stages = {vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands};
 	return ret;
 }
@@ -1923,16 +1927,15 @@ bool can_mip(vk::PhysicalDevice const gpu, vk::Format const format) {
 	return (fsrc.optimalTilingFeatures & flags_v) != vk::FormatFeatureFlags{};
 }
 
-Defer<UniqueImage> make_image(VulkanDevice const& device, std::span<Image::View const> images, ImageCreateInfo const& info, vk::ImageViewType type) {
-	auto const extent = vk::Extent2D{images[0].extent.x, images[0].extent.y};
-	auto ret = Defer<UniqueImage>{device.impl->defer, device.impl->vma.get().make_image(info, extent, type)};
-
+bool copy_to_image(VulkanDevice const& device, Vma::Image const& out, std::span<Image::View const> images, glm::ivec2 const offset = {}) {
+	assert(std::all_of(images.begin(), images.end(), [images](Image::View const& view) { return view.extent == images[0].extent; }));
+	assert(out.array_layers == images.size());
 	auto const accumulate_size = [](std::size_t total, Image::View const& i) { return total + i.storage.size(); };
 	auto const size = std::accumulate(images.begin(), images.end(), std::size_t{}, accumulate_size);
 	auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst, size, true);
 	if (!staging.get().buffer) {
 		// TODO: error
-		return {};
+		return false;
 	}
 
 	auto* ptr = static_cast<std::byte*>(staging.get().ptr);
@@ -1941,18 +1944,44 @@ Defer<UniqueImage> make_image(VulkanDevice const& device, std::span<Image::View 
 		ptr += image.storage.size();
 	}
 
-	auto isrl = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, info.array_layers);
-	auto icr = vk::ImageCopy(isrl, {}, isrl, {}, vk::Extent3D{extent, 1});
-	auto bic = vk::BufferImageCopy({}, {}, {}, isrl, {}, icr.extent);
+	auto const vk_extent = vk::Extent3D{images[0].extent.x, images[0].extent.y, 1u};
+	auto const vk_offset = vk::Offset3D{offset.x, offset.y, 0};
+	auto isrl = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, out.array_layers);
+	auto bic = vk::BufferImageCopy({}, {}, {}, isrl, vk_offset, vk_extent);
 	auto cmd = Cmd{device};
-	full_barrier(ret.get().get().image_view(), info.mip_levels, info.array_layers, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal)
-		.transition(cmd.cb);
-	cmd.cb.copyBufferToImage(staging.get().buffer, ret.get().get().image, vk::ImageLayout::eTransferDstOptimal, bic);
-	full_barrier(ret.get().get().image_view(), info.mip_levels, info.array_layers, vk::ImageLayout::eTransferDstOptimal,
-				 vk::ImageLayout::eShaderReadOnlyOptimal)
-		.transition(cmd.cb);
-	if (info.mip_levels > 1) { MipMapWriter{ret.get().get().image, ret.get().get().extent, cmd.cb, info.mip_levels}(); }
+	full_barrier(out, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal).transition(cmd.cb);
+	cmd.cb.copyBufferToImage(staging.get().buffer, out.image, vk::ImageLayout::eTransferDstOptimal, bic);
+	full_barrier(out, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal).transition(cmd.cb);
+	if (out.mip_levels > 1) { MipMapWriter{out.image, out.extent, cmd.cb, out.mip_levels, out.array_layers}(); }
+	return true;
+}
+
+UniqueImage make_image(VulkanDevice const& device, std::span<Image::View const> images, ImageCreateInfo const& info, vk::ImageViewType type) {
+	if (images.empty()) { return {}; }
+	auto const extent = vk::Extent2D{images[0].extent.x, images[0].extent.y};
+	assert(std::all_of(images.begin(), images.end(), [images](Image::View const& view) { return view.extent == images[0].extent; }));
+	auto ret = UniqueImage{device.impl->vma.get().make_image(info, extent, type)};
+	if (!ret) { return {}; }
+	copy_to_image(device, ret, images);
 	return ret;
+}
+
+void copy_image(VulkanDevice const& device, CopyImage const& src, CopyImage const& dst, vk::Extent2D const extent) {
+	auto isrl_src = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, src.image.array_layers);
+	auto isrl_dst = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, src.image.array_layers);
+	auto offset_src = vk::Offset3D{src.offset.x, src.offset.y, 0u};
+	auto offset_dst = vk::Offset3D{dst.offset.x, dst.offset.y, 0u};
+	auto ic = vk::ImageCopy{isrl_src, offset_src, isrl_dst, offset_dst, vk::Extent3D{extent, 1}};
+
+	auto cmd = Cmd{device};
+	full_barrier(src.image, src.layout, vk::ImageLayout::eTransferSrcOptimal).transition(cmd.cb);
+	full_barrier(dst.image, dst.layout, vk::ImageLayout::eTransferDstOptimal).transition(cmd.cb);
+	cmd.cb.copyImage(src.image.image, vk::ImageLayout::eTransferSrcOptimal, dst.image.image, vk::ImageLayout::eTransferDstOptimal, ic);
+	auto layout = src.layout == vk::ImageLayout::eUndefined ? vk::ImageLayout::eShaderReadOnlyOptimal : src.layout;
+	full_barrier(src.image, vk::ImageLayout::eTransferSrcOptimal, layout).transition(cmd.cb);
+	layout = dst.layout == vk::ImageLayout::eUndefined ? vk::ImageLayout::eShaderReadOnlyOptimal : src.layout;
+	full_barrier(dst.image, vk::ImageLayout::eTransferDstOptimal, layout).transition(cmd.cb);
+	if (dst.image.mip_levels > 1) { MipMapWriter{dst.image.image, dst.image.extent, cmd.cb, dst.image.mip_levels, dst.image.array_layers}(); }
 }
 } // namespace
 
@@ -2009,7 +2038,7 @@ VulkanMeshGeometry::Impl::Impl(VulkanDevice const& device, Geometry::Packed cons
 }
 
 VulkanTexture::Impl::Impl(VulkanDevice const& device, Image::View image, CreateInfo const& info) : Impl(device, info.sampler) {
-	static constexpr auto magenta_pixmap_v = FixedPixelMap<1, 1>{{magenta_v}};
+	static constexpr auto magenta_pixmap_v = FixedPixelMap<1, 1>{{magenta_v.channels}};
 	m_info.format = info.colour_space == ColourSpace::eLinear ? vk::Format::eR8G8B8A8Unorm : vk::Format::eR8G8B8A8Srgb;
 	bool mip_mapped = info.mip_mapped;
 	if (image.extent.x == 0 || image.extent.y == 0) {
@@ -2023,7 +2052,7 @@ VulkanTexture::Impl::Impl(VulkanDevice const& device, Image::View image, CreateI
 		mip_mapped = false;
 	}
 	if (mip_mapped && can_mip(device.impl->gpu.device, m_info.format)) { m_info.mip_levels = compute_mip_levels({image.extent.x, image.extent.y}); }
-	m_image = make_image(device, {&image, 1}, m_info, vk::ImageViewType::e2D);
+	m_image = {device.impl->defer, make_image(device, {&image, 1}, m_info, vk::ImageViewType::e2D)};
 	m_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
 }
 
@@ -2084,6 +2113,9 @@ UniqueImage Vma::make_image(ImageCreateInfo const& info, vk::Extent2D const exte
 	ret.image = image;
 	ret.allocation.vma = *this;
 	ret.extent = extent;
+	ret.mip_levels = info.mip_levels;
+	ret.array_layers = info.array_layers;
+	ret.type = type;
 	return UniqueImage{std::move(ret)};
 }
 
@@ -2191,8 +2223,38 @@ constexpr RenderMode combine(RenderMode const in, RenderMode def) {
 	return def;
 }
 
+void draw_static(VulkanDevice const& device, StaticDrawInfo const& info, RenderCmd cmd, RenderPassView rp, RenderMode rm) {
+	auto const& limits = device.impl->gpu.properties.limits;
+	auto const* vmg = info.geometry.as<VulkanMeshGeometry>();
+	assert(vmg);
+	auto const& vlayout = vmg->impl->vertex_layout();
+	auto const i = device.impl->buffered_index;
+	auto vert = SpirV::from(info.providers.shader(), vlayout.shader_uri);
+	auto frag = SpirV::from(info.providers.shader(), info.material.shader_id());
+	if (!vert || !frag) { return; }
+	rm = combine(info.material.render_mode(), rm);
+	auto const pipeline_state = PipelineState{
+		.mode = from(rm.type),
+		.topology = from(info.topology),
+		.depth_test = rm.depth_test,
+	};
+	auto pipe = device.impl->pipelines.get(device.impl->vma, pipeline_state, vlayout.input, rp, {vert, frag}, i);
+	auto shader = VulkanShader{pipe, device.impl->samplers};
+	auto const line_width = std::clamp(rm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
+	pipe.bind(cmd.cb, cmd.extent, line_width);
+	update_view(device, shader);
+	info.material.write_sets(shader, info.providers.texture());
+	shader.bind(pipe.layout, cmd.cb);
+	assert(!info.geometry.has_joints());
+	auto write_instances = [&](glm::mat4& out, std::size_t) { out = info.transform; };
+	auto instance_buffer = device.impl->instance_vec.write(device.impl->vma, 1u, device.impl->buffered_index, write_instances);
+	cmd.cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
+	vmg->impl->draw(cmd.cb, 1u);
+	++device.impl->stats.per_frame.draw_calls;
+}
+
 template <typename InfoT>
-void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, RenderPassView rp, RenderMode drm) {
+void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, RenderPassView rp, RenderMode rm) {
 	static Material const s_default_mat{std::make_unique<UnlitMaterial>()};
 	auto const& limits = device.impl->gpu.properties.limits;
 	for (auto const& primitive : info.mesh.primitives) {
@@ -2203,11 +2265,11 @@ void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, R
 			return;
 		}
 		auto const& material = info.providers.material().get(primitive.material, s_default_mat);
-		drm = combine(material.render_mode(), drm);
+		rm = combine(material.render_mode(), rm);
 		auto const state = PipelineState{
-			.mode = from(drm.type),
+			.mode = from(rm.type),
 			.topology = from(primitive.topology),
-			.depth_test = drm.depth_test,
+			.depth_test = rm.depth_test,
 		};
 		auto cb = cmd.cb;
 		auto const& vlayout = vmg->impl->vertex_layout();
@@ -2217,7 +2279,7 @@ void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, R
 		if (!vert || !frag) { return; }
 		auto pipe = device.impl->pipelines.get(device.impl->vma, state, vlayout.input, rp, {vert, frag}, i);
 		auto shader = VulkanShader{pipe, device.impl->samplers};
-		auto const line_width = std::clamp(drm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
+		auto const line_width = std::clamp(rm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
 		pipe.bind(cb, cmd.extent, line_width);
 		update_view(device, shader);
 		material.write_sets(shader, info.providers.texture());
@@ -2239,7 +2301,6 @@ void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, R
 			cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
 			vmg->impl->draw(cb, static_cast<std::uint32_t>(info.instances.size()));
 		}
-		if (auto verts = vmg->impl->info().vertices) { device.impl->stats.per_frame.triangles += verts / 3; }
 		++device.impl->stats.per_frame.draw_calls;
 	}
 }
@@ -2296,14 +2357,6 @@ void levk::gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& 
 
 	out.impl->view_ubo = {vk::BufferUsageFlagBits::eUniformBuffer};
 	out.impl->dir_lights_ssbo = {vk::BufferUsageFlagBits::eStorageBuffer};
-
-	static constexpr auto white_image_v = FixedPixelMap<1, 1>{{white_v}};
-	auto texture = VulkanTexture{};
-	texture.impl = std::make_unique<VulkanTexture::Impl>(out, white_image_v.view(), TextureCreateInfo{.name = "white", .mip_mapped = false});
-	out.impl->white_texture = Texture{std::move(texture), "textures/white"};
-	static constexpr auto black_image_v = FixedPixelMap<1, 1>{{black_v}};
-	texture.impl = std::make_unique<VulkanTexture::Impl>(out, black_image_v.view(), TextureCreateInfo{.name = "black", .mip_mapped = false});
-	out.impl->black_texture = Texture{std::move(texture), "textures/black"};
 }
 
 void levk::gfx_destroy_device(VulkanDevice& out) {
@@ -2506,6 +2559,48 @@ levk::Extent2D levk::gfx_tex_extent(VulkanTexture const& texture) {
 
 std::uint32_t levk::gfx_tex_mip_levels(VulkanTexture const& texture) { return texture.impl->mip_levels(); }
 
+bool levk::gfx_tex_resize_canvas(VulkanTexture& texture, Extent2D new_extent, Rgba background, glm::uvec2 top_left) {
+	if (new_extent.x == 0 || new_extent.y == 0) { return false; }
+	auto const extent = gfx_tex_extent(texture);
+	if (new_extent == extent) { return true; }
+	if (top_left.x + extent.x > new_extent.x || top_left.y + extent.y > new_extent.y) { return false; }
+	// TODO: cubemaps
+	auto const image_type = texture.impl->m_image.get().get().type;
+	assert(image_type == vk::ImageViewType::e2D);
+	auto pixels = DynPixelMap{new_extent};
+	for (Rgba& rgba : pixels.span()) { rgba = background; }
+	Image::View image_view[] = {pixels.view()};
+	auto new_image = make_image(*texture.impl->m_device, image_view, texture.impl->m_info, image_type);
+	auto src = CopyImage{texture.impl->m_image.get().get(), texture.impl->m_layout};
+	auto dst = CopyImage{new_image.get(), texture.impl->m_layout, top_left};
+	copy_image(*texture.impl->m_device, src, dst, texture.impl->view().extent);
+	texture.impl->m_image = {texture.impl->m_device->impl->defer, std::move(new_image)};
+	return true;
+}
+
+bool levk::gfx_tex_write(VulkanTexture& texture, Image::View image, glm::uvec2 offset) {
+	auto const bottom_right = offset + image.extent;
+	auto const texture_extent = gfx_tex_extent(texture);
+	if (bottom_right.x > texture_extent.x || bottom_right.y > texture_extent.y) { return false; }
+	return copy_to_image(*texture.impl->m_device, texture.impl->m_image.get().get(), {&image, 1}, offset);
+}
+
+void levk::gfx_draw_3d(VulkanDevice& out, StaticDrawInfo const& info) {
+	if (!out.impl->cmd_3d.cb) {
+		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
+		return;
+	}
+	draw_static(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
+}
+
+void levk::gfx_draw_ui(VulkanDevice& out, StaticDrawInfo const& info) {
+	if (!out.impl->cmd_ui.cb) {
+		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
+		return;
+	}
+	draw_static(out, info, out.impl->cmd_ui, out.impl->fs_quad.view(), out.impl->default_render_mode);
+}
+
 void levk::gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info) {
 	if (!out.impl->cmd_3d.cb) {
 		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
@@ -2525,6 +2620,5 @@ void levk::gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info) {
 levk::RenderStats levk::gfx_render_stats(VulkanDevice const& device) {
 	return {
 		device.impl->stats.per_frame.draw_calls,
-		device.impl->stats.per_frame.triangles,
 	};
 }

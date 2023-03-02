@@ -58,6 +58,5 @@ void EngineStatus::draw_to(NotClosed<Window>, Engine& engine) {
 	ImGui::Separator();
 	auto const render_stats = device.stats();
 	ImGui::Text("%s", FixedString{"Draw calls: {}", render_stats.draw_calls}.c_str());
-	ImGui::Text("%s", FixedString{"Triangles: {}", render_stats.triangles}.c_str());
 }
 } // namespace levk::imcpp

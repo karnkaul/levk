@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/graphics_common.hpp>
 #include <levk/image.hpp>
+#include <levk/rect.hpp>
 #include <levk/texture_sampler.hpp>
 #include <levk/util/ptr.hpp>
 #include <memory>
@@ -26,6 +27,12 @@ class Texture {
 	Extent2D extent() const { return m_model->extent(); }
 	std::string_view name() const { return m_name; }
 
+	bool resize_canvas(Extent2D new_extent, Rgba background = black_v, glm::uvec2 top_left = {}) {
+		return m_model->resize_canvas(new_extent, background, top_left);
+	}
+
+	bool write(Image::View image, glm::uvec2 offset = {}) { return m_model->write(image, offset); }
+
 	template <typename T>
 	Ptr<T> as() const {
 		if (auto* p = dynamic_cast<Model<T>*>(m_model.get())) { return &p->impl; }
@@ -40,6 +47,9 @@ class Texture {
 		virtual ColourSpace colour_space() const = 0;
 		virtual std::uint32_t mip_levels() const = 0;
 		virtual Extent2D extent() const = 0;
+
+		virtual bool resize_canvas(Extent2D new_extent, Rgba background, glm::uvec2 top_left) = 0;
+		virtual bool write(Image::View image, glm::uvec2 offset) = 0;
 	};
 
 	template <typename T>
@@ -51,6 +61,12 @@ class Texture {
 		ColourSpace colour_space() const final { return gfx_tex_colour_space(impl); }
 		std::uint32_t mip_levels() const final { return gfx_tex_mip_levels(impl); }
 		Extent2D extent() const final { return gfx_tex_extent(impl); }
+
+		bool resize_canvas(Extent2D new_extent, Rgba background, glm::uvec2 top_left) final {
+			return gfx_tex_resize_canvas(impl, new_extent, background, top_left);
+		}
+
+		bool write(Image::View const image, glm::uvec2 const offset) final { return gfx_tex_write(impl, image, offset); }
 	};
 
 	std::unique_ptr<Base> m_model{};

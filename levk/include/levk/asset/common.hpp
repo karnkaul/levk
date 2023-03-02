@@ -43,6 +43,9 @@ void to_json(dj::Json& out, glm::mat4 const& mat);
 void from_json(dj::Json const& json, Rgba& out);
 void to_json(dj::Json& out, Rgba const& rgba);
 
+void from_json(dj::Json const& json, HdrRgba& out);
+void to_json(dj::Json& out, HdrRgba const& rgba);
+
 void from_json(dj::Json const& json, Transform& out);
 void to_json(dj::Json& out, Transform const& transform);
 

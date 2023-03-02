@@ -8,6 +8,8 @@
 
 namespace levk {
 class Window;
+class MeshGeometry;
+class Material;
 struct StaticMesh;
 struct SkinnedMesh;
 class AssetProviders;
@@ -105,6 +107,14 @@ struct RenderInfo {
 	RenderMode default_render_mode;
 };
 
+struct StaticDrawInfo {
+	AssetProviders const& providers;
+	MeshGeometry const& geometry;
+	Material const& material;
+	glm::mat4 const& transform;
+	Topology topology{};
+};
+
 struct StaticMeshRenderInfo {
 	AssetProviders const& providers;
 	StaticMesh const& mesh;
@@ -120,6 +130,5 @@ struct SkinnedMeshRenderInfo {
 
 struct RenderStats {
 	std::uint64_t draw_calls{};
-	std::uint64_t triangles{};
 };
 } // namespace levk

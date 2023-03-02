@@ -14,6 +14,20 @@ Geometry& Geometry::append(std::span<Vertex const> vs, std::span<std::uint32_t c
 	return *this;
 }
 
+Geometry& Geometry::append_quad(glm::vec2 size, glm::vec3 rgb, glm::vec3 const o) {
+	auto const h = 0.5f * size;
+	Vertex const vs[] = {
+		{{o.x - h.x, o.y + h.y, 0.0f}, rgb, front_v, {0.0f, 0.0f}},
+		{{o.x + h.x, o.y + h.y, 0.0f}, rgb, front_v, {1.0f, 0.0f}},
+		{{o.x + h.x, o.y - h.y, 0.0f}, rgb, front_v, {1.0f, 1.0f}},
+		{{o.x - h.x, o.y - h.y, 0.0f}, rgb, front_v, {0.0f, 1.0f}},
+	};
+	std::uint32_t const is[] = {
+		0, 1, 2, 2, 3, 0,
+	};
+	return append(vs, is);
+}
+
 Geometry& Geometry::append_cube(glm::vec3 size, glm::vec3 rgb, glm::vec3 const o) {
 	auto const h = 0.5f * size;
 	Vertex const vs[] = {
@@ -83,6 +97,11 @@ Geometry::Packed Geometry::Packed::from(Geometry const& geometry) {
 	return ret;
 }
 } // namespace levk
+
+auto levk::make_quad(glm::vec2 size, glm::vec3 rgb, glm::vec3 const origin) -> Geometry {
+	auto ret = Geometry{};
+	return ret.append_quad(size, rgb, origin);
+}
 
 auto levk::make_cube(glm::vec3 size, glm::vec3 rgb, glm::vec3 const origin) -> Geometry {
 	auto ret = Geometry{};

@@ -22,6 +22,7 @@ Glyph FtGlyphProvider::glyph_for(Codepoint codepoint) const {
 	if (ret.pixmap.extent.x == 0 || ret.pixmap.extent.y == 0) { return ret; }
 	ret.pixmap.storage = ByteArray{static_cast<std::size_t>(ret.pixmap.extent.x * ret.pixmap.extent.y)};
 	std::memcpy(ret.pixmap.storage.data(), bitmap.buffer, ret.pixmap.storage.size());
+	ret.left_top = {m_face->glyph->bitmap_left, m_face->glyph->bitmap_top};
 	return ret;
 }
 

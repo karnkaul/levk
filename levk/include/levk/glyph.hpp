@@ -14,6 +14,7 @@ struct Glyph {
 	struct Provider;
 
 	Bitmap<ByteArray> pixmap{};
+	glm::ivec2 left_top{};
 	Codepoint codepoint{};
 };
 

@@ -33,7 +33,7 @@ struct VulkanMeshGeometry {
 };
 
 struct VulkanTexture {
-	class Impl;
+	struct Impl;
 
 	VulkanTexture() noexcept;
 	VulkanTexture(VulkanTexture&&) noexcept;
@@ -60,7 +60,11 @@ TextureSampler const& gfx_tex_sampler(VulkanTexture const& texture);
 ColourSpace gfx_tex_colour_space(VulkanTexture const& texture);
 Extent2D gfx_tex_extent(VulkanTexture const& texture);
 std::uint32_t gfx_tex_mip_levels(VulkanTexture const& texture);
+bool gfx_tex_resize_canvas(VulkanTexture& texture, Extent2D new_extent, Rgba background, glm::uvec2 top_left);
+bool gfx_tex_write(VulkanTexture& texture, Image::View image, glm::uvec2 offset);
 
+void gfx_draw_3d(VulkanDevice& out, StaticDrawInfo const& info);
+void gfx_draw_ui(VulkanDevice& out, StaticDrawInfo const& info);
 void gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info);
 void gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info);
 RenderStats gfx_render_stats(VulkanDevice const& device);
