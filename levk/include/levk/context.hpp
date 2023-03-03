@@ -16,7 +16,7 @@ class Context {
 	void shutdown() { return engine.get().window().close(); }
 	bool is_running() const { return engine.get().window().is_open(); }
 	Frame next_frame() { return engine.get().next_frame(); }
-	void render(Scene const& scene, Rgba clear = black_v);
+	void render(Scene const& scene);
 
 	DataSource const& data_source() const { return providers.get().data_source(); }
 

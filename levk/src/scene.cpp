@@ -59,7 +59,7 @@ void SkeletonController::change_animation(std::optional<Id<Skeleton::Animation>>
 		if (!entity) { return; }
 		auto* mesh_renderer = entity->find<MeshRenderer>();
 		if (!mesh_renderer) { return; }
-		auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
+		auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->mesh_renderer);
 		if (!skinned_mesh_renderer) { return; }
 		if (index && *index >= skinned_mesh_renderer->skeleton.animations.size()) { index.reset(); }
 		enabled = index;
@@ -74,7 +74,7 @@ void SkeletonController::tick(Time dt) {
 	if (!entity || !scene_manager) { return; }
 	auto* mesh_renderer = entity->find<MeshRenderer>();
 	if (!mesh_renderer) { return; }
-	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
+	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->mesh_renderer);
 	if (!skinned_mesh_renderer) { return; }
 	assert(*enabled < skinned_mesh_renderer->skeleton.animations.size());
 	auto const& animation = skinned_mesh_renderer->skeleton.animations[*enabled];
@@ -111,7 +111,7 @@ void SkeletonController::inspect(imcpp::OpenWindow) {
 	if (!entity || !scene_manager) { return; }
 	auto const* mesh_renderer = entity->find<MeshRenderer>();
 	if (!mesh_renderer) { return; }
-	auto const* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
+	auto const* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->mesh_renderer);
 	if (!skinned_mesh_renderer) { return; }
 	auto const* skeleton = scene_manager->asset_providers().skeleton().find(skinned_mesh_renderer->skeleton.source);
 	if (!skeleton) { return; }
@@ -137,7 +137,7 @@ void SkeletonController::inspect(imcpp::OpenWindow) {
 	}
 }
 
-void StaticMeshRenderer::render(Scene const& scene, Entity const& entity) const {
+void StaticMeshRenderer::render(RenderPass const& render_pass, Scene const& scene, Entity const& entity) const {
 	auto* scene_manager = Service<SceneManager>::find();
 	if (!mesh || !scene_manager) { return; }
 	auto const& tree = scene.nodes();
@@ -145,7 +145,7 @@ void StaticMeshRenderer::render(Scene const& scene, Entity const& entity) const 
 	if (!m || m->primitives.empty()) { return; }
 	static auto const s_instance = Transform{};
 	auto const is = instances.empty() ? std::span{&s_instance, 1u} : std::span{instances};
-	scene_manager->graphics_device().render(*m, scene_manager->asset_providers(), is, tree.global_transform(tree.get(entity.node_id())));
+	render_pass.render(*m, is, tree.global_transform(tree.get(entity.node_id())));
 }
 
 void SkinnedMeshRenderer::set_mesh(Uri<SkinnedMesh> uri_, Skeleton::Instance skeleton_) {
@@ -154,7 +154,7 @@ void SkinnedMeshRenderer::set_mesh(Uri<SkinnedMesh> uri_, Skeleton::Instance ske
 	joint_matrices = DynArray<glm::mat4>{skeleton.joints.size()};
 }
 
-void SkinnedMeshRenderer::render(Scene const& scene, Entity const&) const {
+void SkinnedMeshRenderer::render(RenderPass const& render_pass, Scene const& scene, Entity const&) const {
 	auto* scene_manager = Service<SceneManager>::find();
 	if (!mesh || !scene_manager) { return; }
 	auto const& tree = scene.nodes();
@@ -162,13 +162,13 @@ void SkinnedMeshRenderer::render(Scene const& scene, Entity const&) const {
 	if (!m || m->primitives.empty()) { return; }
 	assert(m->primitives[0].geometry.has_joints() && joint_matrices.size() == skeleton.joints.size());
 	for (auto const [id, index] : enumerate(skeleton.joints)) { joint_matrices[index] = tree.global_transform(tree.get(id)); }
-	scene_manager->graphics_device().render(*m, scene_manager->asset_providers(), joint_matrices.span());
+	render_pass.render(*m, joint_matrices.span());
 }
 
-void MeshRenderer::render() const {
+void MeshRenderer::render(RenderPass const& render_pass) const {
 	auto* entity = owning_entity();
 	if (!entity) { return; }
-	std::visit([&](auto const& smr) { smr.render(active_scene(), *entity); }, renderer);
+	std::visit([&](auto const& smr) { smr.render(render_pass, active_scene(), *entity); }, mesh_renderer);
 }
 
 bool MeshRenderer::serialize(dj::Json& out) const {
@@ -187,7 +187,7 @@ bool MeshRenderer::serialize(dj::Json& out) const {
 			out["skeleton"] = make_json(smr.skeleton);
 		},
 	};
-	std::visit(visitor, renderer);
+	std::visit(visitor, mesh_renderer);
 	return true;
 }
 
@@ -206,7 +206,7 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 			auto& out_instance = smr.instances.emplace_back();
 			asset::from_json(in_instance, out_instance);
 		}
-		renderer = std::move(smr);
+		mesh_renderer = std::move(smr);
 	} else if (type == "skinned") {
 		auto uri = Uri{json["mesh"].as<std::string>()};
 		if (!scene_manager->asset_providers().skinned_mesh().load(uri)) {
@@ -215,7 +215,7 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 		}
 		auto smr = SkinnedMeshRenderer{};
 		smr.set_mesh(std::move(uri), to_skeleton_instance(json["skeleton"]));
-		renderer = std::move(smr);
+		mesh_renderer = std::move(smr);
 	} else {
 		logger::error("[MeshRenderer] Unrecognized Mesh type: [{}]", type);
 		return false;
@@ -250,10 +250,10 @@ void MeshRenderer::inspect(imcpp::OpenWindow) {
 			}
 		},
 	};
-	std::visit(visitor, renderer);
+	std::visit(visitor, mesh_renderer);
 	if (auto popup = imcpp::Popup{"static_mesh_renderer.right_click"}) {
 		if (ImGui::Selectable("Unset")) {
-			std::get<StaticMeshRenderer>(renderer).mesh = {};
+			std::get<StaticMeshRenderer>(mesh_renderer).mesh = {};
 			popup.close_current();
 		}
 	}
@@ -353,13 +353,13 @@ bool Scene::destroy(Id<Entity> entity) {
 	return false;
 }
 
-void Scene::render_3d() const {
+void Scene::render_3d(RenderPass const& renderer) const {
 	m_const_entity_refs.clear();
 	fill_to_if(m_entities, m_const_entity_refs, [](Id<Entity>, Entity const& e) { return e.active && !e.m_render_components.empty(); });
 	// TODO: render ordering
 	std::sort(m_const_entity_refs.begin(), m_const_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
 	for (Entity const& entity : m_const_entity_refs) {
-		for (auto const* rc : entity.m_render_components) { rc->render(); }
+		for (auto const* rc : entity.m_render_components) { rc->render(renderer); }
 	}
 }
 

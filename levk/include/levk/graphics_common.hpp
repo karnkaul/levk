@@ -8,11 +8,6 @@
 
 namespace levk {
 class Window;
-class MeshGeometry;
-class Material;
-struct StaticMesh;
-struct SkinnedMesh;
-class AssetProviders;
 
 using Extent2D = glm::uvec2;
 
@@ -84,48 +79,6 @@ struct GraphicsDeviceCreateInfo {
 	ColourSpace swapchain{ColourSpace::eSrgb};
 	Vsync::Type vsync{Vsync::eAdaptive};
 	AntiAliasing::Type anti_aliasing{AntiAliasing::e2x};
-};
-
-class GraphicsDevice;
-
-struct GraphicsRenderer {
-	Ptr<GraphicsRenderer> next_renderer{};
-
-	virtual ~GraphicsRenderer() = default;
-
-	virtual void render_3d() const = 0;
-	virtual void render_ui() const = 0;
-};
-
-struct RenderInfo {
-	GraphicsRenderer const& renderer;
-	AssetProviders const& providers;
-	Camera const& camera;
-	Lights const& lights;
-	Extent2D extent;
-	Rgba clear;
-	RenderMode default_render_mode;
-};
-
-struct StaticDrawInfo {
-	AssetProviders const& providers;
-	MeshGeometry const& geometry;
-	Material const& material;
-	glm::mat4 const& transform;
-	Topology topology{};
-};
-
-struct StaticMeshRenderInfo {
-	AssetProviders const& providers;
-	StaticMesh const& mesh;
-	glm::mat4 const& parent;
-	std::span<Transform const> instances;
-};
-
-struct SkinnedMeshRenderInfo {
-	AssetProviders const& providers;
-	SkinnedMesh const& mesh;
-	std::span<glm::mat4 const> joints;
 };
 
 struct RenderStats {

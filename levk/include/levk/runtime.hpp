@@ -23,8 +23,6 @@ class Runtime {
 	Scene const& active_scene() const { return m_scene_manager.get().active_scene(); }
 	Scene& active_scene() { return m_scene_manager.get().active_scene(); }
 
-	Rgba clear_colour{};
-
   protected:
 	virtual void tick(Frame const& frame) = 0;
 

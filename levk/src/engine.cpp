@@ -66,8 +66,8 @@ Frame Engine::next_frame() {
 	return {.state = m_impl->window.state(), .dt = m_impl->dt()};
 }
 
-void Engine::render(GraphicsRenderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights, Rgba clear) {
-	m_impl->graphics_device.render(renderer, providers, camera, lights, m_impl->window.framebuffer_extent(), clear);
+void Engine::render(Renderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights) {
+	m_impl->graphics_device.render(renderer, providers, camera, lights, m_impl->window.framebuffer_extent());
 }
 
 Time Engine::delta_time() const { return m_impl->dt.value; }

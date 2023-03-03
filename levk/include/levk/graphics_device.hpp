@@ -1,7 +1,7 @@
 #pragma once
 #include <glm/vec2.hpp>
 #include <levk/geometry.hpp>
-#include <levk/graphics_common.hpp>
+#include <levk/renderer.hpp>
 #include <levk/skinned_mesh.hpp>
 #include <levk/static_mesh.hpp>
 #include <levk/texture.hpp>
@@ -9,6 +9,8 @@
 #include <memory>
 
 namespace levk {
+struct RenderInfo;
+
 class GraphicsDevice {
   public:
 	using CreateInfo = GraphicsDeviceCreateInfo;
@@ -30,13 +32,10 @@ class GraphicsDevice {
 	bool set_vsync(Vsync::Type desired) { return m_model->set_vsync(desired); }
 	bool set_render_scale(float scale) { return m_model->set_render_scale(scale); }
 
-	void render(GraphicsRenderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights, glm::uvec2 extent, Rgba clear);
+	void render(Renderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights, glm::uvec2 framebuffer_extent);
 
 	MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints = {}) { return m_model->make_mesh_geometry(geometry, joints); }
 	Texture make_texture(Image::View image, Texture::CreateInfo create_info = {}) { return m_model->make_texture(image, std::move(create_info)); }
-
-	void render(StaticMesh const& mesh, AssetProviders const& providers, std::span<Transform const> instances, glm::mat4 const& parent = matrix_identity_v);
-	void render(SkinnedMesh const& mesh, AssetProviders const& providers, std::span<glm::mat4 const> joints);
 
 	RenderStats stats() const { return m_model->stats(); }
 
@@ -47,6 +46,7 @@ class GraphicsDevice {
 	}
 
 	RenderMode default_render_mode{};
+	Rgba clear_colour{black_v};
 
   private:
 	struct Base {
@@ -62,9 +62,6 @@ class GraphicsDevice {
 
 		virtual MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) = 0;
 		virtual Texture make_texture(Image::View image, Texture::CreateInfo info) = 0;
-
-		virtual void render(StaticMeshRenderInfo const&) = 0;
-		virtual void render(SkinnedMeshRenderInfo const&) = 0;
 
 		virtual RenderStats stats() const = 0;
 	};
@@ -85,13 +82,20 @@ class GraphicsDevice {
 		MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) final { return gfx_make_mesh_geometry(impl, geometry, joints); }
 		Texture make_texture(Image::View image, Texture::CreateInfo create_info) final { return gfx_make_texture(impl, std::move(create_info), image); }
 
-		void render(StaticMeshRenderInfo const& info) final { gfx_render(impl, info); }
-		void render(SkinnedMeshRenderInfo const& info) final { gfx_render(impl, info); }
-
 		RenderStats stats() const final { return gfx_render_stats(impl); }
 	};
 
 	std::unique_ptr<Base> m_model{};
+};
+
+struct RenderInfo {
+	Renderer const& renderer;
+	AssetProviders const& providers;
+	Camera const& camera;
+	Lights const& lights;
+	Extent2D extent;
+	Rgba clear;
+	RenderMode default_render_mode;
 };
 
 struct GraphicsDeviceFactory {

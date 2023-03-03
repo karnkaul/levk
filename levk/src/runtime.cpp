@@ -53,7 +53,7 @@ Runtime::ReturnCode Runtime::run() {
 	return EXIT_SUCCESS;
 }
 
-void Runtime::render() { m_context.render(active_scene(), clear_colour); }
+void Runtime::render() { m_context.render(active_scene()); }
 
 void Runtime::setup_bindings() {
 	m_component_factory.get().bind<SkeletonController>();

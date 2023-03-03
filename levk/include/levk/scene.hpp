@@ -16,7 +16,7 @@ struct StaticMeshRenderer {
 	std::vector<Transform> instances{};
 	Uri<StaticMesh> mesh{};
 
-	void render(Scene const& scene, Entity const& entity) const;
+	void render(RenderPass const& render_pass, Scene const& scene, Entity const& entity) const;
 };
 
 struct SkeletonController : Component {
@@ -42,15 +42,15 @@ struct SkinnedMeshRenderer {
 	DynArray<glm::mat4> joint_matrices{};
 
 	void set_mesh(Uri<SkinnedMesh> uri, Skeleton::Instance skeleton);
-	void render(Scene const& scene, Entity const& entity) const;
+	void render(RenderPass const& render_pass, Scene const& scene, Entity const& entity) const;
 };
 
 struct MeshRenderer : RenderComponent {
-	std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer{};
+	std::variant<StaticMeshRenderer, SkinnedMeshRenderer> mesh_renderer{};
 
-	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer = StaticMeshRenderer{}) : renderer(std::move(renderer)) {}
+	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer = StaticMeshRenderer{}) : mesh_renderer(std::move(renderer)) {}
 
-	void render() const override;
+	void render(RenderPass const& render_pass) const override;
 
 	std::string_view type_name() const override { return "MeshRenderer"; }
 	bool serialize(dj::Json& out) const override;
@@ -59,10 +59,8 @@ struct MeshRenderer : RenderComponent {
 	void add_assets(AssetList& out, dj::Json const& json) const override;
 };
 
-class Scene : public GraphicsRenderer, public Serializable {
+class Scene : public Renderer, public Serializable {
   public:
-	struct Renderer;
-
 	static AssetList peek_assets(Serializer const& serializer, dj::Json const& json);
 
 	bool load_into_tree(Uri<StaticMesh> const& uri);
@@ -86,8 +84,8 @@ class Scene : public GraphicsRenderer, public Serializable {
 
 	bool empty() const { return m_entities.empty(); }
 
-	void render_3d() const final;
-	void render_ui() const final {}
+	void render_3d(RenderPass const& renderer) const final;
+	void render_ui(RenderPass const&) const final {}
 
 	std::string_view type_name() const override { return "scene"; }
 	bool serialize(dj::Json& out) const override;

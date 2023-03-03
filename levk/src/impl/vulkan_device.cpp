@@ -6,11 +6,13 @@
 #include <glm/mat4x4.hpp>
 #include <levk/asset/asset_providers.hpp>
 #include <levk/geometry.hpp>
+#include <levk/graphics_device.hpp>
 #include <levk/impl/defer_queue.hpp>
 #include <levk/impl/desktop_window.hpp>
 #include <levk/impl/vulkan_device.hpp>
 #include <levk/impl/vulkan_surface.hpp>
 #include <levk/material.hpp>
+#include <levk/renderer.hpp>
 #include <levk/skinned_mesh.hpp>
 #include <levk/static_mesh.hpp>
 #include <levk/surface.hpp>
@@ -348,7 +350,7 @@ struct RenderPassView {
 };
 
 template <std::size_t Buffering = buffering_v>
-struct RenderPass {
+struct RenderPassStorage {
 	using View = RenderPassView;
 
 	RenderFrames<Buffering> frames{};
@@ -362,7 +364,7 @@ struct RenderPass {
 
 template <std::size_t Buffering = buffering_v>
 struct OffScreen {
-	RenderPass<Buffering> rp{};
+	RenderPassStorage<Buffering> rp{};
 
 	Defer<UniqueImage> output_image{};
 	Defer<UniqueImage> msaa_image{};
@@ -799,6 +801,27 @@ struct VertexLayout {
 	VertexInput input{};
 	std::string shader_uri{"shaders/default.vert"};
 };
+
+struct StaticDrawInfo {
+	AssetProviders const& providers;
+	MeshGeometry const& geometry;
+	Material const& material;
+	glm::mat4 const& transform;
+	Topology topology{};
+};
+
+struct StaticMeshRenderInfo {
+	AssetProviders const& providers;
+	StaticMesh const& mesh;
+	glm::mat4 const& parent;
+	std::span<Transform const> instances;
+};
+
+struct SkinnedMeshRenderInfo {
+	AssetProviders const& providers;
+	SkinnedMesh const& mesh;
+	std::span<glm::mat4 const> joints;
+};
 } // namespace
 
 class VulkanMeshGeometry::Impl {
@@ -907,8 +930,6 @@ struct VulkanDevice::Impl {
 	PipelineStorage<> pipelines{};
 	SamplerStorage samplers{};
 
-	RenderCmd cmd_3d{};
-	RenderCmd cmd_ui{};
 	BufferVec<glm::mat4> instance_vec{};
 	BufferVec<glm::mat4> joints_vec{};
 	UniqueBuffer blank_buffer{};
@@ -2038,7 +2059,7 @@ VulkanMeshGeometry::Impl::Impl(VulkanDevice const& device, Geometry::Packed cons
 }
 
 VulkanTexture::Impl::Impl(VulkanDevice const& device, Image::View image, CreateInfo const& info) : Impl(device, info.sampler) {
-	static constexpr auto magenta_pixmap_v = FixedPixelMap<1, 1>{{magenta_v.channels}};
+	static constexpr auto magenta_pixmap_v = FixedPixelMap<1, 1>{{magenta_v}};
 	m_info.format = info.colour_space == ColourSpace::eLinear ? vk::Format::eR8G8B8A8Unorm : vk::Format::eR8G8B8A8Srgb;
 	bool mip_mapped = info.mip_mapped;
 	if (image.extent.x == 0 || image.extent.y == 0) {
@@ -2223,7 +2244,7 @@ constexpr RenderMode combine(RenderMode const in, RenderMode def) {
 	return def;
 }
 
-void draw_static(VulkanDevice const& device, StaticDrawInfo const& info, RenderCmd cmd, RenderPassView rp, RenderMode rm) {
+void draw_static(VulkanDevice const& device, StaticDrawInfo const& info, RenderCmd cmd, RenderPassView rp) {
 	auto const& limits = device.impl->gpu.properties.limits;
 	auto const* vmg = info.geometry.as<VulkanMeshGeometry>();
 	assert(vmg);
@@ -2232,7 +2253,7 @@ void draw_static(VulkanDevice const& device, StaticDrawInfo const& info, RenderC
 	auto vert = SpirV::from(info.providers.shader(), vlayout.shader_uri);
 	auto frag = SpirV::from(info.providers.shader(), info.material.shader_id());
 	if (!vert || !frag) { return; }
-	rm = combine(info.material.render_mode(), rm);
+	auto rm = combine(info.material.render_mode(), device.impl->default_render_mode);
 	auto const pipeline_state = PipelineState{
 		.mode = from(rm.type),
 		.topology = from(info.topology),
@@ -2254,7 +2275,7 @@ void draw_static(VulkanDevice const& device, StaticDrawInfo const& info, RenderC
 }
 
 template <typename InfoT>
-void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, RenderPassView rp, RenderMode rm) {
+void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, RenderPassView rp) {
 	static Material const s_default_mat{std::make_unique<UnlitMaterial>()};
 	auto const& limits = device.impl->gpu.properties.limits;
 	for (auto const& primitive : info.mesh.primitives) {
@@ -2265,7 +2286,7 @@ void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, R
 			return;
 		}
 		auto const& material = info.providers.material().get(primitive.material, s_default_mat);
-		rm = combine(material.render_mode(), rm);
+		auto rm = combine(material.render_mode(), device.impl->default_render_mode);
 		auto const state = PipelineState{
 			.mode = from(rm.type),
 			.topology = from(primitive.topology),
@@ -2304,6 +2325,41 @@ void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, R
 		++device.impl->stats.per_frame.draw_calls;
 	}
 }
+
+struct VulkanRenderPass : RenderPass {
+	VulkanDevice const& device;
+	RenderCmd cmd{};
+	RenderPassView rpv{};
+
+	VulkanRenderPass(VulkanDevice const& device, AssetProviders const& providers, RenderCmd cmd, RenderPassView rpv)
+		: RenderPass(providers), device(device), cmd(cmd), rpv(rpv) {}
+
+	void render(StaticMesh const& mesh, std::span<Transform const> instances, glm::mat4 const& parent) const final {
+		auto const smri = StaticMeshRenderInfo{
+			m_providers,
+			mesh,
+			parent,
+			instances,
+		};
+		render_mesh(device, smri, cmd, rpv);
+	}
+
+	void render(SkinnedMesh const& mesh, std::span<glm::mat4 const> joints) const final {
+		auto const smri = SkinnedMeshRenderInfo{
+			m_providers,
+			mesh,
+			joints,
+		};
+		render_mesh(device, smri, cmd, rpv);
+	}
+
+	void draw(MeshGeometry const& geometry, Material const& material, glm::mat4 const& transform, Topology topology) const final {
+		auto sdi = StaticDrawInfo{
+			m_providers, geometry, material, transform, topology,
+		};
+		draw_static(device, sdi, cmd, rpv);
+	}
+};
 } // namespace
 } // namespace levk
 
@@ -2462,9 +2518,7 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 
 	device.impl->default_render_mode = info.default_render_mode;
 	// dispatch 3D render
-	device.impl->cmd_3d = cmd_3d;
-	for (auto* renderer = &info.renderer; renderer; renderer = renderer->next_renderer) { renderer->render_3d(); }
-	device.impl->cmd_3d = {};
+	info.renderer.render_3d(VulkanRenderPass{device, info.providers, cmd_3d, device.impl->off_screen.view()});
 
 	// trace 3D output image to native render pass
 	auto fs_quad_vert = SpirV::from(info.providers.shader(), "shaders/fs_quad.vert");
@@ -2480,9 +2534,7 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	cmd_ui.cb.draw(6u, 1u, {}, {});
 
 	// dispatch UI render
-	device.impl->cmd_ui = cmd_ui;
-	for (auto* renderer = &info.renderer; renderer; renderer = renderer->next_renderer) { renderer->render_ui(); }
-	device.impl->cmd_ui = {};
+	info.renderer.render_ui(VulkanRenderPass{device, info.providers, cmd_ui, device.impl->fs_quad.view()});
 
 	// dispatch Dear ImGui render
 	device.impl->dear_imgui.end_frame();
@@ -2583,38 +2635,6 @@ bool levk::gfx_tex_write(VulkanTexture& texture, Image::View image, glm::uvec2 o
 	auto const texture_extent = gfx_tex_extent(texture);
 	if (bottom_right.x > texture_extent.x || bottom_right.y > texture_extent.y) { return false; }
 	return copy_to_image(*texture.impl->m_device, texture.impl->m_image.get().get(), {&image, 1}, offset);
-}
-
-void levk::gfx_draw_3d(VulkanDevice& out, StaticDrawInfo const& info) {
-	if (!out.impl->cmd_3d.cb) {
-		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
-		return;
-	}
-	draw_static(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
-}
-
-void levk::gfx_draw_ui(VulkanDevice& out, StaticDrawInfo const& info) {
-	if (!out.impl->cmd_ui.cb) {
-		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
-		return;
-	}
-	draw_static(out, info, out.impl->cmd_ui, out.impl->fs_quad.view(), out.impl->default_render_mode);
-}
-
-void levk::gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info) {
-	if (!out.impl->cmd_3d.cb) {
-		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
-		return;
-	}
-	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
-}
-
-void levk::gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info) {
-	if (!out.impl->cmd_3d.cb) {
-		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
-		return;
-	}
-	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
 }
 
 levk::RenderStats levk::gfx_render_stats(VulkanDevice const& device) {
