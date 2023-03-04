@@ -6,7 +6,7 @@
 
 std::unique_ptr<levk::FontLibrary> levk::make_font_library() {
 #if defined(LEVK_USE_FREETYPE)
-	return std::make_unique<FtLib>();
+	return std::make_unique<Freetype>();
 #else
 	return std::make_unique<FontLibrary::Null>();
 #endif

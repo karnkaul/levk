@@ -87,10 +87,11 @@ set(levk_headers
   include/levk/defines.hpp
   include/levk/engine.hpp
   include/levk/entity.hpp
-  include/levk/font_face.hpp
+  include/levk/font_common.hpp
   include/levk/font_library.hpp
+  include/levk/font.hpp
   include/levk/geometry.hpp
-  include/levk/glyph.hpp
+  include/levk/glyph_slot.hpp
   include/levk/graphics_common.hpp
   include/levk/graphics_device.hpp
   include/levk/image.hpp
@@ -102,6 +103,9 @@ set(levk_headers
   include/levk/mesh_primitive.hpp
   include/levk/node.hpp
   include/levk/pixel_map.hpp
+  include/levk/rect.hpp
+  include/levk/render_pass.hpp
+  include/levk/renderer.hpp
   include/levk/rgba.hpp
   include/levk/runtime.hpp
   include/levk/scene_manager.hpp
@@ -114,6 +118,7 @@ set(levk_headers
   include/levk/skinned_mesh.hpp
   include/levk/static_mesh.hpp
   include/levk/surface.hpp
+  include/levk/texture_atlas.hpp
   include/levk/texture_sampler.hpp
   include/levk/texture.hpp
   include/levk/transform_animation.hpp

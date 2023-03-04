@@ -19,7 +19,7 @@ target_sources(levk PRIVATE
   context.cpp
   engine.cpp
   entity.cpp
-  font_face.cpp
+  font.cpp
   geometry.cpp
   graphics_device.cpp
   image.cpp
@@ -32,6 +32,7 @@ target_sources(levk PRIVATE
   scene.cpp
   serializer.cpp
   skeleton.cpp
+  texture_atlas.cpp
   transform_animation.cpp
   transform.cpp
   uri.cpp
