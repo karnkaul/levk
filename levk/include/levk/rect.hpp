@@ -3,7 +3,7 @@
 #include <glm/vec3.hpp>
 
 namespace levk {
-template <typename Type>
+template <typename Type = float>
 struct Rect2D {
 	glm::tvec2<Type> lt{};
 	glm::tvec2<Type> rb{};

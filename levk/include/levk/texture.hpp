@@ -17,6 +17,7 @@ struct TextureCreateInfo {
 class Texture {
   public:
 	using CreateInfo = TextureCreateInfo;
+	using Write = ImageWrite;
 
 	template <typename T>
 	Texture(T t, std::string name = "(Unnamed)") : m_model(std::make_unique<Model<T>>(std::move(t))), m_name(std::move(name)) {}
@@ -31,7 +32,12 @@ class Texture {
 		return m_model->resize_canvas(new_extent, background, top_left);
 	}
 
-	bool write(Image::View image, glm::uvec2 offset = {}) { return m_model->write(image, offset); }
+	bool write(Image::View image, glm::uvec2 offset = {}) {
+		auto const iw = Write{image, offset};
+		return m_model->write({&iw, 1});
+	}
+
+	bool write(std::span<ImageWrite const> writes) { return m_model->write(writes); }
 
 	template <typename T>
 	Ptr<T> as() const {
@@ -49,7 +55,7 @@ class Texture {
 		virtual Extent2D extent() const = 0;
 
 		virtual bool resize_canvas(Extent2D new_extent, Rgba background, glm::uvec2 top_left) = 0;
-		virtual bool write(Image::View image, glm::uvec2 offset) = 0;
+		virtual bool write(std::span<Write const> writes) = 0;
 	};
 
 	template <typename T>
@@ -66,7 +72,7 @@ class Texture {
 			return gfx_tex_resize_canvas(impl, new_extent, background, top_left);
 		}
 
-		bool write(Image::View const image, glm::uvec2 const offset) final { return gfx_tex_write(impl, image, offset); }
+		bool write(std::span<Write const> writes) final { return gfx_tex_write(impl, writes); }
 	};
 
 	std::unique_ptr<Base> m_model{};

@@ -3,6 +3,9 @@ add_subdirectory(imcpp)
 add_subdirectory(asset)
 
 target_sources(levk PRIVATE
+  font/font.cpp
+  font/static_font_atlas.cpp
+
   impl/desktop_window.cpp
   impl/ft_lib_wrapper.cpp
   impl/ft_lib_wrapper.hpp
@@ -19,7 +22,6 @@ target_sources(levk PRIVATE
   context.cpp
   engine.cpp
   entity.cpp
-  font.cpp
   geometry.cpp
   graphics_device.cpp
   image.cpp

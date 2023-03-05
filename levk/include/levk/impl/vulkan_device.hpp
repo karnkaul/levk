@@ -63,7 +63,7 @@ ColourSpace gfx_tex_colour_space(VulkanTexture const& texture);
 Extent2D gfx_tex_extent(VulkanTexture const& texture);
 std::uint32_t gfx_tex_mip_levels(VulkanTexture const& texture);
 bool gfx_tex_resize_canvas(VulkanTexture& texture, Extent2D new_extent, Rgba background, glm::uvec2 top_left);
-bool gfx_tex_write(VulkanTexture& texture, Image::View image, glm::uvec2 offset);
+bool gfx_tex_write(VulkanTexture& texture, std::span<ImageWrite const> writes);
 
 RenderStats gfx_render_stats(VulkanDevice const& device);
 } // namespace levk

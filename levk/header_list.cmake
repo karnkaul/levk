@@ -73,12 +73,22 @@ set(vfs_headers
   include/levk/vfs/uri_monitor.hpp
 )
 
+set(font_headers
+  include/levk/font/font_common.hpp
+  include/levk/font/font_glyph.hpp
+  include/levk/font/font_library.hpp
+  include/levk/font/font.hpp
+  include/levk/font/glyph_slot.hpp
+  include/levk/font/static_font_atlas.hpp
+)
+
 set(levk_headers
   ${util_headers}
   ${impl_headers}
   ${imcpp_headers}
   ${assets_headers}
   ${vfs_headers}
+  ${font_headers}
 
   include/levk/camera.hpp
   include/levk/component_factory.hpp
@@ -87,11 +97,7 @@ set(levk_headers
   include/levk/defines.hpp
   include/levk/engine.hpp
   include/levk/entity.hpp
-  include/levk/font_common.hpp
-  include/levk/font_library.hpp
-  include/levk/font.hpp
   include/levk/geometry.hpp
-  include/levk/glyph_slot.hpp
   include/levk/graphics_common.hpp
   include/levk/graphics_device.hpp
   include/levk/image.hpp

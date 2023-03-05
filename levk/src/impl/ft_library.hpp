@@ -1,6 +1,6 @@
 #pragma once
 #include <levk/defines.hpp>
-#include <levk/font_library.hpp>
+#include <levk/font/font_library.hpp>
 #include <levk/util/unique.hpp>
 
 static_assert(levk::freetype_v);

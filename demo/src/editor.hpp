@@ -11,6 +11,9 @@
 #include <levk/vfs/disk_vfs.hpp>
 #include <main_menu.hpp>
 
+#include <levk/font/font.hpp>
+#include <levk/font/static_font_atlas.hpp>
+
 namespace levk {
 struct FreeCam {
 	Ptr<Window> window{};
@@ -30,6 +33,7 @@ class Editor : public Runtime {
 
   private:
 	void tick(Frame const& frame) override;
+	void render() override;
 
 	void save_scene() const;
 
@@ -44,5 +48,12 @@ class Editor : public Runtime {
 
 	Uri<Scene> m_scene_uri{};
 	std::unique_ptr<AsyncTask<Uri<>>> m_load{};
+
+	struct {
+		std::optional<StaticFontAtlas> atlas{};
+		std::optional<Font> font{};
+		std::optional<MeshGeometry> mesh{};
+		std::optional<Material> material{};
+	} m_test{};
 };
 } // namespace levk

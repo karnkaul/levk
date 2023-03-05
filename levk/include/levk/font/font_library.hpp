@@ -1,5 +1,5 @@
 #pragma once
-#include <levk/glyph_slot.hpp>
+#include <levk/font/glyph_slot.hpp>
 #include <memory>
 
 namespace levk {

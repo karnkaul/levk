@@ -1977,6 +1977,37 @@ bool copy_to_image(VulkanDevice const& device, Vma::Image const& out, std::span<
 	return true;
 }
 
+bool write_images(VulkanDevice const& device, Vma::Image const& out, std::span<Texture::Write const> writes) {
+	if (out.array_layers > 1u) { return false; }
+	if (writes.empty()) { return true; }
+	auto const accumulate_size = [](std::size_t total, Texture::Write const& tw) { return total + tw.image.storage.size(); };
+	auto const size = std::accumulate(writes.begin(), writes.end(), std::size_t{}, accumulate_size);
+	auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst, size, true);
+	auto* ptr = static_cast<std::byte*>(staging.get().ptr);
+	for (auto const& image : writes) {
+		std::memcpy(ptr, image.image.storage.data(), image.image.storage.size());
+		ptr += image.image.storage.size();
+	}
+	auto isrl = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, out.array_layers);
+	auto bics = std::vector<vk::BufferImageCopy>{};
+	bics.reserve(writes.size());
+	auto buffer_offset = vk::DeviceSize{};
+	for (auto const& image : writes) {
+		auto offset = glm::ivec2{image.offset};
+		auto const vk_offset = vk::Offset3D{offset.x, offset.y, 0};
+		auto const extent = vk::Extent3D{image.image.extent.x, image.image.extent.y, 1u};
+		auto bic = vk::BufferImageCopy{buffer_offset, {}, {}, isrl, vk_offset, extent};
+		bics.push_back(bic);
+		buffer_offset += image.image.storage.size();
+	}
+	auto cmd = Cmd{device};
+	full_barrier(out, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal).transition(cmd.cb);
+	cmd.cb.copyBufferToImage(staging.get().buffer, out.image, vk::ImageLayout::eTransferDstOptimal, bics);
+	full_barrier(out, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal).transition(cmd.cb);
+	if (out.mip_levels > 1) { MipMapWriter{out.image, out.extent, cmd.cb, out.mip_levels, out.array_layers}(); }
+	return true;
+}
+
 UniqueImage make_image(VulkanDevice const& device, std::span<Image::View const> images, ImageCreateInfo const& info, vk::ImageViewType type) {
 	if (images.empty()) { return {}; }
 	auto const extent = vk::Extent2D{images[0].extent.x, images[0].extent.y};
@@ -2630,11 +2661,13 @@ bool levk::gfx_tex_resize_canvas(VulkanTexture& texture, Extent2D new_extent, Rg
 	return true;
 }
 
-bool levk::gfx_tex_write(VulkanTexture& texture, Image::View image, glm::uvec2 offset) {
-	auto const bottom_right = offset + image.extent;
+bool levk::gfx_tex_write(VulkanTexture& texture, std::span<ImageWrite const> writes) {
 	auto const texture_extent = gfx_tex_extent(texture);
-	if (bottom_right.x > texture_extent.x || bottom_right.y > texture_extent.y) { return false; }
-	return copy_to_image(*texture.impl->m_device, texture.impl->m_image.get().get(), {&image, 1}, offset);
+	for (auto const& write : writes) {
+		auto const bottom_right = write.offset + write.image.extent;
+		if (bottom_right.x > texture_extent.x || bottom_right.y > texture_extent.y) { return false; }
+	}
+	return write_images(*texture.impl->m_device, texture.impl->m_image.get().get(), writes);
 }
 
 levk::RenderStats levk::gfx_render_stats(VulkanDevice const& device) {

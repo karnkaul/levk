@@ -67,4 +67,9 @@ class Image {
 	Unique<Storage, Storage::Deleter> m_storage{};
 	glm::uvec2 m_extent{};
 };
+
+struct ImageWrite {
+	Image::View image{};
+	glm::uvec2 offset{};
+};
 } // namespace levk

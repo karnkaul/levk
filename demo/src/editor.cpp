@@ -3,37 +3,27 @@
 #include <levk/asset/gltf_importer.hpp>
 #include <filesystem>
 
-#include <levk/font_face.hpp>
-#include <levk/font_library.hpp>
+#include <levk/font/font_library.hpp>
+#include <levk/texture_atlas.hpp>
+#include <levk/util/enumerate.hpp>
+#include <iostream>
 
 namespace levk {
 namespace {
 namespace fs = std::filesystem;
 
-void write_ppm([[maybe_unused]] DataSink const& ds, std::span<std::byte const> bytes, Extent2D extent) {
-	auto str = std::string{};
-	fmt::format_to(std::back_inserter(str), "P3 {} {} 255\n\n", extent.x, extent.y);
-	for (std::uint32_t y = 0; y < extent.y; ++y) {
-		for (std::uint32_t x = 0; x < extent.x; ++x) {
-			auto const index = static_cast<std::size_t>(y * extent.x + x);
-			assert(index < bytes.size());
-			auto const value = static_cast<int>(bytes[index]);
-			assert(value >= 0 && value <= 255);
-			fmt::format_to(std::back_inserter(str), "{} {} {} ", value, value, value);
-		}
-		fmt::format_to(std::back_inserter(str), "\n");
-	}
-	// ds.write_text(str, "test.ppm");
-}
-
-void test(DataSink const& ds, FontLibrary const& ttf) {
-	auto bytes = ds.read("fonts/test.otf");
-	if (!bytes) { return; }
-	auto face = FontFace{ttf.load(std::move(bytes))};
-	if (!face) { return; }
-	auto const& glyph = face.get(FontFace::Key{Codepoint{'k'}, TextHeight{72}});
-	if (!glyph.pixmap.storage) { return; }
-	write_ppm(ds, glyph.pixmap.storage.span(), glyph.pixmap.extent);
+std::optional<StaticFontAtlas> test(Runtime const& runtime) {
+	auto bytes = runtime.context().data_source().read("fonts/test.otf");
+	if (!bytes) { return {}; }
+	auto slot_factory = runtime.context().engine.get().font_library().load(std::move(bytes));
+	if (!slot_factory) { return {}; }
+	auto const create_info = StaticFontAtlas::CreateInfo{
+		.slot_factory = *slot_factory,
+		.texture_provider = runtime.context().providers.get().texture(),
+		.texture_uri = "fonts/test.otf.32",
+		.height = TextHeight{128},
+	};
+	return StaticFontAtlas{create_info};
 }
 
 enum class LoadType { eStaticMesh, eSkinnedMesh, eScene };
@@ -167,7 +157,26 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 		m_main_menu.menus.window.push_back(MainMenu::Custom{.label = "Dear ImGui Demo", .draw = [](bool& show) { ImGui::ShowDemoWindow(&show); }});
 	}
 
-	test(*m_vfs, m_context.engine.get().font_library());
+	{
+		m_test.atlas = test(*this);
+		if (m_test.atlas) {
+			auto material = UnlitMaterial{};
+			auto geometry = Geometry{};
+			auto pen = glm::vec2{};
+			float const scale{1.0f};
+			auto const str = std::string_view{"hello"};
+			for (char const ch : str) { m_test.atlas->glyph_for(static_cast<Codepoint>(ch)); }
+			material.textures.uris[0] = m_test.atlas->texture_uri();
+			for (char const ch : str) {
+				auto const& glyph = m_test.atlas->glyph_for(static_cast<Codepoint>(ch));
+				auto const rect = glyph.rect(pen);
+				geometry.append_quad(rect.extent(), white_v.to_vec4(), {rect.centre(), 0.0f}, glyph.uv_rect);
+				pen += glyph.advance * scale;
+			}
+			m_test.mesh.emplace(m_context.engine.get().graphics_device().make_mesh_geometry(geometry));
+			m_test.material.emplace(std::make_unique<UnlitMaterial>(material));
+		}
+	}
 }
 
 void Editor::save_scene() const {
@@ -258,5 +267,28 @@ void Editor::tick(Frame const& frame) {
 			m_gltf_importer.reset();
 		}
 	}
+}
+
+void Editor::render() {
+	struct TestRenderer : Renderer {
+		Editor const& editor;
+
+		TestRenderer(Editor const& editor) : editor(editor) {}
+
+		void render_3d(RenderPass const& render_pass) const final {
+			editor.active_scene().render_3d(render_pass);
+			// auto const mat = glm::translate(glm::mat4{1.0f}, {0.0f, 0.0f, -5.0f});
+			// render_pass.draw(*editor.m_test.mesh, *editor.m_test.material, mat);
+		}
+
+		void render_ui(RenderPass const& render_pass) const final {
+			editor.active_scene().render_ui(render_pass);
+			auto mat = glm::translate(glm::mat4{1.0f}, {0.0f, 0.0f, -5.0f});
+			mat = glm::scale(mat, glm::vec3{0.01f});
+			render_pass.draw(*editor.m_test.mesh, *editor.m_test.material, mat);
+		}
+	};
+	m_context.engine.get().graphics_device().clear_colour = Rgba::from({0.1f, 0.1f, 0.1f, 1.0f});
+	m_context.engine.get().render(TestRenderer{*this}, m_context.providers.get(), active_scene().camera, active_scene().lights);
 }
 } // namespace levk
