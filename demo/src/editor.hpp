@@ -11,7 +11,7 @@
 #include <levk/vfs/disk_vfs.hpp>
 #include <main_menu.hpp>
 
-#include <levk/font/font.hpp>
+#include <levk/font/ascii_font.hpp>
 #include <levk/font/static_font_atlas.hpp>
 
 namespace levk {
@@ -50,8 +50,7 @@ class Editor : public Runtime {
 	std::unique_ptr<AsyncTask<Uri<>>> m_load{};
 
 	struct {
-		std::optional<StaticFontAtlas> atlas{};
-		std::optional<Font> font{};
+		std::optional<AsciiFont> font{};
 		std::optional<MeshGeometry> mesh{};
 		std::optional<Material> material{};
 	} m_test{};

@@ -74,10 +74,10 @@ set(vfs_headers
 )
 
 set(font_headers
+  include/levk/font/ascii_font.hpp
   include/levk/font/font_common.hpp
   include/levk/font/font_glyph.hpp
   include/levk/font/font_library.hpp
-  include/levk/font/font.hpp
   include/levk/font/glyph_slot.hpp
   include/levk/font/static_font_atlas.hpp
 )

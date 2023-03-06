@@ -3,7 +3,7 @@ add_subdirectory(imcpp)
 add_subdirectory(asset)
 
 target_sources(levk PRIVATE
-  font/font.cpp
+  font/ascii_font.cpp
   font/static_font_atlas.cpp
 
   impl/desktop_window.cpp

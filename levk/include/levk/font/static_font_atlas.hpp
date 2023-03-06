@@ -21,7 +21,7 @@ class StaticFontAtlas {
 	TextHeight height() const { return m_height; }
 	Uri<Texture> texture_uri() const { return m_atlas ? m_atlas->texture_uri() : Uri<Texture>{}; }
 	bool contains(Codepoint const codepoint) const { return m_glyphs.contains(codepoint); }
-	FontGlyph const& glyph_for(Codepoint codepoint) const;
+	Ptr<FontGlyph const> glyph_for(Codepoint codepoint) const;
 
 	explicit operator bool() const { return !m_glyphs.empty(); }
 

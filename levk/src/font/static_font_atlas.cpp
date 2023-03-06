@@ -101,9 +101,8 @@ StaticFontAtlas::StaticFontAtlas(CreateInfo const& create_info) : m_height(clamp
 	}
 }
 
-FontGlyph const& StaticFontAtlas::glyph_for(Codepoint const codepoint) const {
-	if (auto it = m_glyphs.find(codepoint); it != m_glyphs.end()) { return it->second; }
-	static constexpr auto null_v{FontGlyph{}};
-	return null_v;
+Ptr<FontGlyph const> StaticFontAtlas::glyph_for(Codepoint const codepoint) const {
+	if (auto it = m_glyphs.find(codepoint); it != m_glyphs.end()) { return &it->second; }
+	return {};
 }
 } // namespace levk

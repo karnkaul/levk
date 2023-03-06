@@ -12,18 +12,12 @@ namespace levk {
 namespace {
 namespace fs = std::filesystem;
 
-std::optional<StaticFontAtlas> test(Runtime const& runtime) {
+std::optional<AsciiFont> test(Runtime const& runtime) {
 	auto bytes = runtime.context().data_source().read("fonts/test.otf");
 	if (!bytes) { return {}; }
 	auto slot_factory = runtime.context().engine.get().font_library().load(std::move(bytes));
 	if (!slot_factory) { return {}; }
-	auto const create_info = StaticFontAtlas::CreateInfo{
-		.slot_factory = *slot_factory,
-		.texture_provider = runtime.context().providers.get().texture(),
-		.texture_uri = "fonts/test.otf.32",
-		.height = TextHeight{128},
-	};
-	return StaticFontAtlas{create_info};
+	return AsciiFont{std::move(slot_factory), runtime.context().providers.get().texture(), "fonts/test.otf"};
 }
 
 enum class LoadType { eStaticMesh, eSkinnedMesh, eScene };
@@ -158,21 +152,21 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 	}
 
 	{
-		m_test.atlas = test(*this);
-		if (m_test.atlas) {
+		m_test.font = test(*this);
+		if (m_test.font) {
 			auto material = UnlitMaterial{};
 			auto geometry = Geometry{};
 			auto pen = glm::vec2{};
+			auto height = TextHeight{72u};
 			float const scale{1.0f};
 			auto const str = std::string_view{"hello"};
-			for (char const ch : str) { m_test.atlas->glyph_for(static_cast<Codepoint>(ch)); }
-			material.textures.uris[0] = m_test.atlas->texture_uri();
 			for (char const ch : str) {
-				auto const& glyph = m_test.atlas->glyph_for(static_cast<Codepoint>(ch));
+				auto const& glyph = m_test.font->glyph_for(Ascii{ch}, height);
 				auto const rect = glyph.rect(pen);
 				geometry.append_quad(rect.extent(), white_v.to_vec4(), {rect.centre(), 0.0f}, glyph.uv_rect);
 				pen += glyph.advance * scale;
 			}
+			material.textures.uris[0] = m_test.font->texture_uri(height);
 			m_test.mesh.emplace(m_context.engine.get().graphics_device().make_mesh_geometry(geometry));
 			m_test.material.emplace(std::make_unique<UnlitMaterial>(material));
 		}
