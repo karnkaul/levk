@@ -833,7 +833,7 @@ class VulkanMeshGeometry::Impl {
 
 	using Joints = MeshJoints;
 
-	Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints = {});
+	Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints);
 
 	Info info() const { return {m_vertices, m_indices}; }
 	VertexLayout const& vertex_layout() const { return m_vlayout; }
@@ -843,6 +843,7 @@ class VulkanMeshGeometry::Impl {
 
 	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) const {
 		auto const& v = m_vibo.get().get();
+		if (!v.buffer) { return; }
 		vk::Buffer const buffers[] = {v.buffer, v.buffer, v.buffer, v.buffer};
 		vk::DeviceSize const offsets[] = {m_offsets.positions, m_offsets.rgbs, m_offsets.normals, m_offsets.uvs};
 		cb.bindVertexBuffers(0u, buffers, offsets);
@@ -933,8 +934,9 @@ struct VulkanDevice::Impl {
 	BufferVec<glm::mat4> instance_vec{};
 	BufferVec<glm::mat4> joints_vec{};
 	UniqueBuffer blank_buffer{};
-	HostBuffer<> view_ubo{};
+	HostBuffer<> view_ubo_3d{};
 	HostBuffer<> dir_lights_ssbo{};
+	HostBuffer<> view_ubo_ui{};
 
 	GraphicsDeviceInfo info{};
 	RenderMode default_render_mode{};
@@ -2042,6 +2044,7 @@ struct VulkanMeshGeometry::Impl::Uploader {
 	VulkanMeshGeometry::Impl& out;
 
 	void operator()(Geometry::Packed const& geometry, Joints joints) {
+		if (geometry.positions.empty()) { return; }
 		assert(joints.joints.size() == joints.weights.size());
 		{
 			auto staging = FlexArray<UniqueBuffer, 2>{};
@@ -2222,18 +2225,18 @@ VulkanDevice& VulkanDevice::operator=(VulkanDevice&&) noexcept = default;
 VulkanDevice::~VulkanDevice() noexcept = default;
 
 namespace {
-void write_view(VulkanDevice const& device, Camera const& camera, Lights const& lights, glm::uvec2 const extent) {
-	struct ViewSSBO {
-		glm::mat4 mat_v;
-		glm::mat4 mat_p;
-		glm::vec4 vpos_exposure;
-	} view{
-		.mat_v = camera.view(),
-		.mat_p = camera.projection(extent),
+struct ViewUbo {
+	glm::mat4 mat_vp;
+	glm::vec4 vpos_exposure;
+};
+
+void write_3d_view(VulkanDevice const& device, Camera const& camera, Lights const& lights, glm::uvec2 const extent) {
+	auto const view = ViewUbo{
+		.mat_vp = camera.projection(extent) * camera.view(),
 		.vpos_exposure = {camera.transform.position(), camera.exposure},
 	};
-	device.impl->view_ubo.update(&view, sizeof(view), 1);
-	device.impl->view_ubo.flush(device.impl->vma, device.impl->buffered_index);
+	device.impl->view_ubo_3d.update(&view, sizeof(view), 1);
+	device.impl->view_ubo_3d.flush(device.impl->vma, device.impl->buffered_index);
 
 	struct DirLightSSBO {
 		alignas(16) glm::vec3 direction{front_v};
@@ -2258,9 +2261,18 @@ void write_view(VulkanDevice const& device, Camera const& camera, Lights const& 
 	}
 }
 
+void write_ui_view(VulkanDevice const& device, Camera const& camera, glm::uvec2 const extent) {
+	auto const view = ViewUbo{
+		.mat_vp = camera.orthographic(extent),
+		.vpos_exposure = {camera.transform.position(), camera.exposure},
+	};
+	device.impl->view_ubo_ui.update(&view, sizeof(view), 1);
+	device.impl->view_ubo_ui.flush(device.impl->vma, device.impl->buffered_index);
+}
+
 template <std::size_t Buffering>
-void update_view(VulkanDevice const& device, VulkanShader<Buffering>& shader) {
-	shader.update(0, 0, device.impl->view_ubo.view(device.impl->buffered_index));
+void update_view(VulkanDevice const& device, VulkanShader<Buffering>& shader, HostBuffer<Buffering> const& ubo) {
+	shader.update(0, 0, ubo.view(device.impl->buffered_index));
 	auto lights = device.impl->dir_lights_ssbo.view(device.impl->buffered_index);
 	auto buffer = lights.buffer ? lights : device.impl->blank_buffer.get().view();
 	shader.update(0, 1, buffer);
@@ -2275,7 +2287,8 @@ constexpr RenderMode combine(RenderMode const in, RenderMode def) {
 	return def;
 }
 
-void draw_static(VulkanDevice const& device, StaticDrawInfo const& info, RenderCmd cmd, RenderPassView rp) {
+void draw_static(VulkanDevice const& device, StaticDrawInfo const& info, RenderCmd cmd, RenderPassView rp, HostBuffer<> const& ubo) {
+	if (info.geometry.vertex_count() == 0) { return; }
 	auto const& limits = device.impl->gpu.properties.limits;
 	auto const* vmg = info.geometry.as<VulkanMeshGeometry>();
 	assert(vmg);
@@ -2294,7 +2307,7 @@ void draw_static(VulkanDevice const& device, StaticDrawInfo const& info, RenderC
 	auto shader = VulkanShader{pipe, device.impl->samplers};
 	auto const line_width = std::clamp(rm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
 	pipe.bind(cmd.cb, cmd.extent, line_width);
-	update_view(device, shader);
+	update_view(device, shader, ubo);
 	info.material.write_sets(shader, info.providers.texture());
 	shader.bind(pipe.layout, cmd.cb);
 	assert(!info.geometry.has_joints());
@@ -2312,6 +2325,7 @@ void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, R
 	for (auto const& primitive : info.mesh.primitives) {
 		auto const* vmg = primitive.geometry.template as<VulkanMeshGeometry>();
 		assert(vmg);
+		if (vmg->impl->info().vertices == 0) { continue; }
 		if (!cmd.cb) {
 			logger::error("[GraphicsDevice] Attempt to call draw outside active render pass");
 			return;
@@ -2333,7 +2347,7 @@ void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, R
 		auto shader = VulkanShader{pipe, device.impl->samplers};
 		auto const line_width = std::clamp(rm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
 		pipe.bind(cb, cmd.extent, line_width);
-		update_view(device, shader);
+		update_view(device, shader, device.impl->view_ubo_3d);
 		material.write_sets(shader, info.providers.texture());
 		if constexpr (std::same_as<InfoT, SkinnedMeshRenderInfo>) {
 			assert(primitive.geometry.has_joints());
@@ -2388,7 +2402,7 @@ struct VulkanRenderPass : RenderPass {
 		auto sdi = StaticDrawInfo{
 			m_providers, geometry, material, transform, topology,
 		};
-		draw_static(device, sdi, cmd, rpv);
+		draw_static(device, sdi, cmd, rpv, device.impl->view_ubo_ui);
 	}
 };
 } // namespace
@@ -2442,7 +2456,8 @@ void levk::gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& 
 	static constexpr auto blank_byte_v = std::byte{};
 	std::memcpy(out.impl->blank_buffer.get().ptr, &blank_byte_v, 1u);
 
-	out.impl->view_ubo = {vk::BufferUsageFlagBits::eUniformBuffer};
+	out.impl->view_ubo_3d = {vk::BufferUsageFlagBits::eUniformBuffer};
+	out.impl->view_ubo_ui = {vk::BufferUsageFlagBits::eUniformBuffer};
 	out.impl->dir_lights_ssbo = {vk::BufferUsageFlagBits::eStorageBuffer};
 }
 
@@ -2532,7 +2547,8 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	reset(*device.impl->device, *frame.sync.drawn);
 
 	// write view
-	write_view(device, info.camera, info.lights, info.extent);
+	write_3d_view(device, info.camera, info.lights, info.extent);
+	write_ui_view(device, info.camera, info.extent);
 
 	// refresh render targets
 	auto& fs_quad_fb = device.impl->fs_quad.framebuffer.get(device.impl->buffered_index);
@@ -2615,10 +2631,21 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	}
 }
 
-levk::MeshGeometry levk::gfx_make_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints) {
-	auto mesh = VulkanMeshGeometry::Impl{device, geometry, joints};
+levk::MeshGeometry levk::gfx_make_static_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry) {
 	auto ret = VulkanMeshGeometry{};
-	ret.impl = std::make_unique<VulkanMeshGeometry::Impl>(VulkanMeshGeometry::Impl{std::move(mesh)});
+	ret.impl = std::make_unique<VulkanMeshGeometry::Impl>(device, geometry, MeshJoints{});
+	return ret;
+}
+
+levk::MeshGeometry levk::gfx_make_skinned_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints) {
+	auto ret = VulkanMeshGeometry{};
+	ret.impl = std::make_unique<VulkanMeshGeometry::Impl>(device, geometry, joints);
+	return ret;
+}
+
+levk::MeshGeometry levk::gfx_make_ui_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry) {
+	auto ret = VulkanMeshGeometry{};
+	ret.impl = std::make_unique<VulkanMeshGeometry::Impl>(device, geometry, MeshJoints{});
 	return ret;
 }
 

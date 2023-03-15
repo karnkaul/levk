@@ -17,8 +17,7 @@ layout (location = 8) in vec4 imat2;
 layout (location = 9) in vec4 imat3;
 
 layout (set = 0, binding = 0) uniform VP {
-	mat4 mat_v;
-	mat4 mat_p;
+	mat4 mat_vp;
 	vec4 vpos_exposure;
 };
 
@@ -48,5 +47,5 @@ void main() {
 	out_normal = normalize(vec3(mat_m * vec4(vnormal, 0.0)));
 	out_vpos_exposure = vpos_exposure;
 	out_fpos = vec3(mat_m * vec4(vpos, 1.0));
-	gl_Position = mat_p * mat_v * mat_m * vec4(vpos, 1.0);
+	gl_Position = mat_vp * mat_m * vec4(vpos, 1.0);
 }

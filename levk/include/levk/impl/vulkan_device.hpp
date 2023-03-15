@@ -52,7 +52,9 @@ bool gfx_set_vsync(VulkanDevice& out, Vsync::Type vsync);
 bool gfx_set_render_scale(VulkanDevice& out, float scale);
 void gfx_render(VulkanDevice const& device, RenderInfo const& info);
 
-MeshGeometry gfx_make_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints);
+MeshGeometry gfx_make_static_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry);
+MeshGeometry gfx_make_skinned_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints);
+MeshGeometry gfx_make_ui_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry);
 std::uint32_t gfx_mesh_vertex_count(VulkanMeshGeometry const& mesh);
 std::uint32_t gfx_mesh_index_count(VulkanMeshGeometry const& mesh);
 bool gfx_mesh_has_joints(VulkanMeshGeometry const& mesh);

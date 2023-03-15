@@ -34,7 +34,12 @@ class GraphicsDevice {
 
 	void render(Renderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights, glm::uvec2 framebuffer_extent);
 
-	MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints = {}) { return m_model->make_mesh_geometry(geometry, joints); }
+	MeshGeometry make_static_mesh_geometry(Geometry::Packed const& geometry) { return m_model->make_static_mesh_geometry(geometry); }
+	MeshGeometry make_skinned_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints = {}) {
+		return m_model->make_skinned_mesh_geometry(geometry, joints);
+	}
+	MeshGeometry make_ui_mesh_geometry(Geometry::Packed const& geometry) { return m_model->make_ui_mesh_geometry(geometry); }
+
 	Texture make_texture(Image::View image, Texture::CreateInfo create_info = {}) { return m_model->make_texture(image, std::move(create_info)); }
 
 	RenderStats stats() const { return m_model->stats(); }
@@ -60,7 +65,9 @@ class GraphicsDevice {
 
 		virtual void render(RenderInfo const& info) const = 0;
 
-		virtual MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) = 0;
+		virtual MeshGeometry make_static_mesh_geometry(Geometry::Packed const& geometry) = 0;
+		virtual MeshGeometry make_skinned_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) = 0;
+		virtual MeshGeometry make_ui_mesh_geometry(Geometry::Packed const& geometry) = 0;
 		virtual Texture make_texture(Image::View image, Texture::CreateInfo info) = 0;
 
 		virtual RenderStats stats() const = 0;
@@ -79,7 +86,12 @@ class GraphicsDevice {
 
 		void render(RenderInfo const& info) const final { gfx_render(impl, info); }
 
-		MeshGeometry make_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) final { return gfx_make_mesh_geometry(impl, geometry, joints); }
+		MeshGeometry make_static_mesh_geometry(Geometry::Packed const& geometry) final { return gfx_make_static_mesh_geometry(impl, geometry); }
+		MeshGeometry make_skinned_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) final {
+			return gfx_make_skinned_mesh_geometry(impl, geometry, joints);
+		}
+		MeshGeometry make_ui_mesh_geometry(Geometry::Packed const& geometry) final { return gfx_make_ui_mesh_geometry(impl, geometry); }
+
 		Texture make_texture(Image::View image, Texture::CreateInfo create_info) final { return gfx_make_texture(impl, std::move(create_info), image); }
 
 		RenderStats stats() const final { return gfx_render_stats(impl); }

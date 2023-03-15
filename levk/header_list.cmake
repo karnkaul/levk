@@ -124,6 +124,7 @@ set(levk_headers
   include/levk/skinned_mesh.hpp
   include/levk/static_mesh.hpp
   include/levk/surface.hpp
+  include/levk/text_geometry.hpp
   include/levk/texture_atlas.hpp
   include/levk/texture_sampler.hpp
   include/levk/texture.hpp

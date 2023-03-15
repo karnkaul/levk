@@ -13,11 +13,11 @@ namespace {
 namespace fs = std::filesystem;
 
 std::optional<AsciiFont> test(Runtime const& runtime) {
-	auto bytes = runtime.context().data_source().read("fonts/test.otf");
+	auto bytes = runtime.context().data_source().read("fonts/Vera.ttf");
 	if (!bytes) { return {}; }
 	auto slot_factory = runtime.context().engine.get().font_library().load(std::move(bytes));
 	if (!slot_factory) { return {}; }
-	return AsciiFont{std::move(slot_factory), runtime.context().providers.get().texture(), "fonts/test.otf"};
+	return AsciiFont{std::move(slot_factory), runtime.context().providers.get().texture(), "fonts/Vera.ttf"};
 }
 
 enum class LoadType { eStaticMesh, eSkinnedMesh, eScene };
@@ -155,19 +155,12 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 		m_test.font = test(*this);
 		if (m_test.font) {
 			auto material = UnlitMaterial{};
-			auto geometry = Geometry{};
-			auto pen = glm::vec2{};
 			auto height = TextHeight{72u};
-			float const scale{1.0f};
 			auto const str = std::string_view{"hello"};
-			for (char const ch : str) {
-				auto const& glyph = m_test.font->glyph_for(Ascii{ch}, height);
-				auto const rect = glyph.rect(pen);
-				geometry.append_quad(rect.extent(), white_v.to_vec4(), {rect.centre(), 0.0f}, glyph.uv_rect);
-				pen += glyph.advance * scale;
-			}
-			material.textures.uris[0] = m_test.font->texture_uri(height);
-			m_test.mesh.emplace(m_context.engine.get().graphics_device().make_mesh_geometry(geometry));
+			auto text_geometry = TextGeometry{};
+			AsciiFont::Pen{*m_test.font, height}.write_line(str, &text_geometry);
+			material.textures.uris[0] = text_geometry.atlas;
+			m_test.mesh.emplace(m_context.engine.get().graphics_device().make_ui_mesh_geometry(text_geometry.geometry));
 			m_test.material.emplace(std::make_unique<UnlitMaterial>(material));
 		}
 	}
@@ -278,7 +271,7 @@ void Editor::render() {
 		void render_ui(RenderPass const& render_pass) const final {
 			editor.active_scene().render_ui(render_pass);
 			auto mat = glm::translate(glm::mat4{1.0f}, {0.0f, 0.0f, -5.0f});
-			mat = glm::scale(mat, glm::vec3{0.01f});
+			// mat = glm::scale(mat, glm::vec3{0.01f});
 			render_pass.draw(*editor.m_test.mesh, *editor.m_test.material, mat);
 		}
 	};

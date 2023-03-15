@@ -65,7 +65,7 @@ StaticMeshProvider::Payload StaticMeshProvider::load_payload(Uri<StaticMesh> con
 			continue;
 		}
 		ret.dependencies.push_back(in_primitive.geometry);
-		auto geometry = graphics_device().make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
+		auto geometry = graphics_device().make_static_mesh_geometry(bin_geometry.geometry);
 		if (in_primitive.material) { material_provider().load(in_primitive.material); }
 		ret.asset->primitives.push_back(MeshPrimitive{std::move(geometry), in_primitive.material});
 	}
@@ -100,7 +100,7 @@ SkinnedMeshProvider::Payload SkinnedMeshProvider::load_payload(Uri<SkinnedMesh> 
 			continue;
 		}
 		ret.dependencies.push_back(in_primitive.geometry);
-		auto geometry = graphics_device().make_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
+		auto geometry = graphics_device().make_skinned_mesh_geometry(bin_geometry.geometry, {bin_geometry.joints, bin_geometry.weights});
 		if (in_primitive.material) { material_provider().load(in_primitive.material); }
 		ret.asset->primitives.push_back(MeshPrimitive{std::move(geometry), in_primitive.material});
 	}

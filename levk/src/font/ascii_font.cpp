@@ -5,10 +5,10 @@ namespace levk {
 AsciiFont::AsciiFont(std::unique_ptr<GlyphSlot::Factory> slot_factory, TextureProvider& texture_provider, Uri<Texture> uri_prefix)
 	: m_slot_factory(std::move(slot_factory)), m_uri_prefix(std::move(uri_prefix)), m_texure_provider(&texture_provider) {}
 
-FontGlyph const& AsciiFont::glyph_for(Ascii const codepoint, TextHeight height) {
+FontGlyph const& AsciiFont::glyph_for(Ascii const ascii, TextHeight height) {
 	height = clamp(height);
 	if (auto* atlas = make_font_atlas(height)) {
-		if (auto* ret = atlas->glyph_for(static_cast<Codepoint>(codepoint))) { return *ret; }
+		if (auto* ret = atlas->glyph_for(static_cast<Codepoint>(ascii))) { return *ret; }
 	}
 	static constexpr auto null_v{FontGlyph{}};
 	return null_v;
@@ -42,5 +42,23 @@ Uri<Texture> AsciiFont::texture_uri(TextHeight height) const {
 	height = clamp(height);
 	if (m_atlases.contains(height)) { return fmt::format("{}.{}", m_uri_prefix.value(), static_cast<int>(height)); }
 	return {};
+}
+
+auto AsciiFont::Pen::write_line(const std::string_view line, Ptr<TextGeometry> out_text) -> Pen& {
+	for (char const ch : line) {
+		if (ch == '\n') { return *this; }
+		auto const* glyph = &m_font.glyph_for(Ascii{ch}, m_height);
+		if (!*glyph) { glyph = &m_font.glyph_for(Ascii::eTofu, m_height); }
+		if (!*glyph) { continue; }
+		if (out_text) {
+			auto const rect = glyph->rect(cursor);
+			out_text->geometry.append_quad(rect.extent(), vertex_colour.to_vec4(), {rect.centre(), 0.0f}, glyph->uv_rect);
+		}
+		cursor += glm::vec3{glyph->advance, 0.0f};
+	}
+	if (out_text) {
+		if (auto* atlas = m_font.find_font_atlas(m_height)) { out_text->atlas = atlas->texture_uri(); }
+	}
+	return *this;
 }
 } // namespace levk
