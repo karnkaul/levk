@@ -41,7 +41,7 @@ struct GltfImporter {
 
 	static List peek(std::string gltf_path, LogDispatch const& import_logger = {});
 
-	Uri<Mesh> import_mesh(GltfMesh const& mesh) const;
+	Uri<Mesh3D> import_mesh(GltfMesh const& mesh) const;
 
 	explicit operator bool() const { return !!root; }
 };

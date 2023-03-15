@@ -2271,10 +2271,10 @@ void write_ui_view(VulkanDevice const& device, Camera const& camera, glm::uvec2 
 }
 
 template <std::size_t Buffering>
-void update_view(VulkanDevice const& device, VulkanShader<Buffering>& shader, HostBuffer<Buffering> const& ubo) {
-	shader.update(0, 0, ubo.view(device.impl->buffered_index));
-	auto lights = device.impl->dir_lights_ssbo.view(device.impl->buffered_index);
-	auto buffer = lights.buffer ? lights : device.impl->blank_buffer.get().view();
+void update_view(VulkanDevice::Impl const& device, VulkanShader<Buffering>& shader, HostBuffer<Buffering> const& ubo) {
+	shader.update(0, 0, ubo.view(device.buffered_index));
+	auto lights = device.dir_lights_ssbo.view(device.buffered_index);
+	auto buffer = lights.buffer ? lights : device.blank_buffer.get().view();
 	shader.update(0, 1, buffer);
 }
 
@@ -2307,7 +2307,7 @@ void draw_static(VulkanDevice const& device, StaticDrawInfo const& info, RenderC
 	auto shader = VulkanShader{pipe, device.impl->samplers};
 	auto const line_width = std::clamp(rm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
 	pipe.bind(cmd.cb, cmd.extent, line_width);
-	update_view(device, shader, ubo);
+	update_view(*device.impl, shader, ubo);
 	info.material.write_sets(shader, info.providers.texture());
 	shader.bind(pipe.layout, cmd.cb);
 	assert(!info.geometry.has_joints());
@@ -2339,15 +2339,15 @@ void render_mesh(VulkanDevice const& device, InfoT const& info, RenderCmd cmd, R
 		};
 		auto cb = cmd.cb;
 		auto const& vlayout = vmg->impl->vertex_layout();
-		auto const i = device.impl->buffered_index;
 		auto vert = SpirV::from(info.providers.shader(), vlayout.shader_uri);
 		auto frag = SpirV::from(info.providers.shader(), material.shader_id());
 		if (!vert || !frag) { return; }
+		auto const i = device.impl->buffered_index;
 		auto pipe = device.impl->pipelines.get(device.impl->vma, state, vlayout.input, rp, {vert, frag}, i);
-		auto shader = VulkanShader{pipe, device.impl->samplers};
 		auto const line_width = std::clamp(rm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
 		pipe.bind(cb, cmd.extent, line_width);
-		update_view(device, shader, device.impl->view_ubo_3d);
+		auto shader = VulkanShader{pipe, device.impl->samplers};
+		update_view(*device.impl, shader, device.impl->view_ubo_3d);
 		material.write_sets(shader, info.providers.texture());
 		if constexpr (std::same_as<InfoT, SkinnedMeshRenderInfo>) {
 			assert(primitive.geometry.has_joints());

@@ -55,7 +55,7 @@ StaticMeshProvider::Payload StaticMeshProvider::load_payload(Uri<StaticMesh> con
 	}
 	ret.asset.emplace();
 	ret.asset->name = json["name"].as_string();
-	auto asset = asset::Mesh{};
+	auto asset = asset::Mesh3D{};
 	asset::from_json(json, asset);
 	for (auto const& in_primitive : asset.primitives) {
 		assert(!in_primitive.geometry.is_empty());
@@ -90,7 +90,7 @@ SkinnedMeshProvider::Payload SkinnedMeshProvider::load_payload(Uri<SkinnedMesh> 
 	}
 	ret.asset.emplace();
 	ret.asset->name = json["name"].as_string();
-	auto asset = asset::Mesh{};
+	auto asset = asset::Mesh3D{};
 	asset::from_json(json, asset);
 	for (auto const& in_primitive : asset.primitives) {
 		assert(!in_primitive.geometry.is_empty());

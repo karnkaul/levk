@@ -298,22 +298,22 @@ struct GltfExporter {
 		return uri;
 	}
 
-	Uri<Mesh> export_mesh(GltfResource const& resource) {
+	Uri<Mesh3D> export_mesh(GltfResource const& resource) {
 		auto uri = (dir_uri / fmt::format("{}.json", resource.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
 		if (fs::exists(dst)) {
 			import_logger.info("[Import] Import target exists, reusing: [{}]", uri);
 			return uri;
 		}
-		auto out_mesh = Mesh{.type = Mesh::Type::eStatic};
+		auto out_mesh = Mesh3D{.type = Mesh3D::Type::eStatic};
 		auto const& in_mesh = in_root.meshes[resource.index];
 		for (auto const& [in_primitive, primitive_index] : enumerate(in_mesh.primitives)) {
-			auto out_primitive = Mesh::Primitive{};
+			auto out_primitive = Mesh3D::Primitive{};
 			if (in_primitive.material) {
 				auto const& in_material = in_root.materials[*in_primitive.material];
 				out_primitive.material = export_material(make_resource(in_material.name, "material", *in_primitive.material));
 			}
-			if (!in_primitive.geometry.joints.empty()) { out_mesh.type = Mesh::Type::eSkinned; }
+			if (!in_primitive.geometry.joints.empty()) { out_mesh.type = Mesh3D::Type::eSkinned; }
 			auto joints = std::vector<glm::uvec4>{};
 			auto weights = std::vector<glm::vec4>{};
 			if (!in_primitive.geometry.joints.empty()) {
@@ -329,7 +329,7 @@ struct GltfExporter {
 			import_logger.warn("[Import] Mesh [{}] has no primitives, skipping", resource.name.log);
 			return {};
 		}
-		if (out_mesh.type == Mesh::Type::eSkinned) {
+		if (out_mesh.type == Mesh3D::Type::eSkinned) {
 			auto const skin = find_skin(resource);
 			if (!skin) {
 				import_logger.error("[Import] Failed to locate GLTF Skin for SkinnedMesh [{}]", resource.name.log);
@@ -504,7 +504,7 @@ GltfImporter GltfImporter::List::importer(std::string uri_prefix, std::string di
 	return ret;
 }
 
-Uri<Mesh> GltfImporter::import_mesh(GltfMesh const& mesh) const {
+Uri<Mesh3D> GltfImporter::import_mesh(GltfMesh const& mesh) const {
 	auto const dst_dir = fs::path{uri_prefix} / dir_uri;
 	if (!fs::exists(dst_dir)) { fs::create_directories(dst_dir); }
 	return GltfExporter{import_logger, root, src_dir, uri_prefix, dir_uri}.export_mesh(make_resource(mesh.name, "mesh", mesh.index));

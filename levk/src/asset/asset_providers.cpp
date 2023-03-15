@@ -35,7 +35,7 @@ AssetList AssetProviders::build_asset_list(Uri<Scene> const& uri) const {
 	auto json = data_source().read_json(uri);
 	auto ret = Scene::peek_assets(serializer(), json);
 	for (auto const& mesh : ret.meshes) {
-		auto asset = asset::Mesh{};
+		auto asset = asset::Mesh3D{};
 		auto json = data_source().read_json(mesh);
 		asset::from_json(json, asset);
 		for (auto const& in_primitive : asset.primitives) {

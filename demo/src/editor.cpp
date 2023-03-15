@@ -38,7 +38,7 @@ struct AssetListLoader : AsyncTask<Uri<>> {
 	AssetListLoader(Uri<SkinnedMesh> const& uri, Editor& editor)
 		: AssetListLoader(for_mesh(uri), editor.context().providers.get(), uri, LoadType::eSkinnedMesh) {}
 
-	static AssetList for_mesh(Uri<asset::Mesh> uri) {
+	static AssetList for_mesh(Uri<asset::Mesh3D> uri) {
 		auto ret = AssetList{};
 		ret.meshes.insert(std::move(uri));
 		return ret;

@@ -125,7 +125,7 @@ struct Skeleton {
 void from_json(dj::Json const& json, Skeleton& out);
 void to_json(dj::Json& out, Skeleton const& asset);
 
-struct Mesh {
+struct Mesh3D {
 	enum class Type { eStatic, eSkinned };
 
 	struct Primitive {
@@ -140,6 +140,6 @@ struct Mesh {
 	Type type{};
 };
 
-void from_json(dj::Json const& json, Mesh& out);
-void to_json(dj::Json& out, Mesh const& asset);
+void from_json(dj::Json const& json, Mesh3D& out);
+void to_json(dj::Json& out, Mesh3D const& asset);
 } // namespace levk::asset
