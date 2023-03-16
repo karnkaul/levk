@@ -336,30 +336,16 @@ struct RenderFrame {
 	static RenderFrame make(VulkanDevice const& device);
 };
 
-struct RenderCmd {
-	vk::CommandBuffer cb{};
-	vk::Extent2D extent{};
-};
-
 template <std::size_t Buffering>
 using RenderFrames = Buffered<RenderFrame, Buffering>;
 
-struct RenderPassView {
-	vk::RenderPass render_pass{};
-	vk::SampleCountFlagBits samples{};
-};
-
 template <std::size_t Buffering = buffering_v>
 struct RenderPassStorage {
-	using View = RenderPassView;
-
 	RenderFrames<Buffering> frames{};
 	vk::UniqueRenderPass render_pass{};
 	vk::SampleCountFlagBits samples{};
 	vk::Format colour{};
 	vk::Format depth{};
-
-	View view() const { return {*render_pass, samples}; }
 };
 
 template <std::size_t Buffering = buffering_v>
@@ -373,7 +359,6 @@ struct OffScreen {
 	static OffScreen make(VulkanDevice const& device, vk::SampleCountFlagBits samples, vk::Format depth, vk::Format colour = vk::Format::eR8G8B8A8Srgb);
 
 	Framebuffer make_framebuffer(VulkanDevice const& device, vk::Extent2D extent, float scale);
-	RenderPassView view() const { return rp.view(); }
 };
 
 template <std::size_t Buffering = buffering_v>
@@ -382,7 +367,6 @@ struct FsQuad {
 	vk::UniqueRenderPass rp{};
 
 	Framebuffer make_framebuffer(VulkanDevice const& device, ImageView const& output_image);
-	RenderPassView view() const { return {*rp, vk::SampleCountFlagBits::e1}; }
 };
 
 struct DearImGui {
@@ -692,6 +676,16 @@ struct Pipeline {
 	}
 };
 
+struct PipelineInfo {
+	vk::RenderPass render_pass;
+	SpirV vert;
+	SpirV frag;
+
+	VertexInput::View vertex_input{};
+	PipelineState state{};
+	vk::SampleCountFlagBits samples{vk::SampleCountFlagBits::e1};
+};
+
 template <std::size_t Buffering = buffering_v>
 struct PipelineStorage {
 	struct Program {
@@ -730,13 +724,13 @@ struct PipelineStorage {
 	bool sample_rate_shading{};
 
 	void populate(Value& out, Vma const& vma, SpirV vert, SpirV frag);
-	vk::Pipeline get(Value& out, Vma const& vma, PipelineState st, VertexInput::View vi, RenderPassView rp, Program program);
+	vk::Pipeline get(Value& out, Vma const& vma, PipelineInfo const& info);
 
-	Pipeline get(Vma const& vma, PipelineState st, VertexInput::View vi, RenderPassView rp, Program program, Index<Buffering> i) {
-		if (!rp.render_pass || program.vert.hash == 0 || program.frag.hash == 0) { throw Error{"TODO: error"}; }
-		auto const key = Key::make(st, vi, program.vert, program.frag);
+	Pipeline get(Vma const& vma, PipelineInfo const& info, Index<Buffering> i) {
+		if (!info.render_pass || info.vert.hash == 0 || info.frag.hash == 0) { throw Error{"TODO: error"}; }
+		auto const key = Key::make(info.state, info.vertex_input, info.vert, info.frag);
 		auto& value = map[key];
-		auto ret = get(value, vma, st, vi, rp, program);
+		auto ret = get(value, vma, info);
 		return {ret, *value.pipeline_layout, &value.set_pools.get(i), value.set_layouts};
 	}
 
@@ -1630,13 +1624,15 @@ std::vector<SetLayout> make_set_layouts(std::span<std::uint32_t const> vert, std
 	return ret;
 }
 
-struct PipeInfo {
+struct PipelineCreateInfo {
 	VertexInput::View vinput;
 	vk::ShaderModule vert;
 	vk::ShaderModule frag;
 	vk::PipelineLayout layout;
 
-	RenderPassView render_pass;
+	vk::RenderPass render_pass;
+	vk::SampleCountFlagBits samples;
+
 	PipelineState state{};
 	bool sample_shading{true};
 };
@@ -1657,9 +1653,9 @@ vk::UniquePipelineLayout make_pipeline_layout(vk::Device device, std::span<vk::U
 	return device.createPipelineLayoutUnique(plci);
 }
 
-vk::UniquePipeline make_pipeline(vk::Device device, PipeInfo const& info) {
+vk::UniquePipeline make_pipeline(vk::Device device, PipelineCreateInfo const& info) {
 	auto gpci = vk::GraphicsPipelineCreateInfo{};
-	gpci.renderPass = info.render_pass.render_pass;
+	gpci.renderPass = info.render_pass;
 	gpci.layout = info.layout;
 
 	auto pvisci = vk::PipelineVertexInputStateCreateInfo{};
@@ -1712,7 +1708,7 @@ vk::UniquePipeline make_pipeline(vk::Device device, PipeInfo const& info) {
 	gpci.pViewportState = &pvsci;
 
 	auto pmssci = vk::PipelineMultisampleStateCreateInfo{};
-	pmssci.rasterizationSamples = info.render_pass.samples;
+	pmssci.rasterizationSamples = info.samples;
 	pmssci.sampleShadingEnable = info.sample_shading;
 	gpci.pMultisampleState = &pmssci;
 
@@ -1738,15 +1734,15 @@ void PipelineStorage<Buffering>::populate(Value& out, Vma const& vma, SpirV vert
 }
 
 template <std::size_t Buffering>
-vk::Pipeline PipelineStorage<Buffering>::get(Value& out, Vma const& vma, PipelineState st, VertexInput::View vi, RenderPassView rp, Program program) {
-	if (auto it = out.pipelines.find(rp.render_pass); it != out.pipelines.end()) { return *it->second; }
-	if (!out.pipeline_layout) { populate(out, vma, program.vert, program.frag); }
-	auto const pi = PipeInfo{
-		vi, *out.vert, *out.frag, *out.pipeline_layout, rp, st, sample_rate_shading,
+vk::Pipeline PipelineStorage<Buffering>::get(Value& out, Vma const& vma, PipelineInfo const& info) {
+	if (auto it = out.pipelines.find(info.render_pass); it != out.pipelines.end()) { return *it->second; }
+	if (!out.pipeline_layout) { populate(out, vma, info.vert, info.frag); }
+	auto const pi = PipelineCreateInfo{
+		info.vertex_input, *out.vert, *out.frag, *out.pipeline_layout, info.render_pass, info.samples, info.state, sample_rate_shading,
 	};
 	auto ret = make_pipeline(vma.device, pi);
 	if (!ret) { throw Error{"TODO: error"}; }
-	auto [it, _] = out.pipelines.insert_or_assign(rp.render_pass, std::move(ret));
+	auto [it, _] = out.pipelines.insert_or_assign(info.render_pass, std::move(ret));
 	return *it->second;
 }
 
@@ -1777,7 +1773,7 @@ void VulkanShader::bind(vk::PipelineLayout layout, vk::CommandBuffer cb) const {
 constexpr auto v_flags_v = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst;
 constexpr auto vi_flags_v = v_flags_v | vk::BufferUsageFlagBits::eIndexBuffer;
 
-struct Writer {
+struct BufferWriter {
 	UniqueBuffer& out;
 	std::size_t offset{};
 
@@ -2033,7 +2029,7 @@ struct VulkanMeshGeometry::Impl::Uploader {
 		out.m_vibo.swap(device.impl->vma.get().make_buffer(vi_flags_v, size, false));
 		device.impl->vma.get().make_buffer(vi_flags_v, size, false);
 		auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
-		auto writer = Writer{staging};
+		auto writer = BufferWriter{staging};
 		out.m_offsets.positions = writer(std::span{geometry.positions});
 		out.m_offsets.rgbs = writer(std::span{geometry.rgbs});
 		out.m_offsets.normals = writer(std::span{geometry.normals});
@@ -2048,7 +2044,7 @@ struct VulkanMeshGeometry::Impl::Uploader {
 		auto const size = joints.size_bytes() + weights.size_bytes();
 		out.m_jwbo.swap(device.impl->vma.get().make_buffer(v_flags_v, size, false));
 		auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
-		auto writer = Writer{staging};
+		auto writer = BufferWriter{staging};
 		out.m_offsets.joints = writer(joints);
 		out.m_offsets.weights = writer(weights);
 		cb.copyBuffer(staging.get().buffer, out.m_jwbo.get().get().buffer, vk::BufferCopy{{}, {}, size});
@@ -2256,15 +2252,19 @@ constexpr RenderMode combine(RenderMode const in, RenderMode def) {
 	return def;
 }
 
+struct DrawCmd {
+	HostBuffer<> const& view_ubo;
+	vk::RenderPass render_pass{};
+	vk::CommandBuffer cb{};
+	vk::Extent2D extent{};
+	vk::SampleCountFlagBits samples{vk::SampleCountFlagBits::e1};
+};
+
 struct VulkanDrawer : Drawer {
 	VulkanDevice::Impl& device;
-	HostBuffer<> const& view_ubo;
-	RenderCmd cmd;
-	RenderPassView rpv;
+	DrawCmd cmd;
 
-	VulkanDrawer(VulkanDevice const& device, AssetProviders const& providers, RenderCmd cmd, bool use_ui)
-		: Drawer(providers), device(*device.impl), view_ubo(use_ui ? device.impl->view_ubo_ui : device.impl->view_ubo_3d), cmd(cmd),
-		  rpv(use_ui ? device.impl->fs_quad.view() : device.impl->off_screen.view()) {}
+	VulkanDrawer(VulkanDevice const& device, AssetProviders const& providers, DrawCmd cmd) : Drawer(providers), device(*device.impl), cmd(cmd) {}
 
 	Pipeline bind_pipeline(VulkanMeshGeometry::Impl const& vmg, Topology topology, Material const& material) const {
 		if (vmg.info().vertices == 0) { return {}; }
@@ -2282,8 +2282,10 @@ struct VulkanDrawer : Drawer {
 		auto vert = SpirV::from(m_providers.shader(), vlayout.shader_uri);
 		auto frag = SpirV::from(m_providers.shader(), material.shader_id());
 		if (!vert || !frag) { return {}; }
-		auto const i = device.buffered_index;
-		auto ret = device.pipelines.get(device.vma, state, vlayout.input, rpv, {vert, frag}, i);
+		auto const pipe_info = PipelineInfo{
+			cmd.render_pass, vert, frag, vlayout.input.view(), state, cmd.samples,
+		};
+		auto ret = device.pipelines.get(device.vma, pipe_info, device.buffered_index);
 		if (!ret) { return {}; }
 		auto const& limits = device.gpu.properties.limits;
 		auto const line_width = std::clamp(rm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
@@ -2300,7 +2302,7 @@ struct VulkanDrawer : Drawer {
 		if (!pipeline) { return; }
 		auto shader = VulkanShader{pipeline, device.samplers};
 
-		update_view(device, shader, view_ubo);
+		update_view(device, shader, cmd.view_ubo);
 		material.write_sets(shader, m_providers.texture());
 		shader.bind(pipeline.layout, cmd.cb);
 
@@ -2501,22 +2503,37 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	fs_quad_fb = device.impl->fs_quad.make_framebuffer(device, acquired.image);
 
 	// begin recording
-	auto cmd_3d = RenderCmd{frame.secondary[0], frame.framebuffer.render_target.extent};
-	auto cmd_ui = RenderCmd{frame.secondary[1], fs_quad_fb.render_target.extent};
-	auto cbii = vk::CommandBufferInheritanceInfo{*device.impl->off_screen.rp.render_pass, 0, *frame.framebuffer.framebuffer};
+	auto cmd_3d = DrawCmd{
+		.view_ubo = device.impl->view_ubo_3d,
+		.render_pass = *device.impl->off_screen.rp.render_pass,
+		.cb = frame.secondary[0],
+		.extent = frame.framebuffer.render_target.extent,
+		.samples = device.impl->off_screen.rp.samples,
+	};
+	auto cmd_ui = DrawCmd{
+		.view_ubo = device.impl->view_ubo_ui,
+		.render_pass = *device.impl->fs_quad.rp,
+		.cb = frame.secondary[1],
+		.extent = fs_quad_fb.render_target.extent,
+	};
+	auto cbii = vk::CommandBufferInheritanceInfo{cmd_3d.render_pass, 0, *frame.framebuffer.framebuffer};
 	cmd_3d.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
-	cbii = {*device.impl->fs_quad.rp, 0, *fs_quad_fb.framebuffer};
+	cbii = {cmd_ui.render_pass, 0, *fs_quad_fb.framebuffer};
 	cmd_ui.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
 
 	device.impl->default_render_mode = info.default_render_mode;
 	// dispatch 3D render
-	info.renderer.render_3d(VulkanDrawer{device, info.providers, cmd_3d, false});
+	info.renderer.render_3d(VulkanDrawer{device, info.providers, cmd_3d});
 
 	// trace 3D output image to native render pass
 	auto fs_quad_vert = SpirV::from(info.providers.shader(), "shaders/fs_quad.vert");
 	auto fs_quad_frag = SpirV::from(info.providers.shader(), "shaders/fs_quad.frag");
-	auto fs_quad_pipe = device.impl->pipelines.get(device.impl->vma, {}, {}, {*device.impl->fs_quad.rp, vk::SampleCountFlagBits::e1},
-												   {fs_quad_vert, fs_quad_frag}, device.impl->buffered_index);
+	auto const fs_quad_pipe_info = PipelineInfo{
+		.render_pass = *device.impl->fs_quad.rp,
+		.vert = fs_quad_vert,
+		.frag = fs_quad_frag,
+	};
+	auto fs_quad_pipe = device.impl->pipelines.get(device.impl->vma, fs_quad_pipe_info, device.impl->buffered_index);
 	// bind 3D output image to 0, 0
 	auto& fs_quad_set0 = fs_quad_pipe.set_pool->next_set(0);
 	fs_quad_set0.update(0, frame.framebuffer.render_target.output_image(), device.impl->samplers.get(*device.impl->device, {}));
@@ -2526,7 +2543,7 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	cmd_ui.cb.draw(6u, 1u, {}, {});
 
 	// dispatch UI render
-	info.renderer.render_ui(VulkanDrawer{device, info.providers, cmd_ui, true});
+	info.renderer.render_ui(VulkanDrawer{device, info.providers, cmd_ui});
 
 	// dispatch Dear ImGui render
 	device.impl->dear_imgui.end_frame();
