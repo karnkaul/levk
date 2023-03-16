@@ -621,33 +621,30 @@ template <typename Type, std::size_t Buffering = buffering_v>
 class BufferVec {
   public:
 	BufferVec() = default;
-	BufferVec(vk::BufferUsageFlags usage) : m_usage(usage) {}
+	BufferVec(vk::BufferUsageFlags usage) : m_buffer(usage) {}
 
 	template <typename F>
 	BufferView write(Vma const& vma, std::size_t size, Index<Buffering> i, F for_each) {
-		auto& buffer = [&]() -> HostBuffer<Buffering>& {
-			if (m_index < m_buffers.size()) { return m_buffers[m_index]; }
-			m_buffers.emplace_back(m_usage);
-			return m_buffers.back();
-		}();
-		m_vec.clear();
-		m_vec.resize(size);
-		for (auto [t, index] : enumerate(m_vec)) { for_each(t, index); }
-		auto const span = std::span<Type const>{m_vec};
-		buffer.update(span.data(), span.size_bytes(), span.size());
-		buffer.flush(vma, i);
-		++m_index;
-		return buffer.view(i);
+		assert(size > 0);
+		auto single = Type{};
+		auto span = std::span<Type const>{};
+		if (size > 1) {
+			m_vec.clear();
+			m_vec.resize(size);
+			for (auto [t, index] : enumerate(m_vec)) { for_each(t, index); }
+			span = m_vec;
+		} else {
+			for_each(single, 0u);
+			span = {&single, 1u};
+		}
+		m_buffer.update(span.data(), span.size_bytes(), span.size());
+		m_buffer.flush(vma, i);
+		return m_buffer.view(i);
 	}
 
-	void release() { m_index = {}; }
-
   private:
-	using Vec = std::vector<Type>;
-	std::vector<HostBuffer<Buffering>> m_buffers{};
-	Vec m_vec{};
-	vk::BufferUsageFlags m_usage;
-	std::size_t m_index{};
+	HostBuffer<Buffering> m_buffer{};
+	std::vector<Type> m_vec{};
 };
 
 struct PipelineState {
@@ -832,6 +829,9 @@ class VulkanMeshGeometry::Impl {
 		}
 	}
 
+	Defer<BufferVec<glm::mat4>> instances{};
+	Defer<BufferVec<glm::mat4>> joints{};
+
   private:
 	struct Uploader;
 	struct Offsets {
@@ -903,8 +903,6 @@ struct VulkanDevice::Impl {
 	PipelineStorage<> pipelines{};
 	SamplerStorage samplers{};
 
-	BufferVec<glm::mat4> instance_vec{};
-	BufferVec<glm::mat4> joints_vec{};
 	UniqueBuffer blank_buffer{};
 	HostBuffer<> view_ubo_3d{};
 	HostBuffer<> dir_lights_ssbo{};
@@ -2053,7 +2051,8 @@ struct VulkanMeshGeometry::Impl::Uploader {
 };
 
 VulkanMeshGeometry::Impl::Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints)
-	: m_vibo(device.impl->defer), m_jwbo(device.impl->defer) {
+	: instances(device.impl->defer, {vk::BufferUsageFlagBits::eVertexBuffer}), joints(device.impl->defer, {vk::BufferUsageFlagBits::eStorageBuffer}),
+	  m_vibo(device.impl->defer), m_jwbo(device.impl->defer) {
 	Uploader{device, *this}(geometry, joints);
 }
 
@@ -2266,6 +2265,8 @@ struct VulkanDrawer : Drawer {
 
 	VulkanDrawer(VulkanDevice const& device, AssetProviders const& providers, DrawCmd cmd) : Drawer(providers), device(*device.impl), cmd(cmd) {}
 
+	Extent2D extent() const final { return {cmd.extent.width, cmd.extent.height}; }
+
 	Pipeline bind_pipeline(VulkanMeshGeometry::Impl const& vmg, Topology topology, Material const& material) const {
 		if (vmg.info().vertices == 0) { return {}; }
 		if (!cmd.cb) {
@@ -2309,8 +2310,8 @@ struct VulkanDrawer : Drawer {
 		assert(!geometry.has_joints());
 		static auto const default_instance_v{Transform{}};
 		if (id.instances.empty()) { id.instances = {&default_instance_v, 1u}; }
-		auto write_instances = [&](glm::mat4& out, std::size_t i) { out = id.parent * id.instances[i].matrix(); };
-		auto instance_buffer = device.instance_vec.write(device.vma, id.instances.size(), device.buffered_index, write_instances);
+		auto const write_instances = [&](glm::mat4& out, std::size_t i) { out = id.parent * id.instances[i].matrix(); };
+		auto const instance_buffer = vmg->impl->instances.get().write(device.vma, id.instances.size(), device.buffered_index, write_instances);
 		cmd.cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
 		vmg->impl->draw(cmd.cb, static_cast<std::uint32_t>(id.instances.size()));
 		++device.stats.per_frame.draw_calls;
@@ -2343,8 +2344,8 @@ struct VulkanDrawer : Drawer {
 			update_view(device, shader, device.view_ubo_3d);
 			material.write_sets(shader, m_providers.texture());
 
-			auto rewrite = [&](glm::mat4& out, std::size_t index) { out = joints[index] * mesh.inverse_bind_matrices[index]; };
-			auto const joint_mats = [&] { return device.joints_vec.write(device.vma, joints.size(), device.buffered_index, rewrite); }();
+			auto const rewrite = [&](glm::mat4& out, std::size_t index) { out = joints[index] * mesh.inverse_bind_matrices[index]; };
+			auto const joint_mats = vmg->impl->joints.get().write(device.vma, joints.size(), device.buffered_index, rewrite);
 			shader.update(*joints_set, 0, joint_mats);
 			shader.bind(pipeline.layout, cmd.cb);
 			vmg->impl->draw(cmd.cb);
@@ -2397,8 +2398,6 @@ void levk::gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& 
 
 	out.impl->samplers.anisotropy = out.impl->gpu.properties.limits.maxSamplerAnisotropy;
 
-	out.impl->instance_vec = {vk::BufferUsageFlagBits::eVertexBuffer};
-	out.impl->joints_vec = {vk::BufferUsageFlagBits::eStorageBuffer};
 	out.impl->blank_buffer = out.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eStorageBuffer, 1u, true);
 	static constexpr auto blank_byte_v = std::byte{};
 	std::memcpy(out.impl->blank_buffer.get().ptr, &blank_byte_v, 1u);
@@ -2441,8 +2440,6 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 			out.impl->buffered_index.next();
 			out.impl->dear_imgui.new_frame();
 			out.impl->defer.next();
-			out.impl->instance_vec.release();
-			out.impl->joints_vec.release();
 			out.impl->pipelines.release_all(i);
 		}
 	};

@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/graphics_common.hpp>
+#include <levk/rect.hpp>
 #include <levk/transform.hpp>
 
 namespace levk {
@@ -19,6 +20,9 @@ class Drawer {
 	virtual ~Drawer() = default;
 
 	Drawer(AssetProviders const& asset_providers) : m_providers(asset_providers) {}
+
+	virtual Extent2D extent() const = 0;
+	Rect2D<> rect() const { return Rect2D<>::from_extent(extent()); }
 
 	virtual void draw(StaticMesh const& mesh, std::span<Transform const> instances, glm::mat4 const& parent = matrix_identity_v) const = 0;
 	virtual void draw(SkinnedMesh const& mesh, std::span<glm::mat4 const> joints) const = 0;
