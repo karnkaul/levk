@@ -95,6 +95,7 @@ set(levk_headers
   include/levk/component.hpp
   include/levk/context.hpp
   include/levk/defines.hpp
+  include/levk/drawer.hpp
   include/levk/engine.hpp
   include/levk/entity.hpp
   include/levk/geometry.hpp
@@ -110,7 +111,6 @@ set(levk_headers
   include/levk/node.hpp
   include/levk/pixel_map.hpp
   include/levk/rect.hpp
-  include/levk/render_pass.hpp
   include/levk/renderer.hpp
   include/levk/rgba.hpp
   include/levk/runtime.hpp

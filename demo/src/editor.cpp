@@ -262,17 +262,13 @@ void Editor::render() {
 
 		TestRenderer(Editor const& editor) : editor(editor) {}
 
-		void render_3d(RenderPass const& render_pass) const final {
-			editor.active_scene().render_3d(render_pass);
-			// auto const mat = glm::translate(glm::mat4{1.0f}, {0.0f, 0.0f, -5.0f});
-			// render_pass.draw(*editor.m_test.mesh, *editor.m_test.material, mat);
-		}
+		void render_3d(Drawer const& drawer) const final { editor.active_scene().render_3d(drawer); }
 
-		void render_ui(RenderPass const& render_pass) const final {
-			editor.active_scene().render_ui(render_pass);
-			auto mat = glm::translate(glm::mat4{1.0f}, {0.0f, 0.0f, -5.0f});
-			// mat = glm::scale(mat, glm::vec3{0.01f});
-			render_pass.draw(*editor.m_test.mesh, *editor.m_test.material, mat);
+		void render_ui(Drawer const& drawer) const final {
+			editor.active_scene().render_ui(drawer);
+			auto transform = Transform{};
+			transform.set_position({0.0f, 0.0f, -5.0f});
+			drawer.draw(*editor.m_test.mesh, *editor.m_test.material, transform);
 		}
 	};
 	m_context.engine.get().graphics_device().clear_colour = Rgba::from({0.1f, 0.1f, 0.1f, 1.0f});

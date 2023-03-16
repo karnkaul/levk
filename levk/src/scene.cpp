@@ -137,7 +137,7 @@ void SkeletonController::inspect(imcpp::OpenWindow) {
 	}
 }
 
-void StaticMeshRenderer::render(RenderPass const& render_pass, Scene const& scene, Entity const& entity) const {
+void StaticMeshRenderer::render(Drawer const& drawer, Scene const& scene, Entity const& entity) const {
 	auto* scene_manager = Service<SceneManager>::find();
 	if (!mesh || !scene_manager) { return; }
 	auto const& tree = scene.nodes();
@@ -145,7 +145,7 @@ void StaticMeshRenderer::render(RenderPass const& render_pass, Scene const& scen
 	if (!m || m->primitives.empty()) { return; }
 	static auto const s_instance = Transform{};
 	auto const is = instances.empty() ? std::span{&s_instance, 1u} : std::span{instances};
-	render_pass.render(*m, is, tree.global_transform(tree.get(entity.node_id())));
+	drawer.draw(*m, is, tree.global_transform(tree.get(entity.node_id())));
 }
 
 void SkinnedMeshRenderer::set_mesh(Uri<SkinnedMesh> uri_, Skeleton::Instance skeleton_) {
@@ -154,7 +154,7 @@ void SkinnedMeshRenderer::set_mesh(Uri<SkinnedMesh> uri_, Skeleton::Instance ske
 	joint_matrices = DynArray<glm::mat4>{skeleton.joints.size()};
 }
 
-void SkinnedMeshRenderer::render(RenderPass const& render_pass, Scene const& scene, Entity const&) const {
+void SkinnedMeshRenderer::render(Drawer const& drawer, Scene const& scene, Entity const&) const {
 	auto* scene_manager = Service<SceneManager>::find();
 	if (!mesh || !scene_manager) { return; }
 	auto const& tree = scene.nodes();
@@ -162,13 +162,13 @@ void SkinnedMeshRenderer::render(RenderPass const& render_pass, Scene const& sce
 	if (!m || m->primitives.empty()) { return; }
 	assert(m->primitives[0].geometry.has_joints() && joint_matrices.size() == skeleton.joints.size());
 	for (auto const [id, index] : enumerate(skeleton.joints)) { joint_matrices[index] = tree.global_transform(tree.get(id)); }
-	render_pass.render(*m, joint_matrices.span());
+	drawer.draw(*m, joint_matrices.span());
 }
 
-void MeshRenderer::render(RenderPass const& render_pass) const {
+void MeshRenderer::render(Drawer const& drawer) const {
 	auto* entity = owning_entity();
 	if (!entity) { return; }
-	std::visit([&](auto const& smr) { smr.render(render_pass, active_scene(), *entity); }, mesh_renderer);
+	std::visit([&](auto const& smr) { smr.render(drawer, active_scene(), *entity); }, mesh_renderer);
 }
 
 bool MeshRenderer::serialize(dj::Json& out) const {
@@ -353,13 +353,13 @@ bool Scene::destroy(Id<Entity> entity) {
 	return false;
 }
 
-void Scene::render_3d(RenderPass const& renderer) const {
+void Scene::render_3d(Drawer const& drawer) const {
 	m_const_entity_refs.clear();
 	fill_to_if(m_entities, m_const_entity_refs, [](Id<Entity>, Entity const& e) { return e.active && !e.m_render_components.empty(); });
 	// TODO: render ordering
 	std::sort(m_const_entity_refs.begin(), m_const_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
 	for (Entity const& entity : m_const_entity_refs) {
-		for (auto const* rc : entity.m_render_components) { rc->render(renderer); }
+		for (auto const* rc : entity.m_render_components) { rc->render(drawer); }
 	}
 }
 

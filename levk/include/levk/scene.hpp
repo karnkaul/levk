@@ -16,7 +16,7 @@ struct StaticMeshRenderer {
 	std::vector<Transform> instances{};
 	Uri<StaticMesh> mesh{};
 
-	void render(RenderPass const& render_pass, Scene const& scene, Entity const& entity) const;
+	void render(Drawer const& drawer, Scene const& scene, Entity const& entity) const;
 };
 
 struct SkeletonController : Component {
@@ -42,7 +42,7 @@ struct SkinnedMeshRenderer {
 	DynArray<glm::mat4> joint_matrices{};
 
 	void set_mesh(Uri<SkinnedMesh> uri, Skeleton::Instance skeleton);
-	void render(RenderPass const& render_pass, Scene const& scene, Entity const& entity) const;
+	void render(Drawer const& drawer, Scene const& scene, Entity const& entity) const;
 };
 
 struct MeshRenderer : RenderComponent {
@@ -50,7 +50,7 @@ struct MeshRenderer : RenderComponent {
 
 	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer = StaticMeshRenderer{}) : mesh_renderer(std::move(renderer)) {}
 
-	void render(RenderPass const& render_pass) const override;
+	void render(Drawer const& drawer) const override;
 
 	std::string_view type_name() const override { return "MeshRenderer"; }
 	bool serialize(dj::Json& out) const override;
@@ -84,8 +84,8 @@ class Scene : public Renderer, public Serializable {
 
 	bool empty() const { return m_entities.empty(); }
 
-	void render_3d(RenderPass const& renderer) const final;
-	void render_ui(RenderPass const&) const final {}
+	void render_3d(Drawer const& drawer) const final;
+	void render_ui(Drawer const&) const final {}
 
 	std::string_view type_name() const override { return "scene"; }
 	bool serialize(dj::Json& out) const override;

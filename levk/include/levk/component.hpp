@@ -9,7 +9,7 @@ namespace levk {
 class Entity;
 class Scene;
 class AssetProviders;
-class RenderPass;
+class Drawer;
 
 class Component : public Serializable {
   public:
@@ -34,6 +34,6 @@ class Component : public Serializable {
 class RenderComponent : public Component {
   public:
 	void tick(Time) override {}
-	virtual void render(RenderPass const& render_pass) const = 0;
+	virtual void render(Drawer const& drawer) const = 0;
 };
 } // namespace levk
