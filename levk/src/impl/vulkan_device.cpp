@@ -791,6 +791,26 @@ struct VertexLayout {
 	VertexInput input{};
 	std::string shader_uri{"shaders/default.vert"};
 };
+
+struct GeometryOffsets {
+	std::size_t positions{};
+	std::size_t rgbs{};
+	std::size_t normals{};
+	std::size_t uvs{};
+	std::size_t joints{};
+	std::size_t weights{};
+	std::size_t indices{};
+};
+
+struct GeometryLayout {
+	VertexLayout vertex_layout{};
+	GeometryOffsets offsets{};
+	std::optional<std::uint32_t> instance_binding{};
+	std::optional<std::uint32_t> joints_binding{};
+	std::optional<std::uint32_t> joints_set{};
+	std::uint32_t vertices{};
+	std::uint32_t indices{};
+};
 } // namespace
 
 class VulkanMeshGeometry::Impl {
@@ -804,28 +824,30 @@ class VulkanMeshGeometry::Impl {
 
 	Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints);
 
-	Info info() const { return {m_vertices, m_indices}; }
-	VertexLayout const& vertex_layout() const { return m_vlayout; }
+	Info info() const { return {m_layout.vertices, m_layout.indices}; }
+	VertexLayout const& vertex_layout() const { return m_layout.vertex_layout; }
 	bool has_joints() const { return m_jwbo.get().get().size > 0; }
-	std::uint32_t instance_binding() const { return m_instance_binding; }
-	std::optional<std::uint32_t> joints_set() const { return m_jwbo.get().get().size > 0 ? std::optional<std::uint32_t>{3} : std::nullopt; }
+	std::optional<std::uint32_t> instance_binding() const { return m_layout.instance_binding; }
+	std::optional<std::uint32_t> joints_binding() const { return m_layout.joints_binding; }
+	std::optional<std::uint32_t> joints_set() const { return m_layout.joints_set; }
 
 	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) const {
 		auto const& v = m_vibo.get().get();
 		if (!v.buffer) { return; }
 		vk::Buffer const buffers[] = {v.buffer, v.buffer, v.buffer, v.buffer};
-		vk::DeviceSize const offsets[] = {m_offsets.positions, m_offsets.rgbs, m_offsets.normals, m_offsets.uvs};
+		vk::DeviceSize const offsets[] = {m_layout.offsets.positions, m_layout.offsets.rgbs, m_layout.offsets.normals, m_layout.offsets.uvs};
 		cb.bindVertexBuffers(0u, buffers, offsets);
-		if (m_jwbo.get().get().size > 0) {
+		if (m_layout.joints_binding > 0) {
+			assert(m_jwbo.get());
 			vk::Buffer const buffers[] = {m_jwbo.get().get().buffer, m_jwbo.get().get().buffer};
-			vk::DeviceSize const offsets[] = {m_offsets.joints, m_offsets.weights};
-			cb.bindVertexBuffers(4u, buffers, offsets);
+			vk::DeviceSize const offsets[] = {m_layout.offsets.joints, m_layout.offsets.weights};
+			cb.bindVertexBuffers(*m_layout.joints_binding, buffers, offsets);
 		}
-		if (m_indices > 0) {
-			cb.bindIndexBuffer(v.buffer, m_offsets.indices, vk::IndexType::eUint32);
-			cb.drawIndexed(m_indices, instances, 0u, 0u, 0u);
+		if (m_layout.indices > 0) {
+			cb.bindIndexBuffer(v.buffer, m_layout.offsets.indices, vk::IndexType::eUint32);
+			cb.drawIndexed(m_layout.indices, instances, 0u, 0u, 0u);
 		} else {
-			cb.draw(m_vertices, instances, 0u, 0u);
+			cb.draw(m_layout.vertices, instances, 0u, 0u);
 		}
 	}
 
@@ -833,30 +855,10 @@ class VulkanMeshGeometry::Impl {
 	Defer<BufferVec<glm::mat4>> joints{};
 
   private:
-	struct Uploader;
-	struct Offsets {
-		std::size_t positions{};
-		std::size_t rgbs{};
-		std::size_t normals{};
-		std::size_t uvs{};
-		std::size_t joints{};
-		std::size_t weights{};
-		std::size_t indices{};
-	};
-
-	VertexLayout m_vlayout{};
 	Defer<UniqueBuffer> m_vibo{};
 	Defer<UniqueBuffer> m_jwbo{};
-	Offsets m_offsets{};
-	std::uint32_t m_vertices{};
-	std::uint32_t m_indices{};
-	std::uint32_t m_instance_binding{};
+	GeometryLayout m_layout{};
 };
-
-VulkanMeshGeometry::VulkanMeshGeometry() noexcept = default;
-VulkanMeshGeometry::VulkanMeshGeometry(VulkanMeshGeometry&&) noexcept = default;
-VulkanMeshGeometry& VulkanMeshGeometry::operator=(VulkanMeshGeometry&&) noexcept = default;
-VulkanMeshGeometry::~VulkanMeshGeometry() noexcept = default;
 
 struct VulkanTexture::Impl {
 	using CreateInfo = TextureCreateInfo;
@@ -876,11 +878,6 @@ struct VulkanTexture::Impl {
 	ImageCreateInfo m_info{};
 	vk::ImageLayout m_layout{vk::ImageLayout::eUndefined};
 };
-
-VulkanTexture::VulkanTexture() noexcept = default;
-VulkanTexture::VulkanTexture(VulkanTexture&&) noexcept = default;
-VulkanTexture& VulkanTexture::operator=(VulkanTexture&&) noexcept = default;
-VulkanTexture::~VulkanTexture() noexcept = default;
 
 struct VulkanDevice::Impl {
 	vk::UniqueInstance instance{};
@@ -2000,60 +1997,80 @@ void copy_image(VulkanDevice const& device, CopyImage const& src, CopyImage cons
 	full_barrier(dst.image, vk::ImageLayout::eTransferDstOptimal, layout).transition(cmd.cb);
 	if (dst.image.mip_levels > 1) { MipMapWriter{dst.image.image, dst.image.extent, cmd.cb, dst.image.mip_levels, dst.image.array_layers}(); }
 }
-} // namespace
 
-struct VulkanMeshGeometry::Impl::Uploader {
-	VulkanDevice const& device;
-	VulkanMeshGeometry::Impl& out;
+struct GeometryUploader {
+	struct Bindings {
+		static constexpr auto instance_v{6u};
+		static constexpr auto joints_v{4u};
+	};
 
-	void operator()(Geometry::Packed const& geometry, Joints joints) {
-		if (geometry.positions.empty()) { return; }
-		assert(joints.joints.size() == joints.weights.size());
-		{
-			auto staging = FlexArray<UniqueBuffer, 2>{};
-			auto cmd = Cmd{device, vk::PipelineStageFlagBits::eTopOfPipe};
-			staging.insert(upload(cmd.cb, geometry));
-			if (!joints.joints.empty()) { staging.insert(upload(cmd.cb, joints.joints, joints.weights)); }
-		}
-		out.m_vlayout = joints.joints.empty() ? instanced_vertex_layout() : skinned_vertex_layout();
-		out.m_instance_binding = 6u;
-	}
+	struct Sets {
+		static constexpr auto joints_v{3u};
+	};
 
-	[[nodiscard]] UniqueBuffer upload(vk::CommandBuffer cb, Geometry::Packed const& geometry) {
+	Vma const& vma;
+
+	FlexArray<UniqueBuffer, 2> staging_buffers{};
+
+	void write_to(GeometryLayout& out_layout, UniqueBuffer& out_buffer, Geometry::Packed const& geometry) const {
 		auto const indices = std::span<std::uint32_t const>{geometry.indices};
-		out.m_vertices = static_cast<std::uint32_t>(geometry.positions.size());
-		out.m_indices = static_cast<std::uint32_t>(indices.size());
+		out_layout.vertices = static_cast<std::uint32_t>(geometry.positions.size());
+		out_layout.indices = static_cast<std::uint32_t>(indices.size());
 		auto const size = geometry.size_bytes();
-		out.m_vibo.swap(device.impl->vma.get().make_buffer(vi_flags_v, size, false));
-		device.impl->vma.get().make_buffer(vi_flags_v, size, false);
-		auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
-		auto writer = BufferWriter{staging};
-		out.m_offsets.positions = writer(std::span{geometry.positions});
-		out.m_offsets.rgbs = writer(std::span{geometry.rgbs});
-		out.m_offsets.normals = writer(std::span{geometry.normals});
-		out.m_offsets.uvs = writer(std::span{geometry.uvs});
-		if (!indices.empty()) { out.m_offsets.indices = writer(indices); }
-		cb.copyBuffer(staging.get().buffer, out.m_vibo.get().get().buffer, vk::BufferCopy{{}, {}, size});
-		return staging;
+		if (out_buffer.get().size < size) { out_buffer = vma.make_buffer(vi_flags_v, size, false); }
+		auto writer = BufferWriter{out_buffer};
+		out_layout.offsets.positions = writer(std::span{geometry.positions});
+		out_layout.offsets.rgbs = writer(std::span{geometry.rgbs});
+		out_layout.offsets.normals = writer(std::span{geometry.normals});
+		out_layout.offsets.uvs = writer(std::span{geometry.uvs});
+		if (!indices.empty()) { out_layout.offsets.indices = writer(indices); }
+		out_layout.vertex_layout = instanced_vertex_layout();
+		out_layout.instance_binding = Bindings::instance_v;
 	}
 
-	[[nodiscard]] UniqueBuffer upload(vk::CommandBuffer cb, std::span<glm::uvec4 const> joints, std::span<glm::vec4 const> weights) {
-		assert(joints.size() >= weights.size());
-		auto const size = joints.size_bytes() + weights.size_bytes();
-		out.m_jwbo.swap(device.impl->vma.get().make_buffer(v_flags_v, size, false));
-		auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
-		auto writer = BufferWriter{staging};
-		out.m_offsets.joints = writer(joints);
-		out.m_offsets.weights = writer(weights);
-		cb.copyBuffer(staging.get().buffer, out.m_jwbo.get().get().buffer, vk::BufferCopy{{}, {}, size});
-		return staging;
+	void write_to(GeometryLayout& out_layout, UniqueBuffer& out_buffer, MeshJoints const& joints) const {
+		assert(joints.joints.size() >= joints.weights.size());
+		auto const size = joints.joints.size_bytes() + joints.weights.size_bytes();
+		if (out_buffer.get().size < size) { out_buffer = vma.make_buffer(v_flags_v, size, false); }
+		auto writer = BufferWriter{out_buffer};
+		out_layout.offsets.joints = writer(joints.joints);
+		out_layout.offsets.weights = writer(joints.weights);
+		out_layout.vertex_layout = skinned_vertex_layout();
+		out_layout.joints_binding = Bindings::joints_v;
+		out_layout.joints_set = Sets::joints_v;
+	}
+
+	[[nodiscard]] UniqueBuffer upload(GeometryLayout& out_result, vk::CommandBuffer cb, Geometry::Packed const& geometry) {
+		static constexpr auto dst_usage_v{vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer};
+		auto const size = geometry.size_bytes();
+		auto staging = vma.make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
+		auto ret = vma.make_buffer(vk::BufferUsageFlagBits::eTransferDst | dst_usage_v, size, false);
+		write_to(out_result, staging, geometry);
+		cb.copyBuffer(staging.get().buffer, ret.get().buffer, vk::BufferCopy{{}, {}, size});
+		staging_buffers.insert(std::move(staging));
+		return ret;
+	}
+
+	[[nodiscard]] UniqueBuffer upload(GeometryLayout& out_result, vk::CommandBuffer cb, MeshJoints const& joints) {
+		static constexpr auto dst_usage_v{vk::BufferUsageFlagBits::eVertexBuffer};
+		auto const size = joints.joints.size_bytes() + joints.weights.size_bytes();
+		auto staging = vma.make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
+		auto ret = vma.make_buffer(vk::BufferUsageFlagBits::eTransferDst | dst_usage_v, size, false);
+		write_to(out_result, staging, joints);
+		cb.copyBuffer(staging.get().buffer, ret.get().buffer, vk::BufferCopy{{}, {}, size});
+		staging_buffers.insert(std::move(staging));
+		return ret;
 	}
 };
+} // namespace
 
 VulkanMeshGeometry::Impl::Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints)
 	: instances(device.impl->defer, {vk::BufferUsageFlagBits::eVertexBuffer}), joints(device.impl->defer, {vk::BufferUsageFlagBits::eStorageBuffer}),
 	  m_vibo(device.impl->defer), m_jwbo(device.impl->defer) {
-	Uploader{device, *this}(geometry, joints);
+	auto uploader = GeometryUploader{device.impl->vma.get()};
+	auto cmd = Cmd{device};
+	m_vibo = {device.impl->defer, uploader.upload(m_layout, cmd.cb, geometry)};
+	if (!joints.joints.empty()) { m_jwbo = {device.impl->defer, uploader.upload(m_layout, cmd.cb, joints)}; }
 }
 
 VulkanTexture::Impl::Impl(VulkanDevice const& device, Image::View image, CreateInfo const& info) : Impl(device, info.sampler) {
@@ -2183,10 +2200,9 @@ void DearImGui::render(vk::CommandBuffer cb) {
 	if (auto* data = ImGui::GetDrawData()) { ImGui_ImplVulkan_RenderDrawData(data, cb); }
 }
 
-VulkanDevice::VulkanDevice() : impl(std::make_unique<Impl>()) {}
-VulkanDevice::VulkanDevice(VulkanDevice&&) noexcept = default;
-VulkanDevice& VulkanDevice::operator=(VulkanDevice&&) noexcept = default;
-VulkanDevice::~VulkanDevice() noexcept = default;
+void VulkanDevice::Deleter::operator()(Impl const* impl) const { delete impl; }
+
+VulkanDevice::VulkanDevice() : impl(new Impl) {}
 
 namespace {
 struct ViewUbo {
@@ -2312,7 +2328,8 @@ struct VulkanDrawer : Drawer {
 		if (id.instances.empty()) { id.instances = {&default_instance_v, 1u}; }
 		auto const write_instances = [&](glm::mat4& out, std::size_t i) { out = id.parent * id.instances[i].matrix(); };
 		auto const instance_buffer = vmg->impl->instances.get().write(device.vma, id.instances.size(), device.buffered_index, write_instances);
-		cmd.cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
+		assert(vmg->impl->instance_binding().has_value());
+		cmd.cb.bindVertexBuffers(*vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
 		vmg->impl->draw(cmd.cb, static_cast<std::uint32_t>(id.instances.size()));
 		++device.stats.per_frame.draw_calls;
 	}

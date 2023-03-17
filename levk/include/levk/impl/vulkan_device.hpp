@@ -16,32 +16,21 @@ struct VulkanDevice {
 	struct Impl;
 
 	VulkanDevice();
-	VulkanDevice(VulkanDevice&&) noexcept;
-	VulkanDevice& operator=(VulkanDevice&&) noexcept;
-	~VulkanDevice() noexcept;
 
-	std::unique_ptr<Impl> impl{};
+	struct Deleter {
+		void operator()(Impl const* impl) const;
+	};
+
+	std::unique_ptr<Impl, Deleter> impl{};
 };
 
 struct VulkanMeshGeometry {
 	class Impl;
-
-	VulkanMeshGeometry() noexcept;
-	VulkanMeshGeometry(VulkanMeshGeometry&&) noexcept;
-	VulkanMeshGeometry& operator=(VulkanMeshGeometry&&) noexcept;
-	~VulkanMeshGeometry() noexcept;
-
 	std::unique_ptr<Impl> impl{};
 };
 
 struct VulkanTexture {
 	struct Impl;
-
-	VulkanTexture() noexcept;
-	VulkanTexture(VulkanTexture&&) noexcept;
-	VulkanTexture& operator=(VulkanTexture&&) noexcept;
-	~VulkanTexture() noexcept;
-
 	std::unique_ptr<Impl> impl{};
 };
 
