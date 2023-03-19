@@ -43,6 +43,8 @@ class Signal {
 
 	void operator()(Args const&... args) const { dispatch(args...); }
 
+	bool empty() const { return m_storage->empty(); }
+
   private:
 	struct Entry {
 		Callback callback{};
@@ -91,11 +93,22 @@ class Signal<Args...>::Listener {
   public:
 	Listener() = default;
 
-	Listener& operator=(Listener&&) = delete;
+	Listener(Listener&&) = default;
+	Listener& operator=(Listener&& rhs) noexcept {
+		if (&rhs != this) {
+			disconnect();
+			m_handle = std::move(rhs.m_handle);
+		}
+		return *this;
+	}
+
+	Listener& operator=(Listener const&) = delete;
+	Listener(Listener const&) = delete;
 
 	Listener(Handle handle) : m_handle(std::move(handle)) {}
 	~Listener() { disconnect(); }
 
+	Handle const& handle() const { return m_handle; }
 	void disconnect() { m_handle.disconnect(); }
 
 	bool connected() const { return static_cast<bool>(m_handle); }

@@ -53,7 +53,6 @@ class Entity final {
 
 	void tick(Time dt);
 
-	Scene& scene() const;
 	ComponentMap const& component_map() const { return m_components; }
 
 	bool active{true};

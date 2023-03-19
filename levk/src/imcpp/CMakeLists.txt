@@ -1,4 +1,5 @@
 target_sources(${PROJECT_NAME} PRIVATE
+  asset_inspector.cpp
   drag_drop.cpp
   editor_window.cpp
   engine_status.cpp
@@ -7,6 +8,5 @@ target_sources(${PROJECT_NAME} PRIVATE
   inspector.cpp
   log_display.cpp
   reflector.cpp
-  resource_display.cpp
   scene_graph.cpp
 )

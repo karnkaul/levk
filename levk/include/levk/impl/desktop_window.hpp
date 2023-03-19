@@ -1,7 +1,7 @@
 #pragma once
-#include <levk/surface.hpp>
+#include <levk/graphics/surface.hpp>
 #include <levk/util/ptr.hpp>
-#include <levk/window_state.hpp>
+#include <levk/window/window_state.hpp>
 #include <span>
 #include <vector>
 

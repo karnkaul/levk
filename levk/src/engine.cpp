@@ -1,3 +1,4 @@
+#include <impl/ft_lib_wrapper.hpp>
 #include <levk/component_factory.hpp>
 #include <levk/engine.hpp>
 #include <levk/scene.hpp>
@@ -25,11 +26,12 @@ struct Fps {
 
 struct Engine::Impl {
 	Window window;
-	GraphicsDevice graphics_device;
+	RenderDevice render_device;
+	std::unique_ptr<FontLibrary> font_library{};
 	DeltaTime dt{};
 	Fps fps{};
 
-	Impl(Window&& window, GraphicsDevice&& gd) : window(std::move(window)), graphics_device(std::move(gd)) {}
+	Impl(Window&& window, RenderDevice&& gd) : window(std::move(window)), render_device(std::move(gd)) {}
 };
 
 Engine::Engine(Engine&&) noexcept = default;
@@ -37,23 +39,26 @@ Engine& Engine::operator=(Engine&&) noexcept = default;
 
 Engine::~Engine() noexcept {
 	if (!m_impl) { return; }
-	Service<GraphicsDevice>::unprovide();
+	Service<RenderDevice>::unprovide();
 	Service<Window>::unprovide();
 }
 
-Engine::Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& create_info) noexcept(false)
+Engine::Engine(Window&& window, RenderDevice&& device, CreateInfo const& create_info) noexcept(false)
 	: m_impl(std::make_unique<Impl>(std::move(window), std::move(device))) {
 	m_impl->window.create(create_info.window_extent, create_info.window_title);
-	m_impl->graphics_device.create({m_impl->window});
+	m_impl->render_device.create({m_impl->window});
+	m_impl->font_library = make_font_library();
+	if (!m_impl->font_library->init()) { logger::error("[Engine] Failed to initialize FontLibrary!"); }
 
 	Service<Window>::provide(&m_impl->window);
-	Service<GraphicsDevice>::provide(&m_impl->graphics_device);
+	Service<RenderDevice>::provide(&m_impl->render_device);
 
 	if (create_info.autoshow) { m_impl->window.show(); }
 }
 
 Window& Engine::window() const { return m_impl->window; }
-GraphicsDevice& Engine::device() const { return m_impl->graphics_device; }
+RenderDevice& Engine::render_device() const { return m_impl->render_device; }
+FontLibrary const& Engine::font_library() const { return *m_impl->font_library; }
 
 Frame Engine::next_frame() {
 	m_impl->window.poll();
@@ -61,8 +66,8 @@ Frame Engine::next_frame() {
 	return {.state = m_impl->window.state(), .dt = m_impl->dt()};
 }
 
-void Engine::render(GraphicsRenderer const& renderer, Camera const& camera, Lights const& lights, Rgba clear) {
-	m_impl->graphics_device.render(renderer, camera, lights, m_impl->window.framebuffer_extent(), clear);
+void Engine::render(Renderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights) {
+	m_impl->render_device.render(renderer, providers, camera, lights, m_impl->window.framebuffer_extent());
 }
 
 Time Engine::delta_time() const { return m_impl->dt.value; }

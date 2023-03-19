@@ -1,14 +1,15 @@
 #pragma once
 #include <levk/context.hpp>
+#include <levk/graphics/text_primitive.hpp>
+#include <levk/imcpp/asset_inspector.hpp>
 #include <levk/imcpp/engine_status.hpp>
 #include <levk/imcpp/gltf_import_wizard.hpp>
 #include <levk/imcpp/log_display.hpp>
-#include <levk/imcpp/resource_display.hpp>
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/runtime.hpp>
 #include <levk/scene.hpp>
 #include <levk/util/async_task.hpp>
-#include <levk/util/reader.hpp>
+#include <levk/vfs/disk_vfs.hpp>
 #include <main_menu.hpp>
 
 namespace levk {
@@ -25,26 +26,30 @@ struct FreeCam {
 
 class Editor : public Runtime {
   public:
-	Editor(std::string data_path);
-
-	void save_scene() const;
-
-	std::string data_path{};
-
-	Scene scene{};
-	Uri<Scene> scene_uri{};
-	FreeCam free_cam{};
-	imcpp::ResourceDisplay resource_display{};
-	imcpp::SceneGraph scene_graph{};
-	imcpp::EngineStatus engine_status{};
-	imcpp::LogDisplay log_display{};
-	std::optional<imcpp::GltfImportWizard> gltf_importer{};
-	MainMenu main_menu{};
+	Editor(std::unique_ptr<DiskVfs> vfs);
+	Editor(std::string data_path) : Editor(std::make_unique<DiskVfs>(std::move(data_path))) {}
 
   private:
 	void tick(Frame const& frame) override;
 	void render() override;
 
-	std::unique_ptr<AsyncTask<void>> m_load{};
+	void save_scene() const;
+
+	FreeCam m_free_cam{};
+	imcpp::AssetInspector m_asset_inspector{};
+	imcpp::SceneGraph m_scene_graph{};
+	imcpp::EngineStatus m_engine_status{};
+	imcpp::LogDisplay m_log_display{};
+	std::optional<imcpp::GltfImportWizard> m_gltf_importer{};
+	MainMenu m_main_menu{};
+	std::unique_ptr<DiskVfs> m_vfs{};
+
+	Uri<Scene> m_scene_uri{};
+	std::unique_ptr<AsyncTask<Uri<>>> m_load{};
+
+	struct {
+		std::optional<TextPrimitive> primitive{};
+		Transform transforms[2]{};
+	} m_test{};
 };
 } // namespace levk

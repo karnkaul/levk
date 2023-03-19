@@ -8,6 +8,8 @@
 namespace levk {
 class Entity;
 class Scene;
+class AssetProviders;
+class DrawList;
 
 class Component : public Serializable {
   public:
@@ -18,14 +20,13 @@ class Component : public Serializable {
 	virtual void add_assets(AssetList& /*out*/, dj::Json const&) const {}
 
 	Id<Component> id() const { return m_self; }
-	Entity& entity() const;
-	Scene& scene() const;
+	Ptr<Entity> owning_entity() const;
+	Scene& active_scene() const;
 
   protected:
   private:
 	Id<Component> m_self{};
 	Id<Entity> m_entity{};
-	Ptr<Scene> m_scene{};
 
 	friend class Entity;
 };
@@ -33,6 +34,6 @@ class Component : public Serializable {
 class RenderComponent : public Component {
   public:
 	void tick(Time) override {}
-	virtual void render() const = 0;
+	virtual void render(DrawList& out) const = 0;
 };
 } // namespace levk

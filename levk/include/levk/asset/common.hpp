@@ -1,12 +1,10 @@
 #pragma once
 #include <djson/json.hpp>
 #include <levk/geometry.hpp>
-#include <levk/graphics_common.hpp>
-#include <levk/material.hpp>
+#include <levk/graphics/common.hpp>
+#include <levk/graphics/material.hpp>
+#include <levk/graphics/texture.hpp>
 #include <levk/skeleton.hpp>
-#include <levk/skinned_mesh.hpp>
-#include <levk/static_mesh.hpp>
-#include <levk/texture.hpp>
 #include <levk/uri.hpp>
 #include <variant>
 
@@ -42,6 +40,9 @@ void to_json(dj::Json& out, glm::mat4 const& mat);
 
 void from_json(dj::Json const& json, Rgba& out);
 void to_json(dj::Json& out, Rgba const& rgba);
+
+void from_json(dj::Json const& json, HdrRgba& out);
+void to_json(dj::Json& out, HdrRgba const& rgba);
 
 void from_json(dj::Json const& json, Transform& out);
 void to_json(dj::Json& out, Transform const& transform);
@@ -122,7 +123,7 @@ struct Skeleton {
 void from_json(dj::Json const& json, Skeleton& out);
 void to_json(dj::Json& out, Skeleton const& asset);
 
-struct Mesh {
+struct Mesh3D {
 	enum class Type { eStatic, eSkinned };
 
 	struct Primitive {
@@ -137,6 +138,6 @@ struct Mesh {
 	Type type{};
 };
 
-void from_json(dj::Json const& json, Mesh& out);
-void to_json(dj::Json& out, Mesh const& asset);
+void from_json(dj::Json const& json, Mesh3D& out);
+void to_json(dj::Json& out, Mesh3D const& asset);
 } // namespace levk::asset

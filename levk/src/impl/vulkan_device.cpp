@@ -4,17 +4,17 @@
 #include <vk_mem_alloc.h>
 #include <glm/gtc/color_space.hpp>
 #include <glm/mat4x4.hpp>
+#include <levk/asset/asset_providers.hpp>
 #include <levk/geometry.hpp>
+#include <levk/graphics/material.hpp>
+#include <levk/graphics/render_device.hpp>
+#include <levk/graphics/renderer.hpp>
+#include <levk/graphics/surface.hpp>
+#include <levk/graphics/texture.hpp>
 #include <levk/impl/defer_queue.hpp>
 #include <levk/impl/desktop_window.hpp>
 #include <levk/impl/vulkan_device.hpp>
 #include <levk/impl/vulkan_surface.hpp>
-#include <levk/material.hpp>
-#include <levk/render_resources.hpp>
-#include <levk/skinned_mesh.hpp>
-#include <levk/static_mesh.hpp>
-#include <levk/surface.hpp>
-#include <levk/texture.hpp>
 #include <levk/util/dyn_array.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
@@ -23,24 +23,21 @@
 #include <levk/util/hash_combine.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/ptr.hpp>
-#include <levk/util/reader.hpp>
 #include <levk/util/unique.hpp>
+#include <levk/util/visitor.hpp>
 #include <levk/util/zip_ranges.hpp>
-#include <levk/window.hpp>
+#include <levk/window/window.hpp>
 #include <spirv_glsl.hpp>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_hash.hpp>
 #include <algorithm>
 #include <atomic>
-#include <filesystem>
 #include <map>
 #include <numeric>
 #include <optional>
 #include <unordered_set>
 
 namespace levk {
-namespace fs = std::filesystem;
-
 namespace {
 template <typename T, typename U = T>
 using Pair = std::pair<T, U>;
@@ -48,14 +45,6 @@ using Pair = std::pair<T, U>;
 constexpr vk::Format srgb_formats_v[] = {vk::Format::eR8G8B8A8Srgb, vk::Format::eB8G8R8A8Srgb, vk::Format::eA8B8G8R8SrgbPack32};
 constexpr vk::Format linear_formats_v[] = {vk::Format::eR8G8B8A8Unorm, vk::Format::eB8G8R8A8Unorm};
 constexpr std::size_t buffering_v{2};
-
-constexpr std::string_view spir_v_compiler_v = "glslc";
-constexpr std::string_view dev_null_v =
-#if defined(_WIN32)
-	"NUL";
-#else
-	"/dev/null";
-#endif
 
 constexpr bool is_linear(vk::Format format) {
 	return std::find(std::begin(linear_formats_v), std::end(linear_formats_v), format) != std::end(linear_formats_v);
@@ -114,52 +103,8 @@ class Defer {
 		}
 	};
 
-	Unique<Type, Deleter> m_t{};
+	Unique<Type, Deleter> m_t;
 };
-
-bool is_glsl(fs::path const& path) {
-	auto const ext = path.extension();
-	return ext == ".vert" || ext == ".frag";
-}
-
-bool try_compiler() {
-	auto const cmd = fmt::format("{} --version > {}", spir_v_compiler_v, dev_null_v);
-	return std::system(cmd.c_str()) == 0;
-}
-
-bool compiler_available() {
-	static std::atomic<bool> s_ret{};
-	if (s_ret) { return s_ret; }
-	return s_ret = try_compiler();
-}
-
-std::string to_spir_v(std::string_view glsl_path) { return fmt::format("{}.spv", glsl_path); }
-
-bool try_compile(std::string& out_error, char const* glsl_path, char const* spir_v_path, bool debug) {
-	if (!compiler_available()) {
-		out_error = "Shader compiler not available";
-		return false;
-	}
-	if (!glsl_path || !*glsl_path) {
-		out_error = "GLSL path is empty";
-		return false;
-	}
-	if (!fs::is_regular_file(glsl_path)) {
-		out_error = fmt::format("File doesn't exist [{}]", glsl_path);
-		return false;
-	}
-	auto const dst = spir_v_path && *spir_v_path ? std::string{spir_v_path} : to_spir_v(glsl_path);
-	char const* debug_str = debug ? " -g " : "";
-	auto const cmd = fmt::format("{} {} {} -o {}", spir_v_compiler_v, debug_str, glsl_path, dst);
-	if (std::system(cmd.c_str()) == 0) { return true; }
-	out_error = fmt::format("Failed to compile [{}]", glsl_path);
-	return false;
-}
-
-void compile(char const* glsl_path, char const* spir_v_path, bool debug) {
-	auto error = std::string{};
-	if (!try_compile(error, glsl_path, spir_v_path, debug)) { throw Error{error}; }
-}
 
 vk::Result wait(vk::Device device, vk::ArrayProxy<vk::Fence> const& fences) {
 	return device.waitForFences(fences, true, std::numeric_limits<std::uint64_t>::max());
@@ -274,11 +219,21 @@ struct Vma::Image {
 	Allocation allocation{};
 	vk::Image image{};
 	vk::UniqueImageView view{};
+
 	vk::Extent2D extent{};
+	vk::ImageViewType type{};
+	std::uint32_t mip_levels{};
+	std::uint32_t array_layers{};
 
 	ImageView image_view() const { return {image, *view, extent}; }
 
 	bool operator==(Image const& rhs) const { return allocation.allocation == rhs.allocation.allocation; }
+};
+
+struct CopyImage {
+	Vma::Image const& image;
+	vk::ImageLayout layout{};
+	glm::ivec2 offset{};
 };
 
 using UniqueBuffer = Unique<Vma::Buffer, Vma::Deleter>;
@@ -380,35 +335,21 @@ struct RenderFrame {
 	static RenderFrame make(VulkanDevice const& device);
 };
 
-struct RenderCmd {
-	vk::CommandBuffer cb{};
-	vk::Extent2D extent{};
-};
-
 template <std::size_t Buffering>
 using RenderFrames = Buffered<RenderFrame, Buffering>;
 
-struct RenderPassView {
-	vk::RenderPass render_pass{};
-	vk::SampleCountFlagBits samples{};
-};
-
 template <std::size_t Buffering = buffering_v>
-struct RenderPass {
-	using View = RenderPassView;
-
+struct RenderPassStorage {
 	RenderFrames<Buffering> frames{};
 	vk::UniqueRenderPass render_pass{};
 	vk::SampleCountFlagBits samples{};
 	vk::Format colour{};
 	vk::Format depth{};
-
-	View view() const { return {*render_pass, samples}; }
 };
 
 template <std::size_t Buffering = buffering_v>
 struct OffScreen {
-	RenderPass<Buffering> rp{};
+	RenderPassStorage<Buffering> rp{};
 
 	Defer<UniqueImage> output_image{};
 	Defer<UniqueImage> msaa_image{};
@@ -417,7 +358,6 @@ struct OffScreen {
 	static OffScreen make(VulkanDevice const& device, vk::SampleCountFlagBits samples, vk::Format depth, vk::Format colour = vk::Format::eR8G8B8A8Srgb);
 
 	Framebuffer make_framebuffer(VulkanDevice const& device, vk::Extent2D extent, float scale);
-	RenderPassView view() const { return rp.view(); }
 };
 
 template <std::size_t Buffering = buffering_v>
@@ -440,15 +380,16 @@ struct DearImGui {
 };
 
 struct SpirV {
-	std::span<std::byte const> bytes{};
+	std::span<std::uint32_t const> code{};
 	std::size_t hash{};
 
-	static SpirV from(Reader& out, std::string const& uri, std::uint8_t flags = {}) {
-		auto data = out.load(uri, flags | Reader::eComputeHash);
-		return {data.bytes, data.hash};
+	static SpirV from(ShaderProvider& provider, Uri<ShaderCode> const& uri) {
+		auto data = provider.load(uri);
+		if (!data) { return {}; }
+		return {data->spir_v.span(), data->hash};
 	}
 
-	explicit operator bool() const { return !bytes.empty() && hash > 0; }
+	explicit operator bool() const { return !code.empty() && hash > 0; }
 };
 
 struct VertexInput {
@@ -679,33 +620,30 @@ template <typename Type, std::size_t Buffering = buffering_v>
 class BufferVec {
   public:
 	BufferVec() = default;
-	BufferVec(vk::BufferUsageFlags usage) : m_usage(usage) {}
+	BufferVec(vk::BufferUsageFlags usage) : m_buffer(usage) {}
 
 	template <typename F>
 	BufferView write(Vma const& vma, std::size_t size, Index<Buffering> i, F for_each) {
-		auto& buffer = [&]() -> HostBuffer<Buffering>& {
-			if (m_index < m_buffers.size()) { return m_buffers[m_index]; }
-			m_buffers.emplace_back(m_usage);
-			return m_buffers.back();
-		}();
-		m_vec.clear();
-		m_vec.resize(size);
-		for (auto [t, index] : enumerate(m_vec)) { for_each(t, index); }
-		auto const span = std::span<Type const>{m_vec};
-		buffer.update(span.data(), span.size_bytes(), span.size());
-		buffer.flush(vma, i);
-		++m_index;
-		return buffer.view(i);
+		assert(size > 0);
+		auto single = Type{};
+		auto span = std::span<Type const>{};
+		if (size > 1) {
+			m_vec.clear();
+			m_vec.resize(size);
+			for (auto [t, index] : enumerate(m_vec)) { for_each(t, index); }
+			span = m_vec;
+		} else {
+			for_each(single, 0u);
+			span = {&single, 1u};
+		}
+		m_buffer.update(span.data(), span.size_bytes(), span.size());
+		m_buffer.flush(vma, i);
+		return m_buffer.view(i);
 	}
 
-	void release() { m_index = {}; }
-
   private:
-	using Vec = std::vector<Type>;
-	std::vector<HostBuffer<Buffering>> m_buffers{};
-	Vec m_vec{};
-	vk::BufferUsageFlags m_usage;
-	std::size_t m_index{};
+	HostBuffer<Buffering> m_buffer;
+	std::vector<Type> m_vec{};
 };
 
 struct PipelineState {
@@ -714,6 +652,34 @@ struct PipelineState {
 	bool depth_test{true};
 
 	bool operator==(PipelineState const&) const = default;
+};
+
+struct Pipeline {
+	vk::Pipeline pipeline{};
+	vk::PipelineLayout layout{};
+	Ptr<SetAllocator::Pool> set_pool{};
+	std::span<SetLayout const> set_layouts{};
+	explicit operator bool() const { return pipeline && layout && set_pool; }
+
+	void bind(vk::CommandBuffer cb, vk::Extent2D extent, float line_width = 1.0f) {
+		cb.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+		glm::vec2 const fextent = glm::uvec2{extent.width, extent.height};
+		auto viewport = vk::Viewport{0.0f, fextent.y, fextent.x, -fextent.y, 0.0f, 1.0f};
+		auto scissor = vk::Rect2D{{}, extent};
+		cb.setViewport(0u, viewport);
+		cb.setScissor(0u, scissor);
+		cb.setLineWidth(line_width);
+	}
+};
+
+struct PipelineInfo {
+	vk::RenderPass render_pass;
+	SpirV vert;
+	SpirV frag;
+
+	VertexInput::View vertex_input{};
+	PipelineState state{};
+	vk::SampleCountFlagBits samples{vk::SampleCountFlagBits::e1};
 };
 
 template <std::size_t Buffering = buffering_v>
@@ -750,98 +716,22 @@ struct PipelineStorage {
 		vk::UniqueShaderModule frag{};
 	};
 
-	struct Pipe {
-		vk::Pipeline pipeline{};
-		vk::PipelineLayout layout{};
-		Ptr<SetAllocator::Pool> set_pool{};
-		std::span<SetLayout const> set_layouts{};
-		explicit operator bool() const { return pipeline && layout && set_pool; }
-
-		void bind(vk::CommandBuffer cb, vk::Extent2D extent, float line_width = 1.0f) {
-			cb.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-			glm::vec2 const fextent = glm::uvec2{extent.width, extent.height};
-			auto viewport = vk::Viewport{0.0f, fextent.y, fextent.x, -fextent.y, 0.0f, 1.0f};
-			auto scissor = vk::Rect2D{{}, extent};
-			cb.setViewport(0u, viewport);
-			cb.setScissor(0u, scissor);
-			cb.setLineWidth(line_width);
-		}
-	};
-
 	std::unordered_map<Key, Value, typename Key::Hasher> map{};
 	bool sample_rate_shading{};
 
 	void populate(Value& out, Vma const& vma, SpirV vert, SpirV frag);
-	vk::Pipeline get(Value& out, Vma const& vma, PipelineState st, VertexInput::View vi, RenderPassView rp, Program program);
+	vk::Pipeline get(Value& out, Vma const& vma, PipelineInfo const& info);
 
-	Pipe get(Vma const& vma, PipelineState st, VertexInput::View vi, RenderPassView rp, Program program, Index<Buffering> i) {
-		if (!rp.render_pass || program.vert.hash == 0 || program.frag.hash == 0) { throw Error{"TODO: error"}; }
-		auto const key = Key::make(st, vi, program.vert, program.frag);
+	Pipeline get(Vma const& vma, PipelineInfo const& info, Index<Buffering> i) {
+		if (!info.render_pass || info.vert.hash == 0 || info.frag.hash == 0) { throw Error{"TODO: error"}; }
+		auto const key = Key::make(info.state, info.vertex_input, info.vert, info.frag);
 		auto& value = map[key];
-		auto ret = get(value, vma, st, vi, rp, program);
+		auto ret = get(value, vma, info);
 		return {ret, *value.pipeline_layout, &value.set_pools.get(i), value.set_layouts};
 	}
 
 	void release_all(Index<Buffering> i) {
 		for (auto& [_, m] : map) { m.set_pools.get(i).release_all(); }
-	}
-};
-
-struct ShaderStorage {
-	struct Meta {
-		std::string uri{};
-		std::size_t hash{};
-	};
-
-	struct Entry {
-		struct {
-			std::string uri{};
-			std::size_t hash{};
-		} glsl_meta{};
-		std::string spir_v_uri{};
-		SpirV spir_v{};
-	};
-
-	std::unordered_map<std::string, Entry> map{};
-
-	SpirV from_glsl(FileReader& reader, std::string const& uri) {
-		auto entry = Entry{};
-		entry.spir_v_uri = to_spir_v(uri);
-		entry.glsl_meta.uri = uri;
-		auto const glsl_path = reader.absolute_path_for(entry.glsl_meta.uri);
-		auto const spir_v_path = reader.absolute_path_for(entry.spir_v_uri);
-		compile(glsl_path.c_str(), spir_v_path.c_str(), false);
-		logger::info("[ShaderCompiler] Compiled GLSL [{}] to SPIR-V [{}]", uri, entry.spir_v_uri);
-		entry.glsl_meta.hash = reader.load(entry.glsl_meta.uri, Reader::eComputeHash).hash;
-		entry.spir_v = SpirV::from(reader, entry.spir_v_uri, Reader::eReload);
-		if (!entry.spir_v) { throw Error{"TODO: error"}; }
-		auto [it, _] = map.insert_or_assign(uri, std::move(entry));
-		return it->second.spir_v;
-	}
-
-	SpirV get(Reader& reader, std::string const& uri) {
-		auto* file_reader = dynamic_cast<FileReader*>(&reader);
-		if (auto it = map.find(uri); it != map.end()) {
-			auto& entry = it->second;
-			if (file_reader) {
-				if (entry.glsl_meta.hash && reader.load(entry.glsl_meta.uri, Reader::eComputeHash).hash != entry.glsl_meta.hash) {
-					return from_glsl(*file_reader, uri);
-				}
-			}
-			if (!entry.spir_v) { entry.spir_v = SpirV::from(reader, uri); }
-			return entry.spir_v;
-		}
-		auto entry = Entry{};
-		if (is_glsl(uri.c_str())) {
-			if (!file_reader) { throw Error{"Cannot compile GLSL to SPIR-V without FileReader"}; }
-			return from_glsl(*file_reader, uri);
-		}
-
-		entry.spir_v = SpirV::from(reader, uri);
-		if (!entry.spir_v) { throw Error{"TODO: error"}; }
-
-		entry.spir_v_uri = uri;
-		return entry.spir_v;
 	}
 };
 
@@ -876,17 +766,16 @@ struct ShaderSet {
 	bool updated{};
 };
 
-template <std::size_t Buffering = buffering_v>
 struct VulkanShader : Shader {
 	vk::Device device{};
 	std::span<SetLayout const> set_layouts{};
 	Ptr<SamplerStorage> samplers{};
 	std::array<ShaderSet, max_sets_v> sets{};
 
-	VulkanShader(typename PipelineStorage<Buffering>::Pipe& pipe, SamplerStorage& samplers) : device(pipe.set_pool->device), samplers(&samplers) {
-		for (auto const& layout : pipe.set_layouts) {
+	VulkanShader(Pipeline& pipeline, SamplerStorage& samplers) : device(pipeline.set_pool->device), samplers(&samplers) {
+		for (auto const& layout : pipeline.set_layouts) {
 			if (layout.bindings.empty()) { continue; }
-			sets[layout.set].descriptor_set = &pipe.set_pool->next_set(layout.set);
+			sets[layout.set].descriptor_set = &pipeline.set_pool->next_set(layout.set);
 		}
 	}
 
@@ -901,6 +790,27 @@ struct VertexLayout {
 	VertexInput input{};
 	std::string shader_uri{"shaders/default.vert"};
 };
+
+struct GeometryOffsets {
+	std::size_t positions{};
+	std::size_t rgbs{};
+	std::size_t normals{};
+	std::size_t uvs{};
+	std::size_t joints{};
+	std::size_t weights{};
+	std::size_t indices{};
+};
+
+struct GeometryLayout {
+	VertexLayout vertex_layout{};
+	GeometryOffsets offsets{};
+	std::optional<std::uint32_t> instance_binding{};
+	std::optional<std::uint32_t> joints_binding{};
+	std::optional<std::uint32_t> joints_set{};
+	std::uint32_t vertices{};
+	std::uint32_t indices{};
+	std::uint32_t joints{};
+};
 } // namespace
 
 class VulkanMeshGeometry::Impl {
@@ -912,60 +822,45 @@ class VulkanMeshGeometry::Impl {
 
 	using Joints = MeshJoints;
 
-	Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints = {});
+	Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints);
 
-	Info info() const { return {m_vertices, m_indices}; }
-	VertexLayout const& vertex_layout() const { return m_vlayout; }
+	Info info() const { return {m_layout.vertices, m_layout.indices}; }
+	VertexLayout const& vertex_layout() const { return m_layout.vertex_layout; }
 	bool has_joints() const { return m_jwbo.get().get().size > 0; }
-	std::uint32_t instance_binding() const { return m_instance_binding; }
-	std::optional<std::uint32_t> joints_set() const { return m_jwbo.get().get().size > 0 ? std::optional<std::uint32_t>{3} : std::nullopt; }
+	std::optional<std::uint32_t> instance_binding() const { return m_layout.instance_binding; }
+	std::optional<std::uint32_t> joints_binding() const { return m_layout.joints_binding; }
+	std::optional<std::uint32_t> joints_set() const { return m_layout.joints_set; }
 
 	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) const {
 		auto const& v = m_vibo.get().get();
+		if (!v.buffer) { return; }
 		vk::Buffer const buffers[] = {v.buffer, v.buffer, v.buffer, v.buffer};
-		vk::DeviceSize const offsets[] = {m_offsets.positions, m_offsets.rgbs, m_offsets.normals, m_offsets.uvs};
+		vk::DeviceSize const offsets[] = {m_layout.offsets.positions, m_layout.offsets.rgbs, m_layout.offsets.normals, m_layout.offsets.uvs};
 		cb.bindVertexBuffers(0u, buffers, offsets);
-		if (m_jwbo.get().get().size > 0) {
+		if (m_layout.joints_binding > 0) {
+			assert(m_jwbo.get());
 			vk::Buffer const buffers[] = {m_jwbo.get().get().buffer, m_jwbo.get().get().buffer};
-			vk::DeviceSize const offsets[] = {m_offsets.joints, m_offsets.weights};
-			cb.bindVertexBuffers(4u, buffers, offsets);
+			vk::DeviceSize const offsets[] = {m_layout.offsets.joints, m_layout.offsets.weights};
+			cb.bindVertexBuffers(*m_layout.joints_binding, buffers, offsets);
 		}
-		if (m_indices > 0) {
-			cb.bindIndexBuffer(v.buffer, m_offsets.indices, vk::IndexType::eUint32);
-			cb.drawIndexed(m_indices, instances, 0u, 0u, 0u);
+		if (m_layout.indices > 0) {
+			cb.bindIndexBuffer(v.buffer, m_layout.offsets.indices, vk::IndexType::eUint32);
+			cb.drawIndexed(m_layout.indices, instances, 0u, 0u, 0u);
 		} else {
-			cb.draw(m_vertices, instances, 0u, 0u);
+			cb.draw(m_layout.vertices, instances, 0u, 0u);
 		}
 	}
 
-  private:
-	struct Uploader;
-	struct Offsets {
-		std::size_t positions{};
-		std::size_t rgbs{};
-		std::size_t normals{};
-		std::size_t uvs{};
-		std::size_t joints{};
-		std::size_t weights{};
-		std::size_t indices{};
-	};
+	Defer<BufferVec<glm::mat4>> instances{};
+	Defer<BufferVec<glm::mat4>> joints;
 
-	VertexLayout m_vlayout{};
+  private:
 	Defer<UniqueBuffer> m_vibo{};
 	Defer<UniqueBuffer> m_jwbo{};
-	Offsets m_offsets{};
-	std::uint32_t m_vertices{};
-	std::uint32_t m_indices{};
-	std::uint32_t m_instance_binding{};
+	GeometryLayout m_layout{};
 };
 
-VulkanMeshGeometry::VulkanMeshGeometry() noexcept = default;
-VulkanMeshGeometry::VulkanMeshGeometry(VulkanMeshGeometry&&) noexcept = default;
-VulkanMeshGeometry& VulkanMeshGeometry::operator=(VulkanMeshGeometry&&) noexcept = default;
-VulkanMeshGeometry::~VulkanMeshGeometry() noexcept = default;
-
-class VulkanTexture::Impl {
-  public:
+struct VulkanTexture::Impl {
 	using CreateInfo = TextureCreateInfo;
 
 	Impl(VulkanDevice const& device, Image::View image, CreateInfo const& info = {});
@@ -976,20 +871,13 @@ class VulkanTexture::Impl {
 
 	TextureSampler sampler{};
 
-  protected:
 	Impl(VulkanDevice const& device, TextureSampler sampler);
 
-  private:
 	Ptr<VulkanDevice const> m_device{};
 	Defer<UniqueImage> m_image{};
 	ImageCreateInfo m_info{};
 	vk::ImageLayout m_layout{vk::ImageLayout::eUndefined};
 };
-
-VulkanTexture::VulkanTexture() noexcept = default;
-VulkanTexture::VulkanTexture(VulkanTexture&&) noexcept = default;
-VulkanTexture& VulkanTexture::operator=(VulkanTexture&&) noexcept = default;
-VulkanTexture::~VulkanTexture() noexcept = default;
 
 struct VulkanDevice::Impl {
 	vk::UniqueInstance instance{};
@@ -1008,23 +896,14 @@ struct VulkanDevice::Impl {
 	DearImGui dear_imgui{};
 	Index<> buffered_index{};
 
-	Ptr<Reader> reader{};
-
 	std::mutex mutex{};
 	PipelineStorage<> pipelines{};
-	ShaderStorage shaders{};
 	SamplerStorage samplers{};
 
-	RenderCmd cmd_3d{};
-	RenderCmd cmd_ui{};
-	BufferVec<glm::mat4> instance_vec{};
-	BufferVec<glm::mat4> joints_vec{};
 	UniqueBuffer blank_buffer{};
-	HostBuffer<> view_ubo{};
-	HostBuffer<> dir_lights_ssbo{};
-
-	std::optional<Texture> white_texture{};
-	std::optional<Texture> black_texture{};
+	HostBuffer<> view_ubo_3d{vk::BufferUsageFlagBits::eUniformBuffer};
+	HostBuffer<> view_ubo_ui{vk::BufferUsageFlagBits::eUniformBuffer};
+	HostBuffer<> dir_lights_ssbo{vk::BufferUsageFlagBits::eStorageBuffer};
 
 	GraphicsDeviceInfo info{};
 	RenderMode default_render_mode{};
@@ -1032,7 +911,6 @@ struct VulkanDevice::Impl {
 	struct {
 		struct {
 			std::uint64_t draw_calls{};
-			std::uint64_t triangles{};
 		} per_frame{};
 	} stats{};
 };
@@ -1695,18 +1573,10 @@ DearImGui make_imgui(Window const& window, VulkanDevice const& device) {
 	return true;
 }
 
-std::vector<std::uint32_t> to_spirv_code(std::span<std::byte const> bytes) {
-	auto ret = std::vector<std::uint32_t>{};
-	ret.resize(bytes.size() / sizeof(std::uint32_t));
-	std::memcpy(ret.data(), bytes.data(), bytes.size());
-	return ret;
-}
-
-std::vector<SetLayout> make_set_layouts(std::span<std::byte const> vert, std::span<std::byte const> frag) {
+std::vector<SetLayout> make_set_layouts(std::span<std::uint32_t const> vert, std::span<std::uint32_t const> frag) {
 	std::map<std::uint32_t, std::map<std::uint32_t, vk::DescriptorSetLayoutBinding>> set_layout_bindings{};
-	auto populate = [&set_layout_bindings](std::span<std::byte const> code, vk::ShaderStageFlagBits stage) {
-		auto const spv = to_spirv_code(code);
-		auto compiler = spirv_cross::CompilerGLSL{spv.data(), spv.size()};
+	auto populate = [&set_layout_bindings](std::span<std::uint32_t const> code, vk::ShaderStageFlagBits stage) {
+		auto compiler = spirv_cross::CompilerGLSL{code.data(), code.size()};
 		auto resources = compiler.get_shader_resources();
 		auto set_resources = [&compiler, &set_layout_bindings, stage](std::span<spirv_cross::Resource const> resources, vk::DescriptorType const type) {
 			for (auto const& resource : resources) {
@@ -1749,21 +1619,22 @@ std::vector<SetLayout> make_set_layouts(std::span<std::byte const> vert, std::sp
 	return ret;
 }
 
-struct PipeInfo {
+struct PipelineCreateInfo {
 	VertexInput::View vinput;
 	vk::ShaderModule vert;
 	vk::ShaderModule frag;
 	vk::PipelineLayout layout;
 
-	RenderPassView render_pass;
+	vk::RenderPass render_pass;
+	vk::SampleCountFlagBits samples;
+
 	PipelineState state{};
 	bool sample_shading{true};
 };
 
 vk::UniqueShaderModule make_shader_module(vk::Device device, SpirV const& spirv) {
-	assert(spirv.hash > 0 && !spirv.bytes.empty());
-	auto const code = to_spirv_code(spirv.bytes);
-	auto smci = vk::ShaderModuleCreateInfo{{}, spirv.bytes.size(), code.data()};
+	assert(spirv.hash > 0 && !spirv.code.empty());
+	auto smci = vk::ShaderModuleCreateInfo{{}, spirv.code.size_bytes(), spirv.code.data()};
 	return device.createShaderModuleUnique(smci);
 }
 
@@ -1777,9 +1648,9 @@ vk::UniquePipelineLayout make_pipeline_layout(vk::Device device, std::span<vk::U
 	return device.createPipelineLayoutUnique(plci);
 }
 
-vk::UniquePipeline make_pipeline(vk::Device device, PipeInfo const& info) {
+vk::UniquePipeline make_pipeline(vk::Device device, PipelineCreateInfo const& info) {
 	auto gpci = vk::GraphicsPipelineCreateInfo{};
-	gpci.renderPass = info.render_pass.render_pass;
+	gpci.renderPass = info.render_pass;
 	gpci.layout = info.layout;
 
 	auto pvisci = vk::PipelineVertexInputStateCreateInfo{};
@@ -1832,7 +1703,7 @@ vk::UniquePipeline make_pipeline(vk::Device device, PipeInfo const& info) {
 	gpci.pViewportState = &pvsci;
 
 	auto pmssci = vk::PipelineMultisampleStateCreateInfo{};
-	pmssci.rasterizationSamples = info.render_pass.samples;
+	pmssci.rasterizationSamples = info.samples;
 	pmssci.sampleShadingEnable = info.sample_shading;
 	gpci.pMultisampleState = &pmssci;
 
@@ -1845,7 +1716,7 @@ vk::UniquePipeline make_pipeline(vk::Device device, PipeInfo const& info) {
 template <std::size_t Buffering>
 void PipelineStorage<Buffering>::populate(Value& out, Vma const& vma, SpirV vert, SpirV frag) {
 	if (out.pipeline_layout) { return; }
-	out.set_layouts = make_set_layouts(vert.bytes, frag.bytes);
+	out.set_layouts = make_set_layouts(vert.code, frag.code);
 	for (auto const& layout : out.set_layouts) {
 		auto const dslci = vk::DescriptorSetLayoutCreateInfo{{}, static_cast<std::uint32_t>(layout.bindings.span().size()), layout.bindings.span().data()};
 		out.descriptor_set_layouts.push_back(vma.device.createDescriptorSetLayoutUnique(dslci));
@@ -1858,44 +1729,35 @@ void PipelineStorage<Buffering>::populate(Value& out, Vma const& vma, SpirV vert
 }
 
 template <std::size_t Buffering>
-vk::Pipeline PipelineStorage<Buffering>::get(Value& out, Vma const& vma, PipelineState st, VertexInput::View vi, RenderPassView rp, Program program) {
-	if (auto it = out.pipelines.find(rp.render_pass); it != out.pipelines.end()) { return *it->second; }
-	if (!out.pipeline_layout) { populate(out, vma, program.vert, program.frag); }
-	auto const pi = PipeInfo{
-		vi, *out.vert, *out.frag, *out.pipeline_layout, rp, st, sample_rate_shading,
+vk::Pipeline PipelineStorage<Buffering>::get(Value& out, Vma const& vma, PipelineInfo const& info) {
+	if (auto it = out.pipelines.find(info.render_pass); it != out.pipelines.end()) { return *it->second; }
+	if (!out.pipeline_layout) { populate(out, vma, info.vert, info.frag); }
+	auto const pi = PipelineCreateInfo{
+		info.vertex_input, *out.vert, *out.frag, *out.pipeline_layout, info.render_pass, info.samples, info.state, sample_rate_shading,
 	};
 	auto ret = make_pipeline(vma.device, pi);
 	if (!ret) { throw Error{"TODO: error"}; }
-	auto [it, _] = out.pipelines.insert_or_assign(rp.render_pass, std::move(ret));
+	auto [it, _] = out.pipelines.insert_or_assign(info.render_pass, std::move(ret));
 	return *it->second;
 }
 
-template <std::size_t Buffering>
-void VulkanShader<Buffering>::update(std::uint32_t set, std::uint32_t binding, Texture const& texture) {
+void VulkanShader::update(std::uint32_t set, std::uint32_t binding, Texture const& texture) {
 	auto const* vt = texture.as<VulkanTexture>();
 	assert(vt);
 	get_set(set)->update(binding, vt->impl->view(), samplers->get(device, vt->impl->sampler));
 }
 
-template <std::size_t Buffering>
-void VulkanShader<Buffering>::update(std::uint32_t set, std::uint32_t binding, BufferView const& buffer) {
-	get_set(set)->update(binding, buffer);
-}
-template <std::size_t Buffering>
-void VulkanShader<Buffering>::write(std::uint32_t set, std::uint32_t binding, void const* data, std::size_t size) {
-	get_set(set)->write(binding, data, size);
-}
+void VulkanShader::update(std::uint32_t set, std::uint32_t binding, BufferView const& buffer) { get_set(set)->update(binding, buffer); }
+void VulkanShader::write(std::uint32_t set, std::uint32_t binding, void const* data, std::size_t size) { get_set(set)->write(binding, data, size); }
 
-template <std::size_t Buffering>
-Ptr<DescriptorSet> VulkanShader<Buffering>::get_set(std::uint32_t set) {
+Ptr<DescriptorSet> VulkanShader::get_set(std::uint32_t set) {
 	assert(set < max_sets_v && sets[set].descriptor_set);
 	auto& ret = sets[set];
 	ret.updated = true;
 	return ret.descriptor_set;
 }
 
-template <std::size_t Buffering>
-void VulkanShader<Buffering>::bind(vk::PipelineLayout layout, vk::CommandBuffer cb) const {
+void VulkanShader::bind(vk::PipelineLayout layout, vk::CommandBuffer cb) const {
 	for (auto const& set : sets) {
 		if (!set.descriptor_set) { continue; }
 		if (!set.updated) { logger::warn("[Shader] All descriptor sets not updated for bound pipeline"); }
@@ -1906,7 +1768,7 @@ void VulkanShader<Buffering>::bind(vk::PipelineLayout layout, vk::CommandBuffer 
 constexpr auto v_flags_v = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst;
 constexpr auto vi_flags_v = v_flags_v | vk::BufferUsageFlagBits::eIndexBuffer;
 
-struct Writer {
+struct BufferWriter {
 	UniqueBuffer& out;
 	std::size_t offset{};
 
@@ -1966,13 +1828,13 @@ VertexLayout skinned_vertex_layout() {
 	return ret;
 }
 
-ImageBarrier full_barrier(ImageView const& image, std::uint32_t levels, std::uint32_t layers, vk::ImageLayout const src, vk::ImageLayout const dst) {
+ImageBarrier full_barrier(Vma::Image const& image, vk::ImageLayout const src, vk::ImageLayout const dst) {
 	auto ret = ImageBarrier{};
 	ret.barrier.srcAccessMask = ret.barrier.dstAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite;
 	ret.barrier.oldLayout = src;
 	ret.barrier.newLayout = dst;
 	ret.barrier.image = image.image;
-	ret.barrier.subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, levels, 0, layers};
+	ret.barrier.subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, image.mip_levels, 0, image.array_layers};
 	ret.stages = {vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands};
 	return ret;
 }
@@ -2048,89 +1910,168 @@ bool can_mip(vk::PhysicalDevice const gpu, vk::Format const format) {
 	return (fsrc.optimalTilingFeatures & flags_v) != vk::FormatFeatureFlags{};
 }
 
-Defer<UniqueImage> make_image(VulkanDevice const& device, std::span<Image::View const> images, ImageCreateInfo const& info, vk::ImageViewType type) {
-	auto const extent = vk::Extent2D{images[0].extent.x, images[0].extent.y};
-	auto ret = Defer<UniqueImage>{device.impl->defer, device.impl->vma.get().make_image(info, extent, type)};
-
-	auto const accumulate_size = [](std::size_t total, Image::View const& i) { return total + i.bytes.size(); };
+bool copy_to_image(VulkanDevice const& device, Vma::Image const& out, std::span<Image::View const> images, glm::ivec2 const offset = {}) {
+	assert(std::all_of(images.begin(), images.end(), [images](Image::View const& view) { return view.extent == images[0].extent; }));
+	assert(out.array_layers == images.size());
+	auto const accumulate_size = [](std::size_t total, Image::View const& i) { return total + i.storage.size(); };
 	auto const size = std::accumulate(images.begin(), images.end(), std::size_t{}, accumulate_size);
 	auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst, size, true);
 	if (!staging.get().buffer) {
 		// TODO: error
-		return {};
+		return false;
 	}
 
 	auto* ptr = static_cast<std::byte*>(staging.get().ptr);
 	for (auto const& image : images) {
-		std::memcpy(ptr, image.bytes.data(), image.bytes.size());
-		ptr += image.bytes.size();
+		std::memcpy(ptr, image.storage.data(), image.storage.size());
+		ptr += image.storage.size();
 	}
 
-	auto isrl = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, info.array_layers);
-	auto icr = vk::ImageCopy(isrl, {}, isrl, {}, vk::Extent3D{extent, 1});
-	auto bic = vk::BufferImageCopy({}, {}, {}, isrl, {}, icr.extent);
+	auto const vk_extent = vk::Extent3D{images[0].extent.x, images[0].extent.y, 1u};
+	auto const vk_offset = vk::Offset3D{offset.x, offset.y, 0};
+	auto isrl = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, out.array_layers);
+	auto bic = vk::BufferImageCopy({}, {}, {}, isrl, vk_offset, vk_extent);
 	auto cmd = Cmd{device};
-	full_barrier(ret.get().get().image_view(), info.mip_levels, info.array_layers, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal)
-		.transition(cmd.cb);
-	cmd.cb.copyBufferToImage(staging.get().buffer, ret.get().get().image, vk::ImageLayout::eTransferDstOptimal, bic);
-	full_barrier(ret.get().get().image_view(), info.mip_levels, info.array_layers, vk::ImageLayout::eTransferDstOptimal,
-				 vk::ImageLayout::eShaderReadOnlyOptimal)
-		.transition(cmd.cb);
-	if (info.mip_levels > 1) { MipMapWriter{ret.get().get().image, ret.get().get().extent, cmd.cb, info.mip_levels}(); }
+	full_barrier(out, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal).transition(cmd.cb);
+	cmd.cb.copyBufferToImage(staging.get().buffer, out.image, vk::ImageLayout::eTransferDstOptimal, bic);
+	full_barrier(out, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal).transition(cmd.cb);
+	if (out.mip_levels > 1) { MipMapWriter{out.image, out.extent, cmd.cb, out.mip_levels, out.array_layers}(); }
+	return true;
+}
+
+bool write_images(VulkanDevice const& device, Vma::Image const& out, std::span<Texture::Write const> writes) {
+	if (out.array_layers > 1u) { return false; }
+	if (writes.empty()) { return true; }
+	auto const accumulate_size = [](std::size_t total, Texture::Write const& tw) { return total + tw.image.storage.size(); };
+	auto const size = std::accumulate(writes.begin(), writes.end(), std::size_t{}, accumulate_size);
+	auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst, size, true);
+	auto* ptr = static_cast<std::byte*>(staging.get().ptr);
+	for (auto const& image : writes) {
+		std::memcpy(ptr, image.image.storage.data(), image.image.storage.size());
+		ptr += image.image.storage.size();
+	}
+	auto isrl = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, out.array_layers);
+	auto bics = std::vector<vk::BufferImageCopy>{};
+	bics.reserve(writes.size());
+	auto buffer_offset = vk::DeviceSize{};
+	for (auto const& image : writes) {
+		auto offset = glm::ivec2{image.offset};
+		auto const vk_offset = vk::Offset3D{offset.x, offset.y, 0};
+		auto const extent = vk::Extent3D{image.image.extent.x, image.image.extent.y, 1u};
+		auto bic = vk::BufferImageCopy{buffer_offset, {}, {}, isrl, vk_offset, extent};
+		bics.push_back(bic);
+		buffer_offset += image.image.storage.size();
+	}
+	auto cmd = Cmd{device};
+	full_barrier(out, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal).transition(cmd.cb);
+	cmd.cb.copyBufferToImage(staging.get().buffer, out.image, vk::ImageLayout::eTransferDstOptimal, bics);
+	full_barrier(out, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal).transition(cmd.cb);
+	if (out.mip_levels > 1) { MipMapWriter{out.image, out.extent, cmd.cb, out.mip_levels, out.array_layers}(); }
+	return true;
+}
+
+UniqueImage make_image(VulkanDevice const& device, std::span<Image::View const> images, ImageCreateInfo const& info, vk::ImageViewType type) {
+	if (images.empty()) { return {}; }
+	auto const extent = vk::Extent2D{images[0].extent.x, images[0].extent.y};
+	assert(std::all_of(images.begin(), images.end(), [images](Image::View const& view) { return view.extent == images[0].extent; }));
+	auto ret = UniqueImage{device.impl->vma.get().make_image(info, extent, type)};
+	if (!ret) { return {}; }
+	copy_to_image(device, ret, images);
 	return ret;
 }
-} // namespace
 
-struct VulkanMeshGeometry::Impl::Uploader {
-	VulkanDevice const& device;
-	VulkanMeshGeometry::Impl& out;
+void copy_image(VulkanDevice const& device, CopyImage const& src, CopyImage const& dst, vk::Extent2D const extent) {
+	auto isrl_src = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, src.image.array_layers);
+	auto isrl_dst = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, src.image.array_layers);
+	auto offset_src = vk::Offset3D{src.offset.x, src.offset.y, 0u};
+	auto offset_dst = vk::Offset3D{dst.offset.x, dst.offset.y, 0u};
+	auto ic = vk::ImageCopy{isrl_src, offset_src, isrl_dst, offset_dst, vk::Extent3D{extent, 1}};
 
-	void operator()(Geometry::Packed const& geometry, Joints joints) {
-		assert(joints.joints.size() == joints.weights.size());
-		{
-			auto staging = FlexArray<UniqueBuffer, 2>{};
-			auto cmd = Cmd{device, vk::PipelineStageFlagBits::eTopOfPipe};
-			staging.insert(upload(cmd.cb, geometry));
-			if (!joints.joints.empty()) { staging.insert(upload(cmd.cb, joints.joints, joints.weights)); }
-		}
-		out.m_vlayout = joints.joints.empty() ? instanced_vertex_layout() : skinned_vertex_layout();
-		out.m_instance_binding = 6u;
-	}
+	auto cmd = Cmd{device};
+	full_barrier(src.image, src.layout, vk::ImageLayout::eTransferSrcOptimal).transition(cmd.cb);
+	full_barrier(dst.image, dst.layout, vk::ImageLayout::eTransferDstOptimal).transition(cmd.cb);
+	cmd.cb.copyImage(src.image.image, vk::ImageLayout::eTransferSrcOptimal, dst.image.image, vk::ImageLayout::eTransferDstOptimal, ic);
+	auto layout = src.layout == vk::ImageLayout::eUndefined ? vk::ImageLayout::eShaderReadOnlyOptimal : src.layout;
+	full_barrier(src.image, vk::ImageLayout::eTransferSrcOptimal, layout).transition(cmd.cb);
+	layout = dst.layout == vk::ImageLayout::eUndefined ? vk::ImageLayout::eShaderReadOnlyOptimal : src.layout;
+	full_barrier(dst.image, vk::ImageLayout::eTransferDstOptimal, layout).transition(cmd.cb);
+	if (dst.image.mip_levels > 1) { MipMapWriter{dst.image.image, dst.image.extent, cmd.cb, dst.image.mip_levels, dst.image.array_layers}(); }
+}
 
-	[[nodiscard]] UniqueBuffer upload(vk::CommandBuffer cb, Geometry::Packed const& geometry) {
+struct GeometryUploader {
+	struct Bindings {
+		static constexpr auto instance_v{6u};
+		static constexpr auto joints_v{4u};
+	};
+
+	struct Sets {
+		static constexpr auto joints_v{3u};
+	};
+
+	Vma const& vma;
+
+	FlexArray<UniqueBuffer, 2> staging_buffers{};
+
+	void write_to(GeometryLayout& out_layout, UniqueBuffer& out_buffer, Geometry::Packed const& geometry, bool host_visible) const {
 		auto const indices = std::span<std::uint32_t const>{geometry.indices};
-		out.m_vertices = static_cast<std::uint32_t>(geometry.positions.size());
-		out.m_indices = static_cast<std::uint32_t>(indices.size());
+		out_layout.vertices = static_cast<std::uint32_t>(geometry.positions.size());
+		out_layout.indices = static_cast<std::uint32_t>(indices.size());
 		auto const size = geometry.size_bytes();
-		out.m_vibo.swap(device.impl->vma.get().make_buffer(vi_flags_v, size, false));
-		device.impl->vma.get().make_buffer(vi_flags_v, size, false);
-		auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
-		auto writer = Writer{staging};
-		out.m_offsets.positions = writer(std::span{geometry.positions});
-		out.m_offsets.rgbs = writer(std::span{geometry.rgbs});
-		out.m_offsets.normals = writer(std::span{geometry.normals});
-		out.m_offsets.uvs = writer(std::span{geometry.uvs});
-		if (!indices.empty()) { out.m_offsets.indices = writer(indices); }
-		cb.copyBuffer(staging.get().buffer, out.m_vibo.get().get().buffer, vk::BufferCopy{{}, {}, size});
-		return staging;
+		if (out_buffer.get().size < size) { out_buffer = vma.make_buffer(vi_flags_v, size, host_visible); }
+		auto writer = BufferWriter{out_buffer};
+		out_layout.offsets.positions = writer(std::span{geometry.positions});
+		out_layout.offsets.rgbs = writer(std::span{geometry.rgbs});
+		out_layout.offsets.normals = writer(std::span{geometry.normals});
+		out_layout.offsets.uvs = writer(std::span{geometry.uvs});
+		if (!indices.empty()) { out_layout.offsets.indices = writer(indices); }
+		out_layout.vertex_layout = instanced_vertex_layout();
+		out_layout.instance_binding = Bindings::instance_v;
 	}
 
-	[[nodiscard]] UniqueBuffer upload(vk::CommandBuffer cb, std::span<glm::uvec4 const> joints, std::span<glm::vec4 const> weights) {
-		assert(joints.size() >= weights.size());
-		auto const size = joints.size_bytes() + weights.size_bytes();
-		out.m_jwbo.swap(device.impl->vma.get().make_buffer(v_flags_v, size, false));
-		auto staging = device.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
-		auto writer = Writer{staging};
-		out.m_offsets.joints = writer(joints);
-		out.m_offsets.weights = writer(weights);
-		cb.copyBuffer(staging.get().buffer, out.m_jwbo.get().get().buffer, vk::BufferCopy{{}, {}, size});
-		return staging;
+	void write_to(GeometryLayout& out_layout, UniqueBuffer& out_buffer, MeshJoints const& joints) const {
+		assert(joints.joints.size() >= joints.weights.size());
+		auto const size = joints.joints.size_bytes() + joints.weights.size_bytes();
+		if (out_buffer.get().size < size) { out_buffer = vma.make_buffer(v_flags_v, size, false); }
+		auto writer = BufferWriter{out_buffer};
+		out_layout.offsets.joints = writer(joints.joints);
+		out_layout.offsets.weights = writer(joints.weights);
+		out_layout.vertex_layout = skinned_vertex_layout();
+		out_layout.joints_binding = Bindings::joints_v;
+		out_layout.joints_set = Sets::joints_v;
+		out_layout.joints = static_cast<std::uint32_t>(joints.joints.size());
+	}
+
+	[[nodiscard]] UniqueBuffer upload(GeometryLayout& out_result, vk::CommandBuffer cb, Geometry::Packed const& geometry) {
+		static constexpr auto dst_usage_v{vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer};
+		auto const size = geometry.size_bytes();
+		auto staging = vma.make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
+		auto ret = vma.make_buffer(vk::BufferUsageFlagBits::eTransferDst | dst_usage_v, size, false);
+		write_to(out_result, staging, geometry, false);
+		cb.copyBuffer(staging.get().buffer, ret.get().buffer, vk::BufferCopy{{}, {}, size});
+		staging_buffers.insert(std::move(staging));
+		return ret;
+	}
+
+	[[nodiscard]] UniqueBuffer upload(GeometryLayout& out_result, vk::CommandBuffer cb, MeshJoints const& joints) {
+		static constexpr auto dst_usage_v{vk::BufferUsageFlagBits::eVertexBuffer};
+		auto const size = joints.joints.size_bytes() + joints.weights.size_bytes();
+		auto staging = vma.make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
+		auto ret = vma.make_buffer(vk::BufferUsageFlagBits::eTransferDst | dst_usage_v, size, false);
+		write_to(out_result, staging, joints);
+		cb.copyBuffer(staging.get().buffer, ret.get().buffer, vk::BufferCopy{{}, {}, size});
+		staging_buffers.insert(std::move(staging));
+		return ret;
 	}
 };
+} // namespace
 
 VulkanMeshGeometry::Impl::Impl(VulkanDevice const& device, Geometry::Packed const& geometry, Joints joints)
-	: m_vibo(device.impl->defer), m_jwbo(device.impl->defer) {
-	Uploader{device, *this}(geometry, joints);
+	: instances(device.impl->defer, {vk::BufferUsageFlagBits::eVertexBuffer}), joints(device.impl->defer, {vk::BufferUsageFlagBits::eStorageBuffer}),
+	  m_vibo(device.impl->defer), m_jwbo(device.impl->defer) {
+	auto uploader = GeometryUploader{device.impl->vma.get()};
+	auto cmd = Cmd{device};
+	m_vibo = {device.impl->defer, uploader.upload(m_layout, cmd.cb, geometry)};
+	if (!joints.joints.empty()) { m_jwbo = {device.impl->defer, uploader.upload(m_layout, cmd.cb, joints)}; }
 }
 
 VulkanTexture::Impl::Impl(VulkanDevice const& device, Image::View image, CreateInfo const& info) : Impl(device, info.sampler) {
@@ -2142,13 +2083,13 @@ VulkanTexture::Impl::Impl(VulkanDevice const& device, Image::View image, CreateI
 		image = magenta_pixmap_v.view();
 		mip_mapped = false;
 	}
-	if (image.bytes.empty()) {
+	if (image.storage.empty()) {
 		logger::warn("[Texture] invalid image bytes: [empty]");
 		image = magenta_pixmap_v.view();
 		mip_mapped = false;
 	}
 	if (mip_mapped && can_mip(device.impl->gpu.device, m_info.format)) { m_info.mip_levels = compute_mip_levels({image.extent.x, image.extent.y}); }
-	m_image = make_image(device, {&image, 1}, m_info, vk::ImageViewType::e2D);
+	m_image = {device.impl->defer, make_image(device, {&image, 1}, m_info, vk::ImageViewType::e2D)};
 	m_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
 }
 
@@ -2209,6 +2150,9 @@ UniqueImage Vma::make_image(ImageCreateInfo const& info, vk::Extent2D const exte
 	ret.image = image;
 	ret.allocation.vma = *this;
 	ret.extent = extent;
+	ret.mip_levels = info.mip_levels;
+	ret.array_layers = info.array_layers;
+	ret.type = type;
 	return UniqueImage{std::move(ret)};
 }
 
@@ -2257,24 +2201,23 @@ void DearImGui::render(vk::CommandBuffer cb) {
 	if (auto* data = ImGui::GetDrawData()) { ImGui_ImplVulkan_RenderDrawData(data, cb); }
 }
 
-VulkanDevice::VulkanDevice(Reader& reader) : impl(std::make_unique<Impl>()) { impl->reader = &reader; }
-VulkanDevice::VulkanDevice(VulkanDevice&&) noexcept = default;
-VulkanDevice& VulkanDevice::operator=(VulkanDevice&&) noexcept = default;
-VulkanDevice::~VulkanDevice() noexcept = default;
+void VulkanDevice::Deleter::operator()(Impl const* impl) const { delete impl; }
+
+VulkanDevice::VulkanDevice() : impl(new Impl) {}
 
 namespace {
-void write_view(VulkanDevice const& device, Camera const& camera, Lights const& lights, glm::uvec2 const extent) {
-	struct ViewSSBO {
-		glm::mat4 mat_v;
-		glm::mat4 mat_p;
-		glm::vec4 vpos_exposure;
-	} view{
-		.mat_v = camera.view(),
-		.mat_p = camera.projection(extent),
+struct ViewUbo {
+	glm::mat4 mat_vp;
+	glm::vec4 vpos_exposure;
+};
+
+void write_3d_view(VulkanDevice const& device, Camera const& camera, Lights const& lights, glm::uvec2 const extent) {
+	auto const view = ViewUbo{
+		.mat_vp = camera.projection(extent) * camera.view(),
 		.vpos_exposure = {camera.transform.position(), camera.exposure},
 	};
-	device.impl->view_ubo.update(&view, sizeof(view), 1);
-	device.impl->view_ubo.flush(device.impl->vma, device.impl->buffered_index);
+	device.impl->view_ubo_3d.update(&view, sizeof(view), 1);
+	device.impl->view_ubo_3d.flush(device.impl->vma, device.impl->buffered_index);
 
 	struct DirLightSSBO {
 		alignas(16) glm::vec3 direction{front_v};
@@ -2299,11 +2242,20 @@ void write_view(VulkanDevice const& device, Camera const& camera, Lights const& 
 	}
 }
 
+void write_ui_view(VulkanDevice const& device, Camera const& camera, glm::uvec2 const extent) {
+	auto const view = ViewUbo{
+		.mat_vp = camera.orthographic(extent),
+		.vpos_exposure = {camera.transform.position(), camera.exposure},
+	};
+	device.impl->view_ubo_ui.update(&view, sizeof(view), 1);
+	device.impl->view_ubo_ui.flush(device.impl->vma, device.impl->buffered_index);
+}
+
 template <std::size_t Buffering>
-void update_view(VulkanDevice const& device, VulkanShader<Buffering>& shader) {
-	shader.update(0, 0, device.impl->view_ubo.view(device.impl->buffered_index));
-	auto lights = device.impl->dir_lights_ssbo.view(device.impl->buffered_index);
-	auto buffer = lights.buffer ? lights : device.impl->blank_buffer.get().view();
+void update_view(VulkanDevice::Impl const& device, VulkanShader& shader, HostBuffer<Buffering> const& ubo) {
+	shader.update(0, 0, ubo.view(device.buffered_index));
+	auto lights = device.dir_lights_ssbo.view(device.buffered_index);
+	auto buffer = lights.buffer ? lights : device.blank_buffer.get().view();
 	shader.update(0, 1, buffer);
 }
 
@@ -2316,58 +2268,298 @@ constexpr RenderMode combine(RenderMode const in, RenderMode def) {
 	return def;
 }
 
-template <typename RenderInfoT>
-void render_mesh(VulkanDevice const& device, RenderInfoT const& info, RenderCmd cmd, RenderPassView rp, RenderMode drm) {
-	static Material const s_default_mat{std::make_unique<UnlitMaterial>()};
-	auto const& limits = device.impl->gpu.properties.limits;
-	auto const texture_fallback = TextureFallback{info.resources.textures, *device.impl->white_texture, *device.impl->black_texture};
-	for (auto const& primitive : info.mesh.primitives) {
-		auto const* vmg = primitive.geometry.template as<VulkanMeshGeometry>();
-		assert(vmg);
+struct VulkanPrimitive {
+	struct Drawable;
+	class Uploaded;
+	class Host;
+
+	struct Static;
+	struct Skinned;
+	struct Dynamic;
+};
+
+struct VulkanPrimitive::Drawable {
+	GeometryLayout const& layout() const { return m_layout; }
+
+	void draw(Vma::Buffer const& vibo, vk::CommandBuffer cb, std::uint32_t instances = 1u) const {
+		if (!vibo.buffer) { return; }
+		vk::Buffer const vbos[] = {vibo.buffer, vibo.buffer, vibo.buffer, vibo.buffer};
+		vk::DeviceSize const vbo_offsets[] = {m_layout.offsets.positions, m_layout.offsets.rgbs, m_layout.offsets.normals, m_layout.offsets.uvs};
+		cb.bindVertexBuffers(0u, vbos, vbo_offsets);
+		if (m_layout.indices > 0) {
+			cb.bindIndexBuffer(vibo.buffer, m_layout.offsets.indices, vk::IndexType::eUint32);
+			cb.drawIndexed(m_layout.indices, instances, 0u, 0u, 0u);
+		} else {
+			cb.draw(m_layout.vertices, instances, 0u, 0u);
+		}
+	}
+
+	void draw(Vma::Buffer const& vibo, Vma::Buffer const& jwbo, vk::CommandBuffer cb) const {
+		if (!vibo.buffer) { return; }
+		assert(m_layout.joints_binding > 0);
+		vk::Buffer const jbos[] = {jwbo.buffer, jwbo.buffer};
+		vk::DeviceSize const jbo_offsets[] = {m_layout.offsets.joints, m_layout.offsets.weights};
+		cb.bindVertexBuffers(*m_layout.joints_binding, jbos, jbo_offsets);
+		draw(vibo, cb);
+	}
+
+	virtual void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) = 0;
+
+	virtual BufferVec<glm::mat4>& get_instance_buffer() = 0;
+
+  protected:
+	GeometryLayout m_layout{};
+};
+
+class VulkanPrimitive::Uploaded : public Drawable {
+  public:
+	static Uploaded make_static(VulkanDevice const& device, Geometry::Packed const& geometry) {
+		auto ret = Uploaded{};
+		ret.instances = {device.impl->defer, {vk::BufferUsageFlagBits::eVertexBuffer}};
+		ret.m_vibo = {device.impl->defer};
+		auto uploader = GeometryUploader{device.impl->vma.get()};
+		auto cmd = Cmd{device};
+		ret.m_vibo = {device.impl->defer, uploader.upload(ret.m_layout, cmd.cb, geometry)};
+		return ret;
+	}
+
+	static Uploaded make_skinned(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints) {
+		assert(!joints.joints.empty());
+		auto ret = Uploaded{};
+		ret.joints = {device.impl->defer, {vk::BufferUsageFlagBits::eStorageBuffer}};
+		ret.m_vibo = {device.impl->defer};
+		ret.m_jwbo = {device.impl->defer};
+		auto uploader = GeometryUploader{device.impl->vma.get()};
+		auto cmd = Cmd{device};
+		ret.m_vibo = {device.impl->defer, uploader.upload(ret.m_layout, cmd.cb, geometry)};
+		ret.m_jwbo = {device.impl->defer, uploader.upload(ret.m_layout, cmd.cb, joints)};
+		return ret;
+	}
+
+	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) final {
+		if (m_layout.joints_binding > 0) {
+			assert(m_jwbo.get());
+			Drawable::draw(m_vibo.get().get(), m_jwbo.get().get(), cb);
+		} else {
+			Drawable::draw(m_vibo.get().get(), cb, instances);
+		}
+	}
+
+	BufferVec<glm::mat4>& get_instance_buffer() final { return instances.get(); }
+
+	Defer<BufferVec<glm::mat4>> joints;
+	Defer<BufferVec<glm::mat4>> instances;
+
+  private:
+	Uploaded() = default;
+
+	Defer<UniqueBuffer> m_vibo{};
+	Defer<UniqueBuffer> m_jwbo{};
+};
+
+class VulkanPrimitive::Host : public Drawable {
+  public:
+	Host(VulkanDevice const& device)
+		: m_vibo(device.impl->defer), m_instances(device.impl->defer, {vk::BufferUsageFlagBits::eVertexBuffer}), m_device(device.impl.get()) {
+		m_layout.vertex_layout = instanced_vertex_layout();
+		m_layout.instance_binding = GeometryUploader::Bindings::instance_v;
+	}
+
+	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) final {
+		if (geometry.positions.empty()) { return; }
+		Drawable::draw(refresh(), cb, instances);
+	}
+
+	BufferVec<glm::mat4>& get_instance_buffer() final { return m_instances.get(); }
+
+	Geometry::Packed geometry{};
+
+  private:
+	Vma::Buffer const& refresh() {
+		auto& v = m_vibo.get().get(m_device->buffered_index);
+		GeometryUploader{m_device->vma.get()}.write_to(m_layout, v, geometry, true);
+		return v.get();
+	}
+
+	Defer<Buffered<UniqueBuffer, buffering_v>> m_vibo{};
+	Defer<BufferVec<glm::mat4>> m_instances{};
+	Ptr<VulkanDevice::Impl> m_device{};
+};
+
+struct VulkanPrimitive::Static : Primitive::Static {
+	Uploaded primitive;
+
+	Static(VulkanDevice const& device, Geometry::Packed const& geometry) : primitive(Uploaded::make_static(device, geometry)) {}
+
+	std::uint32_t vertex_count() const final { return primitive.layout().vertices; }
+	std::uint32_t index_count() const final { return primitive.layout().indices; }
+
+	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) { primitive.draw(cb, instances); }
+};
+
+struct VulkanPrimitive::Skinned : Primitive::Skinned {
+	Uploaded primitive;
+
+	Skinned(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints)
+		: primitive(Uploaded::make_skinned(device, geometry, joints)) {}
+
+	std::uint32_t vertex_count() const final { return primitive.layout().vertices; }
+	std::uint32_t index_count() const final { return primitive.layout().indices; }
+	std::uint32_t joint_count() const final { return primitive.layout().joints; }
+
+	void draw(vk::CommandBuffer cb) { primitive.draw(cb); }
+};
+
+struct VulkanPrimitive::Dynamic : Primitive::Dynamic {
+	Host primitive;
+
+	Dynamic(VulkanDevice const& device) : primitive(device) {}
+
+	std::uint32_t vertex_count() const final { return primitive.layout().vertices; }
+	std::uint32_t index_count() const final { return primitive.layout().indices; }
+	void set_geometry(Geometry::Packed geometry) final { primitive.geometry = std::move(geometry); }
+	Geometry::Packed const& get_geometry() const { return primitive.geometry; }
+
+	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) { primitive.draw(cb, instances); }
+};
+
+struct DrawCmd {
+	std::reference_wrapper<HostBuffer<> const> view_ubo;
+	vk::RenderPass render_pass{};
+	vk::CommandBuffer cb{};
+	vk::Extent2D extent{};
+	vk::SampleCountFlagBits samples{vk::SampleCountFlagBits::e1};
+};
+
+struct VulkanDrawer {
+	struct Instanced {
+		glm::mat4 const& parent;
+		std::span<Transform const> instances{};
+	};
+
+	struct Skinned {
+		std::span<glm::mat4 const> inverse_bind_matrices{};
+		std::span<glm::mat4 const> joints{};
+	};
+
+	VulkanDevice::Impl& device;
+	AssetProviders const& providers;
+	DrawCmd cmd;
+
+	VulkanDrawer(VulkanDevice const& device, AssetProviders const& providers, DrawCmd cmd) : device(*device.impl), providers(providers), cmd(cmd) {}
+
+	Extent2D extent() const { return {cmd.extent.width, cmd.extent.height}; }
+
+	Pipeline bind_pipeline(VertexLayout const& vlayout, Topology topology, Material const& material) const {
 		if (!cmd.cb) {
 			logger::error("[GraphicsDevice] Attempt to call draw outside active render pass");
-			return;
+			return {};
 		}
-		auto const& material = info.resources.materials.get_or(primitive.material, s_default_mat);
-		drm = combine(material.render_mode(), drm);
+		auto rm = combine(material.render_mode, device.default_render_mode);
 		auto const state = PipelineState{
-			.mode = from(drm.type),
-			.topology = from(primitive.topology),
-			.depth_test = drm.depth_test,
+			.mode = from(rm.type),
+			.topology = from(topology),
+			.depth_test = rm.depth_test,
 		};
-		auto cb = cmd.cb;
-		auto const& vlayout = vmg->impl->vertex_layout();
-		auto const i = device.impl->buffered_index;
-		auto vert = device.impl->shaders.get(*device.impl->reader, vlayout.shader_uri);
-		auto frag = device.impl->shaders.get(*device.impl->reader, material.shader_id());
-		auto pipe = device.impl->pipelines.get(device.impl->vma, state, vlayout.input, rp, {vert, frag}, i);
-		auto shader = VulkanShader{pipe, device.impl->samplers};
-		auto const line_width = std::clamp(drm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
-		pipe.bind(cb, cmd.extent, line_width);
-		update_view(device, shader);
-		material.write_sets(shader, texture_fallback);
-		if constexpr (std::same_as<RenderInfoT, SkinnedMeshRenderInfo>) {
-			assert(primitive.geometry.has_joints());
-			auto joints_set = vmg->impl->joints_set();
-			assert(joints_set);
-			assert(info.mesh.inverse_bind_matrices.size() >= info.joints.size());
-			auto rewrite = [&](glm::mat4& out, std::size_t index) { out = info.joints[index] * info.mesh.inverse_bind_matrices[index]; };
-			auto const joint_mats = [&] { return device.impl->joints_vec.write(device.impl->vma, info.joints.size(), device.impl->buffered_index, rewrite); }();
-			shader.update(*joints_set, 0, joint_mats);
-			shader.bind(pipe.layout, cb);
-			vmg->impl->draw(cb);
-		} else {
-			shader.bind(pipe.layout, cb);
-			assert(!primitive.geometry.has_joints());
-			auto write_instances = [&](glm::mat4& out, std::size_t index) { out = info.parent * info.instances[index].matrix(); };
-			auto instance_buffer = device.impl->instance_vec.write(device.impl->vma, info.instances.size(), device.impl->buffered_index, write_instances);
-			cb.bindVertexBuffers(vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
-			vmg->impl->draw(cb, static_cast<std::uint32_t>(info.instances.size()));
-		}
-		if (auto verts = vmg->impl->info().vertices) { device.impl->stats.per_frame.triangles += verts / 3; }
-		++device.impl->stats.per_frame.draw_calls;
+		auto vert = SpirV::from(providers.shader(), vlayout.shader_uri);
+		auto frag = SpirV::from(providers.shader(), material.shader_uri());
+		if (!vert || !frag) { return {}; }
+		auto const pipe_info = PipelineInfo{
+			cmd.render_pass, vert, frag, vlayout.input.view(), state, cmd.samples,
+		};
+		auto ret = device.pipelines.get(device.vma, pipe_info, device.buffered_index);
+		if (!ret) { return {}; }
+		auto const& limits = device.gpu.properties.limits;
+		auto const line_width = std::clamp(rm.line_width, limits.lineWidthRange[0], limits.lineWidthRange[1]);
+		ret.bind(cmd.cb, cmd.extent, line_width);
+		return ret;
 	}
-}
+
+	void draw_instanced(VulkanPrimitive::Drawable& primitive, Material const& material, Instanced instances, Topology topology) const {
+		auto pipeline = bind_pipeline(primitive.layout().vertex_layout, topology, material);
+		if (!pipeline) { return; }
+		auto shader = VulkanShader{pipeline, device.samplers};
+
+		update_view(device, shader, cmd.view_ubo.get());
+		material.write_sets(shader, providers.texture());
+		shader.bind(pipeline.layout, cmd.cb);
+
+		static auto const default_instance_v{Transform{}};
+		if (instances.instances.empty()) { instances.instances = {&default_instance_v, 1u}; }
+		auto const write_instances = [&](glm::mat4& out, std::size_t i) { out = instances.parent * instances.instances[i].matrix(); };
+		auto const instance_buffer = primitive.get_instance_buffer().write(device.vma, instances.instances.size(), device.buffered_index, write_instances);
+		assert(primitive.layout().instance_binding);
+		cmd.cb.bindVertexBuffers(*primitive.layout().instance_binding, instance_buffer.buffer, vk::DeviceSize{0});
+		primitive.draw(cmd.cb, static_cast<std::uint32_t>(instances.instances.size()));
+		++device.stats.per_frame.draw_calls;
+	}
+
+	void draw_skinned(VulkanPrimitive::Uploaded& primitive, Material const& material, Skinned const& skin, Topology topology) const {
+		assert(primitive.layout().joints_set);
+		assert(skin.inverse_bind_matrices.size() >= skin.joints.size());
+		auto pipeline = bind_pipeline(primitive.layout().vertex_layout, topology, material);
+		if (!pipeline) { return; }
+
+		auto shader = VulkanShader{pipeline, device.samplers};
+		update_view(device, shader, device.view_ubo_3d);
+		material.write_sets(shader, providers.texture());
+
+		auto const rewrite = [&](glm::mat4& out, std::size_t index) { out = skin.joints[index] * skin.inverse_bind_matrices[index]; };
+		auto const joint_mats = primitive.joints.get().write(device.vma, skin.joints.size(), device.buffered_index, rewrite);
+		shader.update(*primitive.layout().joints_set, 0, joint_mats);
+		shader.bind(pipeline.layout, cmd.cb);
+		primitive.draw(cmd.cb);
+		++device.stats.per_frame.draw_calls;
+	}
+
+	void draw(Primitive::Static& primitive, Material const& material, Instanced const& instances) const {
+		assert(dynamic_cast<VulkanPrimitive::Static*>(&primitive));
+		auto& vip = static_cast<VulkanPrimitive::Static&>(primitive);
+		draw_instanced(vip.primitive, material, instances, primitive.topology);
+	}
+
+	void draw(Primitive::Dynamic& primitive, Material const& material, Instanced const& instances) const {
+		assert(dynamic_cast<VulkanPrimitive::Dynamic*>(&primitive));
+		auto& vip = static_cast<VulkanPrimitive::Dynamic&>(primitive);
+		draw_instanced(vip.primitive, material, instances, primitive.topology);
+	}
+
+	void draw(Primitive::Skinned& primitive, Material const& material, Skinned const& skin) const {
+		assert(dynamic_cast<VulkanPrimitive::Skinned*>(&primitive));
+		auto& vsp = static_cast<VulkanPrimitive::Skinned&>(primitive);
+		draw_skinned(vsp.primitive, material, skin, primitive.topology);
+	}
+};
+
+struct VulkanDrawList : DrawList {
+	VulkanDevice const& device;
+	AssetProviders const& providers;
+
+	VulkanDrawList(VulkanDevice const& device, AssetProviders const& providers, vk::Extent2D extent) : device(device), providers(providers) {
+		m_extent = {extent.width, extent.height};
+	}
+
+	void draw_all(DrawCmd cmd) const {
+		auto drawer = VulkanDrawer{device, providers, cmd};
+		auto const visitor = Visitor{
+			[drawer](Drawable::Instanced const& i) {
+				drawer.draw(i.primitive, i.material, {i.parent, i.instances});
+			},
+			[drawer](Drawable::Dynamic const& d) {
+				drawer.draw(d.primitive, d.material, {d.parent, d.instances});
+			},
+			[drawer](Drawable::Skinned const& s) {
+				drawer.draw(s.primitive, s.material, {s.inverse_bind_matrices, s.joints});
+			},
+		};
+		for (auto const& drawable : m_drawables) { std::visit(visitor, drawable.payload); }
+	}
+
+	void clear(vk::Extent2D extent) {
+		m_drawables.clear();
+		m_extent = {extent.width, extent.height};
+	}
+};
 } // namespace
 } // namespace levk
 
@@ -2413,22 +2605,9 @@ void levk::gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& 
 
 	out.impl->samplers.anisotropy = out.impl->gpu.properties.limits.maxSamplerAnisotropy;
 
-	out.impl->instance_vec = {vk::BufferUsageFlagBits::eVertexBuffer};
-	out.impl->joints_vec = {vk::BufferUsageFlagBits::eStorageBuffer};
 	out.impl->blank_buffer = out.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eStorageBuffer, 1u, true);
 	static constexpr auto blank_byte_v = std::byte{};
 	std::memcpy(out.impl->blank_buffer.get().ptr, &blank_byte_v, 1u);
-
-	out.impl->view_ubo = {vk::BufferUsageFlagBits::eUniformBuffer};
-	out.impl->dir_lights_ssbo = {vk::BufferUsageFlagBits::eStorageBuffer};
-
-	static constexpr auto white_image_v = FixedPixelMap<1, 1>{{white_v}};
-	auto texture = VulkanTexture{};
-	texture.impl = std::make_unique<VulkanTexture::Impl>(out, white_image_v.view(), TextureCreateInfo{.name = "white", .mip_mapped = false});
-	out.impl->white_texture = Texture{std::move(texture), "textures/white"};
-	static constexpr auto black_image_v = FixedPixelMap<1, 1>{{black_v}};
-	texture.impl = std::make_unique<VulkanTexture::Impl>(out, black_image_v.view(), TextureCreateInfo{.name = "black", .mip_mapped = false});
-	out.impl->black_texture = Texture{std::move(texture), "textures/black"};
 }
 
 void levk::gfx_destroy_device(VulkanDevice& out) {
@@ -2464,8 +2643,6 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 			out.impl->buffered_index.next();
 			out.impl->dear_imgui.new_frame();
 			out.impl->defer.next();
-			out.impl->instance_vec.release();
-			out.impl->joints_vec.release();
 			out.impl->pipelines.release_all(i);
 		}
 	};
@@ -2517,7 +2694,8 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	reset(*device.impl->device, *frame.sync.drawn);
 
 	// write view
-	write_view(device, info.camera, info.lights, info.extent);
+	write_3d_view(device, info.camera, info.lights, info.extent);
+	write_ui_view(device, info.camera, info.extent);
 
 	// refresh render targets
 	auto& fs_quad_fb = device.impl->fs_quad.framebuffer.get(device.impl->buffered_index);
@@ -2525,24 +2703,39 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	fs_quad_fb = device.impl->fs_quad.make_framebuffer(device, acquired.image);
 
 	// begin recording
-	auto cmd_3d = RenderCmd{frame.secondary[0], frame.framebuffer.render_target.extent};
-	auto cmd_ui = RenderCmd{frame.secondary[1], fs_quad_fb.render_target.extent};
-	auto cbii = vk::CommandBufferInheritanceInfo{*device.impl->off_screen.rp.render_pass, 0, *frame.framebuffer.framebuffer};
+	auto cmd_3d = DrawCmd{
+		.view_ubo = device.impl->view_ubo_3d,
+		.render_pass = *device.impl->off_screen.rp.render_pass,
+		.cb = frame.secondary[0],
+		.extent = frame.framebuffer.render_target.extent,
+		.samples = device.impl->off_screen.rp.samples,
+	};
+	auto cmd_ui = DrawCmd{
+		.view_ubo = device.impl->view_ubo_ui,
+		.render_pass = *device.impl->fs_quad.rp,
+		.cb = frame.secondary[1],
+		.extent = fs_quad_fb.render_target.extent,
+	};
+	auto cbii = vk::CommandBufferInheritanceInfo{cmd_3d.render_pass, 0, *frame.framebuffer.framebuffer};
 	cmd_3d.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
-	cbii = {*device.impl->fs_quad.rp, 0, *fs_quad_fb.framebuffer};
+	cbii = {cmd_ui.render_pass, 0, *fs_quad_fb.framebuffer};
 	cmd_ui.cb.begin({vk::CommandBufferUsageFlagBits::eRenderPassContinue, &cbii});
 
 	device.impl->default_render_mode = info.default_render_mode;
 	// dispatch 3D render
-	device.impl->cmd_3d = cmd_3d;
-	for (auto* renderer = &info.renderer; renderer; renderer = renderer->next_renderer) { renderer->render_3d(); }
-	device.impl->cmd_3d = {};
+	auto draw_list = VulkanDrawList{device, info.providers, cmd_3d.extent};
+	info.renderer.render_3d(draw_list);
+	draw_list.draw_all(cmd_3d);
 
 	// trace 3D output image to native render pass
-	auto fs_quad_vert = device.impl->shaders.get(*device.impl->reader, "shaders/fs_quad.vert");
-	auto fs_quad_frag = device.impl->shaders.get(*device.impl->reader, "shaders/fs_quad.frag");
-	auto fs_quad_pipe = device.impl->pipelines.get(device.impl->vma, {}, {}, {*device.impl->fs_quad.rp, vk::SampleCountFlagBits::e1},
-												   {fs_quad_vert, fs_quad_frag}, device.impl->buffered_index);
+	auto fs_quad_vert = SpirV::from(info.providers.shader(), "shaders/fs_quad.vert");
+	auto fs_quad_frag = SpirV::from(info.providers.shader(), "shaders/fs_quad.frag");
+	auto const fs_quad_pipe_info = PipelineInfo{
+		.render_pass = *device.impl->fs_quad.rp,
+		.vert = fs_quad_vert,
+		.frag = fs_quad_frag,
+	};
+	auto fs_quad_pipe = device.impl->pipelines.get(device.impl->vma, fs_quad_pipe_info, device.impl->buffered_index);
 	// bind 3D output image to 0, 0
 	auto& fs_quad_set0 = fs_quad_pipe.set_pool->next_set(0);
 	fs_quad_set0.update(0, frame.framebuffer.render_target.output_image(), device.impl->samplers.get(*device.impl->device, {}));
@@ -2552,9 +2745,9 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	cmd_ui.cb.draw(6u, 1u, {}, {});
 
 	// dispatch UI render
-	device.impl->cmd_ui = cmd_ui;
-	for (auto* renderer = &info.renderer; renderer; renderer = renderer->next_renderer) { renderer->render_ui(); }
-	device.impl->cmd_ui = {};
+	draw_list.clear(cmd_ui.extent);
+	info.renderer.render_ui(draw_list);
+	draw_list.draw_all(cmd_ui);
 
 	// dispatch Dear ImGui render
 	device.impl->dear_imgui.end_frame();
@@ -2604,16 +2797,15 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	}
 }
 
-levk::MeshGeometry levk::gfx_make_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints) {
-	auto mesh = VulkanMeshGeometry::Impl{device, geometry, joints};
-	auto ret = VulkanMeshGeometry{};
-	ret.impl = std::make_unique<VulkanMeshGeometry::Impl>(VulkanMeshGeometry::Impl{std::move(mesh)});
-	return ret;
+auto levk::gfx_make_dynamic(VulkanDevice const& device) -> std::unique_ptr<Primitive::Dynamic> { return std::make_unique<VulkanPrimitive::Dynamic>(device); }
+
+auto levk::gfx_make_static(VulkanDevice const& device, Geometry::Packed const& geometry) -> std::unique_ptr<Primitive::Static> {
+	return std::make_unique<VulkanPrimitive::Static>(device, geometry);
 }
 
-std::uint32_t levk::gfx_mesh_vertex_count(VulkanMeshGeometry const& mesh) { return mesh.impl->info().vertices; }
-std::uint32_t levk::gfx_mesh_index_count(VulkanMeshGeometry const& mesh) { return mesh.impl->info().indices; }
-bool levk::gfx_mesh_has_joints(VulkanMeshGeometry const& mesh) { return mesh.impl->has_joints(); }
+auto levk::gfx_make_skinned(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints) -> std::unique_ptr<Primitive::Skinned> {
+	return std::make_unique<VulkanPrimitive::Skinned>(device, geometry, joints);
+}
 
 levk::Texture levk::gfx_make_texture(VulkanDevice const& device, Texture::CreateInfo create_info, Image::View image) {
 	auto ret = VulkanTexture{};
@@ -2631,25 +2823,36 @@ levk::Extent2D levk::gfx_tex_extent(VulkanTexture const& texture) {
 
 std::uint32_t levk::gfx_tex_mip_levels(VulkanTexture const& texture) { return texture.impl->mip_levels(); }
 
-void levk::gfx_render(VulkanDevice& out, StaticMeshRenderInfo const& info) {
-	if (!out.impl->cmd_3d.cb) {
-		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
-		return;
-	}
-	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
+bool levk::gfx_tex_resize_canvas(VulkanTexture& texture, Extent2D new_extent, Rgba background, glm::uvec2 top_left) {
+	if (new_extent.x == 0 || new_extent.y == 0) { return false; }
+	auto const extent = gfx_tex_extent(texture);
+	if (new_extent == extent) { return true; }
+	if (top_left.x + extent.x > new_extent.x || top_left.y + extent.y > new_extent.y) { return false; }
+	// TODO: cubemaps
+	auto const image_type = texture.impl->m_image.get().get().type;
+	assert(image_type == vk::ImageViewType::e2D);
+	auto pixels = DynPixelMap{new_extent};
+	for (Rgba& rgba : pixels.span()) { rgba = background; }
+	Image::View image_view[] = {pixels.view()};
+	auto new_image = make_image(*texture.impl->m_device, image_view, texture.impl->m_info, image_type);
+	auto src = CopyImage{texture.impl->m_image.get().get(), texture.impl->m_layout};
+	auto dst = CopyImage{new_image.get(), texture.impl->m_layout, top_left};
+	copy_image(*texture.impl->m_device, src, dst, texture.impl->view().extent);
+	texture.impl->m_image = {texture.impl->m_device->impl->defer, std::move(new_image)};
+	return true;
 }
 
-void levk::gfx_render(VulkanDevice& out, SkinnedMeshRenderInfo const& info) {
-	if (!out.impl->cmd_3d.cb) {
-		logger::error("[GraphicsDevice] Attempt to render outside active 3D render pass");
-		return;
+bool levk::gfx_tex_write(VulkanTexture& texture, std::span<ImageWrite const> writes) {
+	auto const texture_extent = gfx_tex_extent(texture);
+	for (auto const& write : writes) {
+		auto const bottom_right = write.offset + write.image.extent;
+		if (bottom_right.x > texture_extent.x || bottom_right.y > texture_extent.y) { return false; }
 	}
-	render_mesh(out, info, out.impl->cmd_3d, out.impl->off_screen.view(), out.impl->default_render_mode);
+	return write_images(*texture.impl->m_device, texture.impl->m_image.get().get(), writes);
 }
 
 levk::RenderStats levk::gfx_render_stats(VulkanDevice const& device) {
 	return {
 		device.impl->stats.per_frame.draw_calls,
-		device.impl->stats.per_frame.triangles,
 	};
 }

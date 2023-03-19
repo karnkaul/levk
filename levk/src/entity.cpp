@@ -1,6 +1,5 @@
 #include <imgui.h>
 #include <levk/entity.hpp>
-#include <levk/scene.hpp>
 #include <algorithm>
 
 namespace levk {
@@ -12,15 +11,7 @@ void Entity::tick(Time dt) {
 	for (auto* component : m_sorted) { component->tick(dt); }
 }
 
-Scene& Entity::scene() const {
-	assert(m_scene);
-	return *m_scene;
-}
-
-void Entity::init(Component& out) const {
-	out.m_entity = m_id;
-	out.m_scene = m_scene;
-}
+void Entity::init(Component& out) const { out.m_entity = m_id; }
 
 void Entity::attach(TypeId::value_type type_id, std::unique_ptr<Component>&& out) {
 	init(*out);

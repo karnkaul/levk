@@ -1,6 +1,5 @@
 #include <imgui.h>
 #include <editor.hpp>
-#include <levk/asset/asset_loader.hpp>
 #include <levk/asset/gltf_importer.hpp>
 #include <filesystem>
 
@@ -8,52 +7,68 @@ namespace levk {
 namespace {
 namespace fs = std::filesystem;
 
-std::string trim_to_uri(std::string_view full, std::string_view data) {
-	auto const i = full.find(data);
-	if (i == std::string_view::npos) { return {}; }
-	full = full.substr(i + data.size());
-	while (!full.empty() && full.front() == '/') { full = full.substr(1); }
-	return std::string{full};
-}
+enum class LoadType { eStaticMesh, eSkinnedMesh, eScene };
 
-struct LoadScene : AsyncTask<void> {
-	Uri<Scene> uri;
-	Reader& reader;
-	Resources& resources;
-	GraphicsDevice& graphics_device;
+struct AssetListLoader : AsyncTask<Uri<>> {
+	AssetList list;
+	AssetProviders& providers;
+	Uri<> ret;
+	LoadType load_type{};
 
-	LoadScene(Uri<Scene> uri, Reader& reader, Resources& resources, GraphicsDevice& graphics_device)
-		: uri(std::move(uri)), reader(reader), resources(resources), graphics_device(graphics_device) {}
+	AssetListLoader(AssetList list, AssetProviders& providers, Uri<> ret, LoadType load_type)
+		: list(std::move(list)), providers(providers), ret(std::move(ret)), load_type(load_type) {}
 
-	void execute() override {
-		auto asset_list = AssetLoader::get_asset_list(uri, reader);
-		auto const total = asset_list.materials.size() + asset_list.meshes.size() + asset_list.skeletons.size();
+	AssetListLoader(Uri<Scene> const& uri, Editor& editor)
+		: AssetListLoader(editor.context().providers.get().build_asset_list(uri), editor.context().providers.get(), uri, LoadType::eScene) {}
+	AssetListLoader(Uri<StaticMesh> const& uri, Editor& editor)
+		: AssetListLoader(for_mesh(uri), editor.context().providers.get(), uri, LoadType::eStaticMesh) {}
+	AssetListLoader(Uri<SkinnedMesh> const& uri, Editor& editor)
+		: AssetListLoader(for_mesh(uri), editor.context().providers.get(), uri, LoadType::eSkinnedMesh) {}
+
+	static AssetList for_mesh(Uri<asset::Mesh3D> uri) {
+		auto ret = AssetList{};
+		ret.meshes.insert(std::move(uri));
+		return ret;
+	}
+
+	Uri<> execute() override {
+		auto const total = list.shaders.size() + list.textures.size() + list.materials.size() + list.meshes.size() + list.skeletons.size();
 		auto done = std::size_t{};
 		auto increment_done = [&] {
 			++done;
-			set_progress(static_cast<float>(done) / static_cast<float>(total));
+			this->set_progress(static_cast<float>(done) / static_cast<float>(total));
 		};
-		auto loader = AssetLoader{reader, graphics_device, resources.render};
-		set_status("Loading Materials");
-		for (auto const& material : asset_list.materials) {
-			loader.load_material(material);
+		this->set_status("Loading Shaders");
+		for (auto const& uri : list.shaders) {
+			providers.shader().load(uri);
 			increment_done();
 		}
-		set_status("Loading Skeletons");
-		for (auto const& skeleton : asset_list.skeletons) {
-			loader.load_skeleton(skeleton);
+		this->set_status("Loading Textures");
+		for (auto const& uri : list.textures) {
+			providers.texture().load(uri);
 			increment_done();
 		}
-		set_status("Loading Meshes");
-		for (auto const& mesh : asset_list.meshes) {
-			switch (loader.get_mesh_type(mesh, reader)) {
-			case MeshType::eStatic: loader.load_static_mesh(mesh); break;
-			case MeshType::eSkinned: loader.load_skinned_mesh(mesh); break;
+		this->set_status("Loading Materials");
+		for (auto const& uri : list.materials) {
+			providers.material().load(uri);
+			increment_done();
+		}
+		this->set_status("Loading Skeletons");
+		for (auto const& uri : list.skeletons) {
+			providers.skeleton().load(uri);
+			increment_done();
+		}
+		this->set_status("Loading Meshes");
+		for (auto const& uri : list.meshes) {
+			switch (providers.mesh_type(uri)) {
+			case MeshType::eStatic: providers.static_mesh().load(uri); break;
+			case MeshType::eSkinned: providers.skinned_mesh().load(uri); break;
 			default: break;
 			}
 			increment_done();
 		}
-		set_status("Done");
+		this->set_status("Done");
+		return std::move(ret);
 	}
 };
 } // namespace
@@ -101,59 +116,67 @@ void FreeCam::tick(Transform& transform, Input const& input, Time dt) {
 	prev_cursor = input.cursor;
 }
 
-Editor::Editor(std::string data_path)
-	: Runtime(std::make_unique<FileReader>(data_path), DesktopContextFactory{}), data_path(std::move(data_path)), free_cam{&m_context.engine.get().window()} {
+Editor::Editor(std::unique_ptr<DiskVfs> vfs)
+	: Runtime(*vfs, vfs->uri_monitor(), DesktopContextFactory{}), m_free_cam{&m_context.engine.get().window()}, m_vfs(std::move(vfs)) {
 	auto file_menu = [&] {
-		if (ImGui::MenuItem("Save", nullptr, false, !scene.empty())) { save_scene(); }
+		if (ImGui::MenuItem("Save", nullptr, false, !active_scene().empty())) { save_scene(); }
 		ImGui::Separator();
 		if (ImGui::MenuItem("Exit")) { m_context.shutdown(); }
 	};
 
-	main_menu.menus.lists.push_back(MainMenu::List{.label = "File", .callback = file_menu});
+	m_main_menu.menus.lists.push_back(MainMenu::List{.label = "File", .callback = file_menu});
 
-	main_menu.menus.window = {
-		imcpp::EditorWindow{.label = "Scene", .draw_to = [&](imcpp::OpenWindow w) { scene_graph.draw_to(w, scene); }},
-		imcpp::EditorWindow{.label = "Resources", .draw_to = [&](imcpp::OpenWindow w) { resource_display.draw_to(w, Service<Resources>::locate()); }},
+	m_main_menu.menus.window = {
+		imcpp::EditorWindow{.label = "Scene", .draw_to = [&](imcpp::OpenWindow w) { m_scene_graph.draw_to(w, active_scene()); }},
+		imcpp::EditorWindow{.label = "Resources", .draw_to = [&](imcpp::OpenWindow w) { m_asset_inspector.draw_to(w, m_context.providers.get()); }},
 		imcpp::EditorWindow{
-			.label = "Engine", .init_size = {350.0f, 250.0f}, .draw_to = [&](imcpp::OpenWindow w) { engine_status.draw_to(w, m_context.engine.get()); }},
-		imcpp::EditorWindow{.label = "Log", .init_size = {600.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { log_display.draw_to(w); }},
+			.label = "Engine", .init_size = {350.0f, 250.0f}, .draw_to = [&](imcpp::OpenWindow w) { m_engine_status.draw_to(w, m_context.engine.get()); }},
+		imcpp::EditorWindow{.label = "Log", .init_size = {600.0f, 300.0f}, .draw_to = [&](imcpp::OpenWindow w) { m_log_display.draw_to(w); }},
 	};
 	if constexpr (debug_v) {
-		main_menu.menus.window.push_back(MainMenu::Separator{});
-		main_menu.menus.window.push_back(MainMenu::Custom{.label = "Dear ImGui Demo", .draw = [](bool& show) { ImGui::ShowDemoWindow(&show); }});
+		m_main_menu.menus.window.push_back(MainMenu::Separator{});
+		m_main_menu.menus.window.push_back(MainMenu::Custom{.label = "Dear ImGui Demo", .draw = [](bool& show) { ImGui::ShowDemoWindow(&show); }});
+	}
+
+	{
+		if (auto* font = m_context.providers.get().ascii_font().load("fonts/Vera.ttf")) {
+			m_test.primitive.emplace(m_context.engine.get().render_device());
+			m_test.primitive->height = TextHeight{72u};
+			m_test.primitive->update("hello", *font);
+		}
 	}
 }
 
 void Editor::save_scene() const {
-	auto uri = scene_uri ? scene_uri : Uri<Scene>{"unnamed.scene.json"};
-	if (!save(scene, uri)) { return; }
+	auto uri = m_scene_uri ? m_scene_uri : Uri<Scene>{"unnamed.scene.json"};
+	auto json = dj::Json{};
+	active_scene().serialize(json);
+	if (!m_vfs->write_json(json, uri)) { return; }
 	logger::debug("Scene saved {}", uri.value());
 }
 
 void Editor::tick(Frame const& frame) {
-	if (frame.state.focus_changed() && frame.state.is_in_focus()) { static_cast<FileReader*>(m_reader.get())->reload_out_of_date(); }
+	if (frame.state.focus_changed() && frame.state.is_in_focus()) { m_context.providers.get().uri_monitor().dispatch_modified(); }
 	if (frame.state.input.chord(Key::eW, Key::eLeftControl) || frame.state.input.chord(Key::eW, Key::eRightControl)) { m_context.shutdown(); }
 
 	for (auto const& drop : frame.state.drops) {
 		auto path = fs::path{drop};
 		if (path.extension() == ".gltf") {
 			auto export_path = path.filename().stem();
-			gltf_importer.emplace(drop.c_str(), data_path);
+			m_gltf_importer.emplace(drop.c_str(), std::string{m_context.data_source().mount_point()});
 			break;
 		}
 		if (path.extension() == ".json") {
-			auto uri = trim_to_uri(fs::path{drop}.generic_string(), data_path);
-			if (!uri.empty()) {
-				auto const asset_type = AssetLoader::get_asset_type(drop, *m_reader);
+			if (auto uri = m_context.data_source().trim_to_uri(drop)) {
+				auto const asset_type = m_context.providers.get().asset_type(uri);
 				if (asset_type == "mesh") {
-					if (AssetLoader::get_mesh_type(drop, *m_reader) == MeshType::eSkinned) {
-						scene.load_into_tree(Uri<SkinnedMesh>{uri});
+					if (m_context.providers.get().mesh_type(uri) == MeshType::eSkinned) {
+						active_scene().load_into_tree(Uri<SkinnedMesh>{uri});
 					} else {
-						scene.load_into_tree(Uri<StaticMesh>{uri});
+						active_scene().load_into_tree(Uri<StaticMesh>{uri});
 					}
 				} else if (asset_type == "scene") {
-					m_load = std::make_unique<LoadScene>(uri, *m_reader, m_context.resources.get(), m_context.engine.get().device());
-					scene_uri = std::move(uri);
+					m_load = std::make_unique<AssetListLoader>(Uri<Scene>{std::move(uri)}, *this);
 					m_load->run();
 				}
 			}
@@ -161,20 +184,20 @@ void Editor::tick(Frame const& frame) {
 		}
 	}
 
-	scene.tick(frame.dt);
-	free_cam.tick(scene.camera.transform, frame.state.input, frame.dt);
+	active_scene().tick(frame.dt);
+	m_free_cam.tick(active_scene().camera.transform, frame.state.input, frame.dt);
 
 	// test code
 	if (frame.state.input.chord(Key::eS, Key::eLeftControl)) { save_scene(); }
 	// test code
 
-	auto result = main_menu.display_menu();
+	auto result = m_main_menu.display_menu();
 	switch (result.action) {
 	case MainMenu::Action::eExit: m_context.shutdown(); break;
 	default: break;
 	}
 
-	main_menu.display_windows();
+	m_main_menu.display_windows();
 
 	if (m_load) {
 		if (!ImGui::IsPopupOpen("Loading")) { imcpp::Modal::open("Loading"); }
@@ -182,29 +205,57 @@ void Editor::tick(Frame const& frame) {
 			ImGui::Text("%.*s", static_cast<int>(m_load->status().size()), m_load->status().data());
 			ImGui::ProgressBar(m_load->progress());
 			if (m_load->ready()) {
+				switch (dynamic_cast<AssetListLoader&>(*m_load).load_type) {
+				case LoadType::eStaticMesh: active_scene().load_into_tree(Uri<StaticMesh>{m_load->get()}); break;
+				case LoadType::eSkinnedMesh: active_scene().load_into_tree(Uri<SkinnedMesh>{m_load->get()}); break;
+				case LoadType::eScene: {
+					m_scene_uri = m_load->get();
+					m_scene_manager.get().load(m_scene_uri);
+					break;
+				}
+				default: break;
+				}
 				loading.close_current();
-				load_into(scene, Uri<Scene>{scene_uri});
 				m_load.reset();
 			}
 		}
 	}
 
-	if (gltf_importer) {
-		auto result = gltf_importer->update();
+	if (m_gltf_importer) {
+		auto result = m_gltf_importer->update();
 		if (result.inactive) {
-			gltf_importer.reset();
+			m_gltf_importer.reset();
 		} else if (result && result.should_load) {
 			if (result.scene) {
-				scene_uri = std::move(result.scene);
-				m_load = std::make_unique<LoadScene>(scene_uri, *m_reader, m_context.resources.get(), m_context.engine.get().device());
-				m_load->run();
+				m_load = std::make_unique<AssetListLoader>(std::move(result.scene), *this);
 			} else if (result.mesh) {
-				std::visit([&](auto const& uri) { scene.load_into_tree(uri); }, *result.mesh);
+				m_load = std::visit([&](auto const& uri) { return std::make_unique<AssetListLoader>(uri, *this); }, *result.mesh);
 			}
-			gltf_importer.reset();
+			m_load->run();
+			m_gltf_importer.reset();
 		}
 	}
 }
 
-void Editor::render() { m_context.render(scene, clear_colour); }
+void Editor::render() {
+	struct TestRenderer : Renderer {
+		Editor& editor;
+
+		TestRenderer(Editor& editor) : editor(editor) {}
+
+		void render_3d(DrawList& out) const final { editor.active_scene().render_3d(out); }
+
+		void render_ui(DrawList& out) const final {
+			editor.active_scene().render_ui(out);
+			if (editor.m_test.primitive) {
+				editor.m_test.transforms[0].set_position({-100.0f, 0.0f, -5.0f});
+				editor.m_test.transforms[1].set_position({100.0f, 100.0f, 0.0f});
+				auto const instances = DrawList::Instanced{.instances = editor.m_test.transforms};
+				out.add(*editor.m_test.primitive->primitive, editor.m_test.primitive->material, instances);
+			}
+		}
+	};
+	m_context.engine.get().render_device().clear_colour = Rgba::from({0.1f, 0.1f, 0.1f, 1.0f});
+	m_context.engine.get().render(TestRenderer{*this}, m_context.providers.get(), active_scene().camera, active_scene().lights);
+}
 } // namespace levk

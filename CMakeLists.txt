@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_DEBUG_POSTFIX "-d")
 
-project(levk VERSION "0.2.0")
+project(levk VERSION "0.3.0")
 
 set(is_root_project OFF)
 
@@ -13,6 +13,7 @@ if(PROJECT_NAME STREQUAL CMAKE_PROJECT_NAME)
 endif()
 
 option(LEVK_BUILD_DEMO "Build levk demo (else only library)" ${is_root_project})
+option(LEVK_USE_FREETYPE "Build and link to Freetype (for text rendering)" ON)
 
 add_subdirectory(ext)
 add_subdirectory(levk)

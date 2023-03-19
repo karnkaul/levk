@@ -1,10 +1,12 @@
 #pragma once
 #include <levk/build_version.hpp>
-#include <levk/graphics_device.hpp>
+#include <levk/graphics/render_device.hpp>
 #include <levk/util/time.hpp>
-#include <levk/window.hpp>
+#include <levk/window/window.hpp>
 
 namespace levk {
+struct FontLibrary;
+
 struct EngineCreateInfo {
 	glm::uvec2 window_extent{1280u, 720u};
 	char const* window_title{"levk"};
@@ -24,13 +26,14 @@ class Engine {
 	Engine& operator=(Engine&&) noexcept;
 	~Engine() noexcept;
 
-	explicit Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& create_info = {}) noexcept(false);
+	explicit Engine(Window&& window, RenderDevice&& device, CreateInfo const& create_info = {}) noexcept(false);
 
 	Window& window() const;
-	GraphicsDevice& device() const;
+	RenderDevice& render_device() const;
+	FontLibrary const& font_library() const;
 
 	Frame next_frame();
-	void render(GraphicsRenderer const& renderer, Camera const& camera, Lights const& lights, Rgba clear = black_v);
+	void render(Renderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights);
 
 	Time delta_time() const;
 	int framerate() const;

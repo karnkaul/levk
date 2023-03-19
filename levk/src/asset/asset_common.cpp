@@ -57,11 +57,11 @@ std::uint8_t to_channel(std::string_view const hex) {
 	return static_cast<std::uint8_t>(ret);
 }
 
-Rgba to_rgba(std::string_view hex, float intensity) {
+HdrRgba to_hdr_rgba(std::string_view hex, float intensity) {
 	assert(!hex.empty());
 	if (hex[0] == '#') { hex = hex.substr(1); }
 	assert(hex.size() == 8);
-	auto ret = Rgba{};
+	auto ret = HdrRgba{};
 	ret.channels.x = to_channel(hex.substr(0, 2));
 	ret.channels.y = to_channel(hex.substr(2, 2));
 	ret.channels.z = to_channel(hex.substr(4, 2));
@@ -297,11 +297,22 @@ void asset::to_json(dj::Json& out, glm::mat4 const& mat) {
 }
 
 void asset::to_json(dj::Json& out, Rgba const& rgba) {
+	auto hdr = HdrRgba{rgba, 1.0f};
+	return to_json(out, hdr);
+}
+
+void asset::from_json(dj::Json const& json, Rgba& out) {
+	auto hdr = HdrRgba{};
+	from_json(json, hdr);
+	out = hdr;
+}
+
+void asset::to_json(dj::Json& out, HdrRgba const& rgba) {
 	out["hex"] = to_hex(rgba);
 	out["intensity"] = rgba.intensity;
 }
 
-void asset::from_json(dj::Json const& json, Rgba& out) { out = to_rgba(json["hex"].as_string(), json["intensity"].as<float>(1.0f)); }
+void asset::from_json(dj::Json const& json, HdrRgba& out) { out = to_hdr_rgba(json["hex"].as_string(), json["intensity"].as<float>(1.0f)); }
 
 void asset::from_json(dj::Json const& json, Transform& out) {
 	auto mat = glm::mat4{1.0f};
@@ -392,11 +403,11 @@ void asset::to_json(dj::Json& out, Skeleton const& asset) {
 	}
 }
 
-void asset::from_json(dj::Json const& json, Mesh& out) {
+void asset::from_json(dj::Json const& json, Mesh3D& out) {
 	assert(json["asset_type"].as_string() == "mesh");
-	out.type = json["type"].as_string() == "skinned" ? Mesh::Type::eSkinned : Mesh::Type::eStatic;
+	out.type = json["type"].as_string() == "skinned" ? Mesh3D::Type::eSkinned : Mesh3D::Type::eStatic;
 	for (auto const& in_primitive : json["primitives"].array_view()) {
-		auto primitive = Mesh::Primitive{};
+		auto primitive = Mesh3D::Primitive{};
 		primitive.geometry = std::string{in_primitive["geometry"].as_string()};
 		primitive.material = std::string{in_primitive["material"].as_string()};
 		out.primitives.push_back(std::move(primitive));
@@ -406,9 +417,9 @@ void asset::from_json(dj::Json const& json, Mesh& out) {
 	out.name = json["name"].as_string();
 }
 
-void asset::to_json(dj::Json& out, Mesh const& asset) {
+void asset::to_json(dj::Json& out, Mesh3D const& asset) {
 	out["asset_type"] = "mesh";
-	out["type"] = asset.type == Mesh::Type::eSkinned ? "skinned" : "static";
+	out["type"] = asset.type == Mesh3D::Type::eSkinned ? "skinned" : "static";
 	if (!asset.primitives.empty()) {
 		auto& primitives = out["primitives"];
 		for (auto const& in_primitive : asset.primitives) {

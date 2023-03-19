@@ -1,5 +1,5 @@
 #pragma once
-#include <levk/surface.hpp>
+#include <levk/graphics/surface.hpp>
 #include <vulkan/vulkan.hpp>
 
 namespace levk {

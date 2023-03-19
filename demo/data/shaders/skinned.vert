@@ -15,8 +15,7 @@ layout (location = 4) in uvec4 joint;
 layout (location = 5) in vec4 weight;
 
 layout (set = 0, binding = 0) uniform VP {
-	mat4 mat_v;
-	mat4 mat_p;
+	mat4 mat_vp;
 	vec4 vpos_exposure;
 };
 
@@ -52,5 +51,5 @@ void main() {
 	out_normal = normalize(vec3(skin_mat * vec4(vnormal, 0.0)));
 	out_vpos_exposure = vpos_exposure;
 	out_fpos = vec3(pos);
-	gl_Position = mat_p * mat_v * pos;
+	gl_Position = mat_vp * pos;
 }

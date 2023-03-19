@@ -7,4 +7,11 @@ constexpr bool debug_v =
 #else
 	false;
 #endif
+
+constexpr bool freetype_v =
+#if defined(LEVK_USE_FREETYPE)
+	true;
+#else
+	false;
+#endif
 } // namespace levk

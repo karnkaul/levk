@@ -18,7 +18,7 @@ struct DirLight {
 	///
 	/// Alpha is ignored.
 	///
-	Rgba rgb{.intensity = 5.0f};
+	HdrRgba rgb{5.0f};
 };
 
 struct Lights {

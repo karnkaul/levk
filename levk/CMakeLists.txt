@@ -8,6 +8,7 @@ add_library(levk::lib ALIAS levk)
 target_compile_definitions(levk
   PUBLIC
   $<$<CONFIG:Debug>:LEVK_DEBUG>
+  $<$<BOOL:${LEVK_USE_FREETYPE}>:LEVK_USE_FREETYPE>
 )
 
 target_compile_features(levk PUBLIC cxx_std_20)

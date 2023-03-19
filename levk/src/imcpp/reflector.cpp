@@ -91,17 +91,22 @@ bool Reflector::operator()(char const* label, AsRgb out_rgb) const {
 }
 
 bool Reflector::operator()(Rgba& out_rgba, Bool show_alpha) const {
+	auto hdr = HdrRgba{out_rgba, 1.0f};
+	return (*this)(hdr, show_alpha, {false});
+}
+
+bool Reflector::operator()(HdrRgba& out_rgba, Bool show_alpha, Bool show_intensity) const {
 	auto ret = Modified{};
-	auto vec4 = Rgba{.channels = out_rgba.channels, .intensity = 1.0f}.to_vec4();
+	auto vec4 = HdrRgba{out_rgba, 1.0f}.to_vec4();
 	auto vec3 = glm::vec3{vec4};
 	if ((*this)("RGB", AsRgb{vec3})) {
-		out_rgba = Rgba::from(glm::vec4{vec3, vec4.w}, out_rgba.intensity);
+		out_rgba = HdrRgba::from(glm::vec4{vec3, vec4.w}, out_rgba.intensity);
 		ret.value = true;
 	}
 	if (show_alpha) {
 		if (ret(ImGui::DragFloat("Alpha", &vec4.w, 0.05f, 0.0f, 1.0f))) { out_rgba.channels[3] = Rgba::to_u8(vec4.w); }
 	}
-	ret(ImGui::DragFloat("Intensity", &out_rgba.intensity, 0.05f, 0.1f, 1000.0f));
+	if (show_intensity) { ret(ImGui::DragFloat("Intensity", &out_rgba.intensity, 0.05f, 0.1f, 1000.0f)); }
 	return ret.value;
 }
 

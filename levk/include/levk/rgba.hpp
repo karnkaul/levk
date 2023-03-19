@@ -12,11 +12,6 @@ struct Rgba {
 	///
 	glm::tvec4<std::uint8_t> channels{0xff, 0xff, 0xff, 0xff};
 	///
-	/// \brief Intensity (> 1.0 == HDR).
-	///
-	float intensity{1.0f};
-
-	///
 	/// \brief Convert an 8-bit channels to a normalized float.
 	/// \param channel 8-bit channel
 	/// \returns Normalized float
@@ -44,14 +39,10 @@ struct Rgba {
 	///
 	/// \brief Construct an Rgb instance using normalized input and intensity.
 	/// \param normalized 3 channels of normalized [0-1] floats
-	/// \param intensity Intensity of returned Rgb
 	/// \returns Rgb instance
 	///
-	static constexpr Rgba from(glm::vec4 const& normalized, float intensity = 1.0f) {
-		return {
-			.channels = {to_u8(normalized.x), to_u8(normalized.y), to_u8(normalized.z), to_u8(normalized.w)},
-			.intensity = intensity,
-		};
+	static constexpr Rgba from(glm::vec4 const& normalized) {
+		return {.channels = {to_u8(normalized.x), to_u8(normalized.y), to_u8(normalized.z), to_u8(normalized.w)}};
 	}
 
 	///
@@ -63,7 +54,32 @@ struct Rgba {
 	/// \brief Convert instance to 4 channel normalized output.
 	/// \returns 4 normalized floats
 	///
-	constexpr glm::vec4 to_vec4() const { return glm::vec4{intensity * glm::vec3{to_tint()}, to_f32(channels.w)}; }
+	constexpr glm::vec4 to_vec4(float intensity = 1.0f) const { return glm::vec4{intensity * glm::vec3{to_tint()}, to_f32(channels.w)}; }
+};
+
+struct HdrRgba : Rgba {
+	///
+	/// \brief Intensity (> 1.0 == HDR).
+	///
+	float intensity{1.0f};
+
+	HdrRgba() = default;
+	constexpr HdrRgba(float intensity) : intensity(intensity) {}
+	constexpr HdrRgba(Rgba rgba, float intensity) : Rgba{rgba.channels}, intensity(intensity) {}
+
+	///
+	/// \brief Construct an Rgb instance using normalized input and intensity.
+	/// \param normalized 3 channels of normalized [0-1] floats
+	/// \param intensity Intensity of returned Rgb
+	/// \returns Rgb instance
+	///
+	static constexpr HdrRgba from(glm::vec4 const& normalized, float intensity = 1.0f) { return {Rgba::from(normalized), intensity}; }
+
+	///
+	/// \brief Convert instance to 4 channel normalized output.
+	/// \returns 4 normalized floats
+	///
+	constexpr glm::vec4 to_vec4() const { return Rgba::to_vec4(intensity); }
 };
 
 constexpr auto white_v = Rgba{{0xff, 0xff, 0xff, 0xff}};
