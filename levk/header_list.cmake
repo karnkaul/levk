@@ -81,6 +81,7 @@ set(assets_headers
   include/levk/asset/asset_provider.hpp
   include/levk/asset/asset_providers.hpp
   include/levk/asset/common.hpp
+  include/levk/asset/font_provider.hpp
   include/levk/asset/gltf_importer.hpp
   include/levk/asset/material_provider.hpp
   include/levk/asset/mesh_provider.hpp

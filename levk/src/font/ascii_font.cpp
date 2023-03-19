@@ -1,3 +1,4 @@
+#include <fmt/format.h>
 #include <levk/font/ascii_font.hpp>
 #include <levk/util/zip_ranges.hpp>
 

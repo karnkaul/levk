@@ -3,19 +3,9 @@
 #include <levk/asset/gltf_importer.hpp>
 #include <filesystem>
 
-#include <levk/font/font_library.hpp>
-
 namespace levk {
 namespace {
 namespace fs = std::filesystem;
-
-std::optional<AsciiFont> test(Runtime const& runtime) {
-	auto bytes = runtime.context().data_source().read("fonts/Vera.ttf");
-	if (!bytes) { return {}; }
-	auto slot_factory = runtime.context().engine.get().font_library().load(std::move(bytes));
-	if (!slot_factory) { return {}; }
-	return AsciiFont{std::move(slot_factory), runtime.context().providers.get().texture(), "fonts/Vera.ttf"};
-}
 
 enum class LoadType { eStaticMesh, eSkinnedMesh, eScene };
 
@@ -149,12 +139,11 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 	}
 
 	{
-		m_test.font = test(*this);
-		if (m_test.font) {
+		if (auto* font = m_context.providers.get().ascii_font().load("fonts/Vera.ttf")) {
 			auto height = TextHeight{72u};
 			auto const str = std::string_view{"hello"};
 			auto text_geometry = TextGeometry{};
-			AsciiFont::Pen{*m_test.font, height}.write_line(str, &text_geometry);
+			AsciiFont::Pen{*font, height}.write_line(str, &text_geometry);
 			m_test.material.textures.uris[0] = text_geometry.atlas;
 
 			m_test.primitive = m_context.engine.get().render_device().make_dynamic();

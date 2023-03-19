@@ -46,7 +46,7 @@ struct SlotMap {
 			ret.map.insert_or_assign(codepoint, std::move(slot));
 		}
 		ret.line_count = static_cast<std::uint32_t>(std::sqrt(static_cast<float>(extent_count) + 0.5f));
-		ret.avg_extent = total_extent / static_cast<std::uint32_t>(extent_count);
+		ret.avg_extent = extent_count > 0 ? total_extent / static_cast<std::uint32_t>(extent_count) : Extent2D{};
 		return ret;
 	}
 };

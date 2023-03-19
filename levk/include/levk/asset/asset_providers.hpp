@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/asset/asset_list.hpp>
+#include <levk/asset/font_provider.hpp>
 #include <levk/asset/mesh_provider.hpp>
 #include <levk/asset/shader_provider.hpp>
 #include <levk/asset/texture_provider.hpp>
@@ -9,7 +10,15 @@ class Scene;
 
 class AssetProviders {
   public:
-	AssetProviders(RenderDevice& render_device, DataSource const& data_source, UriMonitor& uri_monitor, Serializer const& serializer);
+	struct CreateInfo {
+		RenderDevice& render_device;
+		FontLibrary const& font_library;
+		DataSource const& data_source;
+		UriMonitor& uri_monitor;
+		Serializer const& serializer;
+	};
+
+	AssetProviders(CreateInfo const& create_info);
 
 	template <typename ProviderT>
 	ProviderT& add(ProviderT provider) {
@@ -30,6 +39,7 @@ class AssetProviders {
 	MaterialProvider& material() const { return *m_providers.material; }
 	StaticMeshProvider& static_mesh() const { return *m_providers.static_mesh; }
 	SkinnedMeshProvider& skinned_mesh() const { return *m_providers.skinned_mesh; }
+	AsciiFontProvider& ascii_font() const { return *m_providers.ascii_font; }
 
 	void reload_out_of_date();
 
@@ -57,6 +67,7 @@ class AssetProviders {
 		Ptr<MaterialProvider> material{};
 		Ptr<StaticMeshProvider> static_mesh{};
 		Ptr<SkinnedMeshProvider> skinned_mesh{};
+		Ptr<AsciiFontProvider> ascii_font{};
 	} m_providers{};
 };
 } // namespace levk

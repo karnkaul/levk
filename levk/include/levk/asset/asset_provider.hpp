@@ -32,18 +32,18 @@ class AssetProvider {
 		return {};
 	}
 
-	Type const& get(Uri<Type> const& uri, Type const& fallback) {
+	Type const& get(Uri<Type> const& uri, Type const& fallback) const {
 		if (auto* ret = find(uri)) { return *ret; }
 		return fallback;
 	}
 
-	Ptr<Type const> load(Uri<Type> const& uri) {
+	Ptr<Type> load(Uri<Type> const& uri) {
 		if (!uri) { return {}; }
 		if (auto ret = find(uri)) { return ret; }
 		return do_load(uri);
 	}
 
-	Ptr<Type const> add(Uri<Type> const& uri, Type t) {
+	Ptr<Type> add(Uri<Type> const& uri, Type t) {
 		if (!uri) { return {}; }
 		auto lock = std::scoped_lock{m_storage->mutex};
 		auto [it, _] = m_storage->map.insert_or_assign(uri, Entry{std::move(t)});
@@ -93,7 +93,7 @@ class AssetProvider {
 		std::vector<UriMonitor::OnModified::Listener> listeners{};
 	};
 
-	Ptr<Type const> do_load(Uri<> const& uri) {
+	Ptr<Type> do_load(Uri<> const& uri) {
 		if (auto payload = load_payload(uri); payload.asset) {
 			auto listeners = std::vector<UriMonitor::OnModified::Listener>{};
 			for (auto const& dependency : payload.dependencies) {

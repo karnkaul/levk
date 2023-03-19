@@ -10,3 +10,13 @@ struct TextGeometry {
 	Uri<Texture> atlas{};
 };
 } // namespace levk
+
+#include <levk/graphics/material.hpp>
+#include <levk/graphics/primitive.hpp>
+
+namespace levk {
+struct TextPrimitive {
+	std::unique_ptr<Primitive::Dynamic> primitive{};
+	UnlitMaterial material{};
+};
+} // namespace levk

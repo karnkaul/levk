@@ -11,9 +11,6 @@
 #include <levk/vfs/disk_vfs.hpp>
 #include <main_menu.hpp>
 
-#include <levk/font/ascii_font.hpp>
-#include <levk/font/static_font_atlas.hpp>
-
 namespace levk {
 struct FreeCam {
 	Ptr<Window> window{};
@@ -50,7 +47,6 @@ class Editor : public Runtime {
 	std::unique_ptr<AsyncTask<Uri<>>> m_load{};
 
 	struct {
-		std::optional<AsciiFont> font{};
 		std::unique_ptr<Primitive::Dynamic> primitive{};
 		UnlitMaterial material{};
 		Transform transforms[2]{};

@@ -3,6 +3,7 @@
 #include <levk/font/glyph_slot.hpp>
 #include <levk/graphics/texture_atlas.hpp>
 #include <optional>
+#include <unordered_map>
 
 namespace levk {
 class StaticFontAtlas {
