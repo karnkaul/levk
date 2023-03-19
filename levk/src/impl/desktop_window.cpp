@@ -5,7 +5,7 @@
 #include <levk/util/error.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/zip_ranges.hpp>
-#include <levk/window.hpp>
+#include <levk/window/window.hpp>
 #include <cassert>
 #include <unordered_map>
 

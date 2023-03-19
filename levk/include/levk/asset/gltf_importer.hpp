@@ -1,7 +1,7 @@
 #pragma once
 #include <gltf2cpp/gltf2cpp.hpp>
 #include <levk/asset/common.hpp>
-#include <levk/graphics_device.hpp>
+#include <levk/graphics/render_device.hpp>
 #include <levk/util/logger.hpp>
 
 namespace levk::asset {

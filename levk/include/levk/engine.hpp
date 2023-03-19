@@ -1,8 +1,8 @@
 #pragma once
 #include <levk/build_version.hpp>
-#include <levk/graphics_device.hpp>
+#include <levk/graphics/render_device.hpp>
 #include <levk/util/time.hpp>
-#include <levk/window.hpp>
+#include <levk/window/window.hpp>
 
 namespace levk {
 struct FontLibrary;
@@ -26,10 +26,10 @@ class Engine {
 	Engine& operator=(Engine&&) noexcept;
 	~Engine() noexcept;
 
-	explicit Engine(Window&& window, GraphicsDevice&& device, CreateInfo const& create_info = {}) noexcept(false);
+	explicit Engine(Window&& window, RenderDevice&& device, CreateInfo const& create_info = {}) noexcept(false);
 
 	Window& window() const;
-	GraphicsDevice& graphics_device() const;
+	RenderDevice& render_device() const;
 	FontLibrary const& font_library() const;
 
 	Frame next_frame();

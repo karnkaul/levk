@@ -1,7 +1,7 @@
 #include <levk/asset/material_provider.hpp>
 #include <levk/asset/texture_provider.hpp>
-#include <levk/graphics_device.hpp>
-#include <levk/texture_atlas.hpp>
+#include <levk/graphics/render_device.hpp>
+#include <levk/graphics/texture_atlas.hpp>
 #include <optional>
 
 namespace levk {
@@ -20,7 +20,7 @@ constexpr Extent2D make_new_extent(Extent2D existing, std::optional<std::uint32_
 	return existing;
 }
 
-Texture make_texture(GraphicsDevice& device, Extent2D extent) {
+Texture make_texture(RenderDevice& device, Extent2D extent) {
 	auto image = DynPixelMap{extent};
 	for (auto& rgba : image.span()) { rgba = blank_v; }
 	auto sampler = TextureSampler{};
@@ -32,7 +32,7 @@ Texture make_texture(GraphicsDevice& device, Extent2D extent) {
 
 TextureAtlas::TextureAtlas(TextureProvider& provider, Uri<Texture> uri, CreateInfo const& create_info)
 	: m_uri(std::move(uri)), m_provider(&provider), m_padding(create_info.padding), m_cursor(create_info.padding) {
-	provider.add(m_uri, make_texture(provider.graphics_device(), create_info.initial_extent));
+	provider.add(m_uri, make_texture(provider.render_device(), create_info.initial_extent));
 }
 
 UvRect TextureAtlas::uv_rect_for(Cell const& cell) const {

@@ -59,7 +59,7 @@ void SkeletonController::change_animation(std::optional<Id<Skeleton::Animation>>
 		if (!entity) { return; }
 		auto* mesh_renderer = entity->find<MeshRenderer>();
 		if (!mesh_renderer) { return; }
-		auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->mesh_renderer);
+		auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 		if (!skinned_mesh_renderer) { return; }
 		if (index && *index >= skinned_mesh_renderer->skeleton.animations.size()) { index.reset(); }
 		enabled = index;
@@ -74,7 +74,7 @@ void SkeletonController::tick(Time dt) {
 	if (!entity || !scene_manager) { return; }
 	auto* mesh_renderer = entity->find<MeshRenderer>();
 	if (!mesh_renderer) { return; }
-	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->mesh_renderer);
+	auto* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 	if (!skinned_mesh_renderer) { return; }
 	assert(*enabled < skinned_mesh_renderer->skeleton.animations.size());
 	auto const& animation = skinned_mesh_renderer->skeleton.animations[*enabled];
@@ -111,7 +111,7 @@ void SkeletonController::inspect(imcpp::OpenWindow) {
 	if (!entity || !scene_manager) { return; }
 	auto const* mesh_renderer = entity->find<MeshRenderer>();
 	if (!mesh_renderer) { return; }
-	auto const* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->mesh_renderer);
+	auto const* skinned_mesh_renderer = std::get_if<SkinnedMeshRenderer>(&mesh_renderer->renderer);
 	if (!skinned_mesh_renderer) { return; }
 	auto const* skeleton = scene_manager->asset_providers().skeleton().find(skinned_mesh_renderer->skeleton.source);
 	if (!skeleton) { return; }
@@ -137,15 +137,13 @@ void SkeletonController::inspect(imcpp::OpenWindow) {
 	}
 }
 
-void StaticMeshRenderer::render(Drawer const& drawer, Scene const& scene, Entity const& entity) const {
+void StaticMeshRenderer::render(DrawList& out, Scene const& scene, Entity const& entity) const {
 	auto* scene_manager = Service<SceneManager>::find();
 	if (!mesh || !scene_manager) { return; }
 	auto const& tree = scene.nodes();
 	auto const* m = scene_manager->asset_providers().static_mesh().find(mesh);
 	if (!m || m->primitives.empty()) { return; }
-	static auto const s_instance = Transform{};
-	auto const is = instances.empty() ? std::span{&s_instance, 1u} : std::span{instances};
-	drawer.draw(*m, is, tree.global_transform(tree.get(entity.node_id())));
+	out.add(*m, tree.global_transform(tree.get(entity.node_id())), scene_manager->asset_providers().material());
 }
 
 void SkinnedMeshRenderer::set_mesh(Uri<SkinnedMesh> uri_, Skeleton::Instance skeleton_) {
@@ -154,21 +152,21 @@ void SkinnedMeshRenderer::set_mesh(Uri<SkinnedMesh> uri_, Skeleton::Instance ske
 	joint_matrices = DynArray<glm::mat4>{skeleton.joints.size()};
 }
 
-void SkinnedMeshRenderer::render(Drawer const& drawer, Scene const& scene, Entity const&) const {
+void SkinnedMeshRenderer::render(DrawList& out, Scene const& scene, Entity const&) const {
 	auto* scene_manager = Service<SceneManager>::find();
 	if (!mesh || !scene_manager) { return; }
 	auto const& tree = scene.nodes();
 	auto const* m = scene_manager->asset_providers().skinned_mesh().find(mesh);
 	if (!m || m->primitives.empty()) { return; }
-	assert(m->primitives[0].geometry.has_joints() && joint_matrices.size() == skeleton.joints.size());
+	assert(joint_matrices.size() == skeleton.joints.size());
 	for (auto const [id, index] : enumerate(skeleton.joints)) { joint_matrices[index] = tree.global_transform(tree.get(id)); }
-	drawer.draw(*m, joint_matrices.span());
+	out.add(*m, joint_matrices.span(), scene_manager->asset_providers().material());
 }
 
-void MeshRenderer::render(Drawer const& drawer) const {
+void MeshRenderer::render(DrawList& out) const {
 	auto* entity = owning_entity();
 	if (!entity) { return; }
-	std::visit([&](auto const& smr) { smr.render(drawer, active_scene(), *entity); }, mesh_renderer);
+	std::visit([&](auto const& smr) { smr.render(out, active_scene(), *entity); }, renderer);
 }
 
 bool MeshRenderer::serialize(dj::Json& out) const {
@@ -187,7 +185,7 @@ bool MeshRenderer::serialize(dj::Json& out) const {
 			out["skeleton"] = make_json(smr.skeleton);
 		},
 	};
-	std::visit(visitor, mesh_renderer);
+	std::visit(visitor, renderer);
 	return true;
 }
 
@@ -206,7 +204,7 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 			auto& out_instance = smr.instances.emplace_back();
 			asset::from_json(in_instance, out_instance);
 		}
-		mesh_renderer = std::move(smr);
+		renderer = std::move(smr);
 	} else if (type == "skinned") {
 		auto uri = Uri{json["mesh"].as<std::string>()};
 		if (!scene_manager->asset_providers().skinned_mesh().load(uri)) {
@@ -215,7 +213,7 @@ bool MeshRenderer::deserialize(dj::Json const& json) {
 		}
 		auto smr = SkinnedMeshRenderer{};
 		smr.set_mesh(std::move(uri), to_skeleton_instance(json["skeleton"]));
-		mesh_renderer = std::move(smr);
+		renderer = std::move(smr);
 	} else {
 		logger::error("[MeshRenderer] Unrecognized Mesh type: [{}]", type);
 		return false;
@@ -250,10 +248,10 @@ void MeshRenderer::inspect(imcpp::OpenWindow) {
 			}
 		},
 	};
-	std::visit(visitor, mesh_renderer);
+	std::visit(visitor, renderer);
 	if (auto popup = imcpp::Popup{"static_mesh_renderer.right_click"}) {
 		if (ImGui::Selectable("Unset")) {
-			std::get<StaticMeshRenderer>(mesh_renderer).mesh = {};
+			std::get<StaticMeshRenderer>(renderer).mesh = {};
 			popup.close_current();
 		}
 	}
@@ -261,7 +259,36 @@ void MeshRenderer::inspect(imcpp::OpenWindow) {
 
 void MeshRenderer::add_assets(AssetList& out, dj::Json const& json) const {
 	auto const type = json["type"].as_string();
-	if ((type == "static" || type == "skinned") && json.contains("mesh")) { out.meshes.insert(json["mesh"].as<std::string>()); }
+	auto const& mesh = json["mesh"];
+	if ((type == "static" || type == "skinned") && mesh) { out.meshes.insert(mesh.as<std::string>()); }
+}
+
+void PrimitiveRenderer::render(DrawList& out) const {
+	if (!std::visit([](auto const& p) { return p != nullptr; }, primitive)) { return; }
+	auto* entity = owning_entity();
+	if (!entity) { return; }
+	auto const locator = active_scene().node_locator();
+	auto const instances = DrawList::Instanced{
+		.parent = locator.global_transform(locator.get(entity->node_id())),
+		.instances = this->instances,
+	};
+	std::visit([&](auto const& primitive) { out.add(*primitive, material, instances); }, primitive);
+}
+
+void PrimitiveRenderer::inspect(imcpp::OpenWindow) {
+	if (!std::visit([](auto const& p) { return p != nullptr; }, primitive)) { return; }
+	auto* scene_manager = Service<SceneManager>::find();
+	if (!scene_manager) { return; }
+	auto const func = [](std::string_view type, Primitive const& prim) {
+		imcpp::TreeNode::leaf(FixedString{"Primitive::{}", type}.c_str());
+		imcpp::TreeNode::leaf(FixedString{"Vertices: {}", prim.vertex_count()}.c_str());
+		imcpp::TreeNode::leaf(FixedString{"Indices: {}", prim.index_count()}.c_str());
+	};
+	auto const visitor = Visitor{
+		[func](std::unique_ptr<Primitive::Static> const& prim) { func("Static", *prim); },
+		[func](std::unique_ptr<Primitive::Dynamic> const& prim) { func("Dynamic", *prim); },
+	};
+	std::visit(visitor, primitive);
 }
 
 AssetList Scene::peek_assets(Serializer const& serializer, dj::Json const& json) {
@@ -353,13 +380,13 @@ bool Scene::destroy(Id<Entity> entity) {
 	return false;
 }
 
-void Scene::render_3d(Drawer const& drawer) const {
+void Scene::render_3d(DrawList& out) const {
 	m_const_entity_refs.clear();
 	fill_to_if(m_entities, m_const_entity_refs, [](Id<Entity>, Entity const& e) { return e.active && !e.m_render_components.empty(); });
 	// TODO: render ordering
 	std::sort(m_const_entity_refs.begin(), m_const_entity_refs.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
 	for (Entity const& entity : m_const_entity_refs) {
-		for (auto const* rc : entity.m_render_components) { rc->render(drawer); }
+		for (auto const* rc : entity.m_render_components) { rc->render(out); }
 	}
 }
 

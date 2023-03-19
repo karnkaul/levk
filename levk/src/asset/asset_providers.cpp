@@ -3,10 +3,10 @@
 #include <levk/scene.hpp>
 
 namespace levk {
-AssetProviders::AssetProviders(GraphicsDevice& graphics_device, DataSource const& data_source, UriMonitor& uri_monitor, Serializer const& serializer) {
+AssetProviders::AssetProviders(RenderDevice& render_device, DataSource const& data_source, UriMonitor& uri_monitor, Serializer const& serializer) {
 	m_providers.shader = &add(ShaderProvider{data_source, uri_monitor});
 	m_providers.skeleton = &add(SkeletonProvider{data_source, uri_monitor});
-	m_providers.texture = &add(TextureProvider{graphics_device, data_source, uri_monitor});
+	m_providers.texture = &add(TextureProvider{render_device, data_source, uri_monitor});
 	m_providers.material = &add(MaterialProvider{*m_providers.texture, serializer});
 	m_providers.static_mesh = &add(StaticMeshProvider{*m_providers.material});
 	m_providers.skinned_mesh = &add(SkinnedMeshProvider{*m_providers.skeleton, *m_providers.material});

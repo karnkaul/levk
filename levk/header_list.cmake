@@ -39,6 +39,28 @@ set(impl_headers
   include/levk/impl/vulkan_surface.hpp
 )
 
+set(window_headers
+  include/levk/window/common.hpp
+  include/levk/window/window_state.hpp
+  include/levk/window/window.hpp
+  include/levk/window/input.hpp
+)
+
+set(graphics_headers
+  include/levk/graphics/common.hpp
+  include/levk/graphics/image.hpp
+  include/levk/graphics/material.hpp
+  include/levk/graphics/mesh.hpp
+  include/levk/graphics/primitive.hpp
+  include/levk/graphics/renderer.hpp
+  include/levk/graphics/render_device.hpp
+  include/levk/graphics/shader.hpp
+  include/levk/graphics/surface.hpp
+  include/levk/graphics/texture_atlas.hpp
+  include/levk/graphics/texture_sampler.hpp
+  include/levk/graphics/texture.hpp
+)
+
 set(imcpp_headers
   include/levk/imcpp/asset_inspector.hpp
   include/levk/imcpp/common.hpp
@@ -85,6 +107,8 @@ set(font_headers
 set(levk_headers
   ${util_headers}
   ${impl_headers}
+  ${window_headers}
+  ${graphics_headers}
   ${imcpp_headers}
   ${assets_headers}
   ${vfs_headers}
@@ -95,23 +119,14 @@ set(levk_headers
   include/levk/component.hpp
   include/levk/context.hpp
   include/levk/defines.hpp
-  include/levk/drawer.hpp
   include/levk/engine.hpp
   include/levk/entity.hpp
   include/levk/geometry.hpp
-  include/levk/graphics_common.hpp
-  include/levk/graphics_device.hpp
-  include/levk/image.hpp
-  include/levk/input.hpp
   include/levk/interpolator.hpp
   include/levk/lights.hpp
-  include/levk/material.hpp
-  include/levk/mesh_geometry.hpp
-  include/levk/mesh_primitive.hpp
   include/levk/node.hpp
   include/levk/pixel_map.hpp
   include/levk/rect.hpp
-  include/levk/renderer.hpp
   include/levk/rgba.hpp
   include/levk/runtime.hpp
   include/levk/scene_manager.hpp
@@ -119,20 +134,10 @@ set(levk_headers
   include/levk/service.hpp
   include/levk/serializable.hpp
   include/levk/serializer.hpp
-  include/levk/shader.hpp
   include/levk/skeleton.hpp
-  include/levk/skinned_mesh.hpp
-  include/levk/static_mesh.hpp
-  include/levk/surface.hpp
   include/levk/text_geometry.hpp
-  include/levk/texture_atlas.hpp
-  include/levk/texture_sampler.hpp
-  include/levk/texture.hpp
   include/levk/transform_animation.hpp
   include/levk/transform_controller.hpp
   include/levk/transform.hpp
   include/levk/uri.hpp
-  include/levk/window_common.hpp
-  include/levk/window_state.hpp
-  include/levk/window.hpp
 )

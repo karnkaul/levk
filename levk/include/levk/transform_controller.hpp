@@ -1,8 +1,8 @@
 #pragma once
-#include <levk/input.hpp>
 #include <levk/transform.hpp>
 #include <levk/util/ptr.hpp>
 #include <levk/util/time.hpp>
+#include <levk/window/input.hpp>
 #include <memory>
 
 namespace levk {

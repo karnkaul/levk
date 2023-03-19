@@ -1,5 +1,5 @@
 #pragma once
-#include <levk/graphics_common.hpp>
+#include <levk/graphics/common.hpp>
 #include <span>
 #include <type_traits>
 

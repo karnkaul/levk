@@ -1,6 +1,6 @@
 #include <levk/asset/common.hpp>
 #include <levk/asset/texture_provider.hpp>
-#include <levk/material.hpp>
+#include <levk/graphics/material.hpp>
 #include <levk/service.hpp>
 #include <levk/util/enumerate.hpp>
 #include <cstring>
@@ -41,13 +41,15 @@ bool MaterialTextures::deserialize(dj::Json const& json) {
 	return true;
 }
 
-bool MaterialBase::serialize(dj::Json& out) const {
+bool Material::serialize(dj::Json& out) const {
 	textures.serialize(out["textures"]);
+	asset::to_json(out["render_mode"], render_mode);
 	return true;
 }
 
-bool MaterialBase::deserialize(dj::Json const& json) {
+bool Material::deserialize(dj::Json const& json) {
 	textures.deserialize(json["textures"]);
+	asset::from_json(json["render_mode"], render_mode);
 	return true;
 }
 
@@ -74,28 +76,24 @@ void LitMaterial::write_sets(Shader& shader, TextureProvider const& provider) co
 }
 
 bool UnlitMaterial::serialize(dj::Json& out) const {
-	MaterialBase::serialize(out);
+	Material::serialize(out);
 	asset::to_json(out["tint"], tint);
-	asset::to_json(out["render_mode"], mode);
 	out["shader"] = shader.value();
 	out["name"] = name;
 	return true;
 }
 
 bool UnlitMaterial::deserialize(dj::Json const& json) {
-	MaterialBase::deserialize(json);
+	Material::deserialize(json);
 	asset::from_json(json["tint"], tint);
-	asset::from_json(json["render_mode"], mode);
-	shader = json["shader"].as<std::string>();
 	name = json["name"].as<std::string>();
 	return true;
 }
 
 bool LitMaterial::serialize(dj::Json& out) const {
-	MaterialBase::serialize(out);
+	Material::serialize(out);
 	asset::to_json(out["albedo"], albedo);
 	asset::to_json(out["emissive_factor"], emissive_factor);
-	asset::to_json(out["render_mode"], mode);
 	out["metallic"] = metallic;
 	out["roughness"] = roughness;
 	out["alpha_cutoff"] = alpha_cutoff;
@@ -107,10 +105,9 @@ bool LitMaterial::serialize(dj::Json& out) const {
 
 bool LitMaterial::deserialize(dj::Json const& json) {
 	assert(json["type_name"].as_string() == type_name());
-	MaterialBase::deserialize(json);
+	Material::deserialize(json);
 	asset::from_json(json["albedo"], albedo);
 	asset::from_json(json["emissive_factor"], emissive_factor, emissive_factor);
-	asset::from_json(json["render_mode"], mode);
 	metallic = json["metallic"].as<float>(metallic);
 	roughness = json["roughness"].as<float>(roughness);
 	alpha_cutoff = json["alpha_cutoff"].as<float>(alpha_cutoff);

@@ -1,7 +1,7 @@
 #pragma once
 #include <glm/vec2.hpp>
 #include <levk/util/flex_array.hpp>
-#include <levk/window_common.hpp>
+#include <levk/window/common.hpp>
 #include <array>
 
 namespace levk {

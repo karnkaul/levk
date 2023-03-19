@@ -1,5 +1,5 @@
 #pragma once
-#include <levk/input.hpp>
+#include <levk/window/input.hpp>
 #include <string>
 
 namespace levk {

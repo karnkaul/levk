@@ -1,8 +1,8 @@
 #pragma once
-#include <levk/graphics_common.hpp>
-#include <levk/image.hpp>
+#include <levk/graphics/common.hpp>
+#include <levk/graphics/image.hpp>
+#include <levk/graphics/texture_sampler.hpp>
 #include <levk/rect.hpp>
-#include <levk/texture_sampler.hpp>
 #include <levk/util/ptr.hpp>
 #include <memory>
 

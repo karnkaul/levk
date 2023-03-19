@@ -16,7 +16,7 @@ constexpr std::string_view to_str(Vsync::Type const vsync) {
 	}
 }
 
-void vsync_combo(GraphicsDevice& device, GraphicsDeviceInfo const& device_info) {
+void vsync_combo(RenderDevice& device, GraphicsDeviceInfo const& device_info) {
 	auto const supported = device_info.supported_vsync;
 	if (auto combo = imcpp::Combo{"Vsync", to_str(device_info.current_vsync).data()}) {
 		auto add = [&](Vsync::Type const vsync) {
@@ -34,7 +34,7 @@ void vsync_combo(GraphicsDevice& device, GraphicsDeviceInfo const& device_info) 
 
 void EngineStatus::draw_to(NotClosed<Window>, Engine& engine) {
 	auto const ms = engine.delta_time().count() * 1000.0f;
-	auto& device = engine.graphics_device();
+	auto& device = engine.render_device();
 	auto const& device_info = device.info();
 	m_dts.push(ms);
 	ImGui::Text("%s", FixedString{"Device: {}{}", device_info.name, device_info.validation ? " [v]" : ""}.c_str());

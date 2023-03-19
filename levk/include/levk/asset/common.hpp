@@ -1,12 +1,10 @@
 #pragma once
 #include <djson/json.hpp>
 #include <levk/geometry.hpp>
-#include <levk/graphics_common.hpp>
-#include <levk/material.hpp>
+#include <levk/graphics/common.hpp>
+#include <levk/graphics/material.hpp>
+#include <levk/graphics/texture.hpp>
 #include <levk/skeleton.hpp>
-#include <levk/skinned_mesh.hpp>
-#include <levk/static_mesh.hpp>
-#include <levk/texture.hpp>
 #include <levk/uri.hpp>
 #include <variant>
 

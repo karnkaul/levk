@@ -51,8 +51,9 @@ class Editor : public Runtime {
 
 	struct {
 		std::optional<AsciiFont> font{};
-		std::optional<MeshGeometry> mesh{};
-		std::optional<Material> material{};
+		std::unique_ptr<Primitive::Dynamic> primitive{};
+		UnlitMaterial material{};
+		Transform transforms[2]{};
 	} m_test{};
 };
 } // namespace levk

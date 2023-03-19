@@ -1,7 +1,7 @@
 #pragma once
-#include <levk/geometry.hpp>
-#include <levk/graphics_common.hpp>
-#include <levk/image.hpp>
+#include <levk/graphics/common.hpp>
+#include <levk/graphics/image.hpp>
+#include <levk/graphics/primitive.hpp>
 #include <memory>
 
 namespace levk {
@@ -41,12 +41,9 @@ bool gfx_set_vsync(VulkanDevice& out, Vsync::Type vsync);
 bool gfx_set_render_scale(VulkanDevice& out, float scale);
 void gfx_render(VulkanDevice const& device, RenderInfo const& info);
 
-MeshGeometry gfx_make_static_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry);
-MeshGeometry gfx_make_skinned_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints);
-MeshGeometry gfx_make_ui_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry);
-std::uint32_t gfx_mesh_vertex_count(VulkanMeshGeometry const& mesh);
-std::uint32_t gfx_mesh_index_count(VulkanMeshGeometry const& mesh);
-bool gfx_mesh_has_joints(VulkanMeshGeometry const& mesh);
+std::unique_ptr<Primitive::Dynamic> gfx_make_dynamic(VulkanDevice const& device);
+std::unique_ptr<Primitive::Static> gfx_make_static(VulkanDevice const& device, Geometry::Packed const& geometry);
+std::unique_ptr<Primitive::Skinned> gfx_make_skinned(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints);
 
 Texture gfx_make_texture(VulkanDevice const& device, TextureCreateInfo create_info, Image::View image);
 TextureSampler const& gfx_tex_sampler(VulkanTexture const& texture);

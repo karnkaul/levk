@@ -1,6 +1,7 @@
 #pragma once
 #include <glm/vec2.hpp>
 #include <levk/camera.hpp>
+#include <levk/graphics/primitive.hpp>
 #include <levk/lights.hpp>
 #include <levk/rgba.hpp>
 #include <levk/util/dyn_array.hpp>
@@ -12,7 +13,6 @@ class Window;
 using Extent2D = glm::uvec2;
 
 enum class ColourSpace : std::uint8_t { eSrgb, eLinear };
-enum class Topology : std::uint8_t { ePointList, eLineList, eLineStrip, eTriangleList, eTriangleStrip, eTriangleFan };
 enum class MeshType : std::uint8_t { eNone, eStatic, eSkinned };
 
 struct RenderMode {

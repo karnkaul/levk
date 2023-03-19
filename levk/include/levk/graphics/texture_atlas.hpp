@@ -1,6 +1,6 @@
 #pragma once
+#include <levk/graphics/texture.hpp>
 #include <levk/rect.hpp>
-#include <levk/texture.hpp>
 #include <levk/uri.hpp>
 #include <levk/util/ptr.hpp>
 

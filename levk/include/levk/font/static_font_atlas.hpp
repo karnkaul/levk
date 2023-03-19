@@ -1,7 +1,7 @@
 #pragma once
 #include <levk/font/font_glyph.hpp>
 #include <levk/font/glyph_slot.hpp>
-#include <levk/texture_atlas.hpp>
+#include <levk/graphics/texture_atlas.hpp>
 #include <optional>
 
 namespace levk {

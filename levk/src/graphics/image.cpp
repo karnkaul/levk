@@ -1,5 +1,5 @@
 #include <stb/stb_image.h>
-#include <levk/image.hpp>
+#include <levk/graphics/image.hpp>
 #include <levk/util/logger.hpp>
 #include <cstring>
 

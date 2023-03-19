@@ -38,10 +38,10 @@ struct Inspector {
 		ImGui::Text("%s", FixedString{"Colour Space: {}", texture.colour_space() == ColourSpace::eLinear ? "linear" : "sRGB"}.c_str());
 	}
 
-	void operator()(Uri<> const& uri, Material const& material) const {
+	void operator()(Uri<> const& uri, UMaterial& material) const {
 		ImGui::Text("%s", FixedString{"{}", uri.value()}.c_str());
-		ImGui::Text("%s", FixedString{"Shader: {}", material.shader_id().value()}.c_str());
-		if (auto* lit = material.as<LitMaterial>()) {
+		ImGui::Text("%s", FixedString{"Shader: {}", material->shader_uri().value()}.c_str());
+		if (auto* lit = dynamic_cast<LitMaterial*>(material.get())) {
 			for (auto [texture, index] : enumerate(lit->textures.uris)) {
 				if (auto tn = TreeNode{FixedString{"texture[{}]", index}.c_str()}) {
 					FixedString<128> const label = texture ? texture.value() : "[None]";
@@ -62,8 +62,9 @@ struct Inspector {
 		ImGui::Text("%s", FixedString{"{}", uri.value()}.c_str());
 		ImGui::Text("%s", FixedString{"Name: {}", mesh.name}.c_str());
 		for (auto [primitive, index] : enumerate(mesh.primitives)) {
+			if (!primitive.primitive) { continue; }
 			if (auto tn = TreeNode{FixedString{"primitive[{}]", index}.c_str()}) {
-				ImGui::Text("%s", FixedString{"Vertices: {}", primitive.geometry.vertex_count()}.c_str());
+				ImGui::Text("%s", FixedString{"Vertices: {}", primitive.primitive->vertex_count()}.c_str());
 				if (primitive.material) {
 					TreeNode::leaf(FixedString{"Material: {}", primitive.material.value()}.c_str());
 					if (auto drag = DragDrop::Source{}) { DragDrop::set_string("material", uri.value()); }

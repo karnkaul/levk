@@ -1,6 +1,6 @@
 #pragma once
 #include <levk/asset/asset_provider.hpp>
-#include <levk/graphics_common.hpp>
+#include <levk/graphics/common.hpp>
 
 namespace levk {
 class ShaderProvider : public AssetProvider<ShaderCode> {

@@ -1,30 +1,30 @@
 #pragma once
 #include <glm/vec2.hpp>
 #include <levk/geometry.hpp>
-#include <levk/renderer.hpp>
-#include <levk/skinned_mesh.hpp>
-#include <levk/static_mesh.hpp>
-#include <levk/texture.hpp>
+#include <levk/graphics/primitive.hpp>
+#include <levk/graphics/renderer.hpp>
+#include <levk/graphics/texture.hpp>
 #include <levk/util/ptr.hpp>
 #include <memory>
 
 namespace levk {
 struct RenderInfo;
+class AssetProviders;
 
-class GraphicsDevice {
+class RenderDevice {
   public:
 	using CreateInfo = GraphicsDeviceCreateInfo;
 	using Info = GraphicsDeviceInfo;
 
 	template <typename T>
-	GraphicsDevice(T t) : m_model(std::make_unique<Model<T>>(std::move(t))) {}
+	RenderDevice(T t) : m_model(std::make_unique<Model<T>>(std::move(t))) {}
 
-	~GraphicsDevice() {
+	~RenderDevice() {
 		if (m_model) { destroy(); }
 	}
 
-	GraphicsDevice(GraphicsDevice&&) = default;
-	GraphicsDevice& operator=(GraphicsDevice&&) = default;
+	RenderDevice(RenderDevice&&) = default;
+	RenderDevice& operator=(RenderDevice&&) = default;
 
 	void create(CreateInfo const& create_info) { m_model->create(create_info); }
 	void destroy() { m_model->destroy(); }
@@ -34,11 +34,11 @@ class GraphicsDevice {
 
 	void render(Renderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights, glm::uvec2 framebuffer_extent);
 
-	MeshGeometry make_static_mesh_geometry(Geometry::Packed const& geometry) { return m_model->make_static_mesh_geometry(geometry); }
-	MeshGeometry make_skinned_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints = {}) {
-		return m_model->make_skinned_mesh_geometry(geometry, joints);
+	std::unique_ptr<Primitive::Dynamic> make_dynamic() { return m_model->make_dynamic(); }
+	std::unique_ptr<Primitive::Static> make_static(Geometry::Packed const& geometry) { return m_model->make_static(geometry); }
+	std::unique_ptr<Primitive::Skinned> make_skinned(Geometry::Packed const& geometry, MeshJoints const& joints) {
+		return m_model->make_skinned(geometry, joints);
 	}
-	MeshGeometry make_ui_mesh_geometry(Geometry::Packed const& geometry) { return m_model->make_ui_mesh_geometry(geometry); }
 
 	Texture make_texture(Image::View image, Texture::CreateInfo create_info = {}) { return m_model->make_texture(image, std::move(create_info)); }
 
@@ -64,11 +64,11 @@ class GraphicsDevice {
 		virtual bool set_render_scale(float) = 0;
 
 		virtual void render(RenderInfo const& info) const = 0;
-
-		virtual MeshGeometry make_static_mesh_geometry(Geometry::Packed const& geometry) = 0;
-		virtual MeshGeometry make_skinned_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) = 0;
-		virtual MeshGeometry make_ui_mesh_geometry(Geometry::Packed const& geometry) = 0;
 		virtual Texture make_texture(Image::View image, Texture::CreateInfo info) = 0;
+
+		virtual std::unique_ptr<Primitive::Dynamic> make_dynamic() = 0;
+		virtual std::unique_ptr<Primitive::Static> make_static(Geometry::Packed const&) = 0;
+		virtual std::unique_ptr<Primitive::Skinned> make_skinned(Geometry::Packed const&, MeshJoints const&) = 0;
 
 		virtual RenderStats stats() const = 0;
 	};
@@ -86,13 +86,13 @@ class GraphicsDevice {
 
 		void render(RenderInfo const& info) const final { gfx_render(impl, info); }
 
-		MeshGeometry make_static_mesh_geometry(Geometry::Packed const& geometry) final { return gfx_make_static_mesh_geometry(impl, geometry); }
-		MeshGeometry make_skinned_mesh_geometry(Geometry::Packed const& geometry, MeshJoints joints) final {
-			return gfx_make_skinned_mesh_geometry(impl, geometry, joints);
-		}
-		MeshGeometry make_ui_mesh_geometry(Geometry::Packed const& geometry) final { return gfx_make_ui_mesh_geometry(impl, geometry); }
-
 		Texture make_texture(Image::View image, Texture::CreateInfo create_info) final { return gfx_make_texture(impl, std::move(create_info), image); }
+
+		std::unique_ptr<Primitive::Dynamic> make_dynamic() final { return gfx_make_dynamic(impl); }
+		std::unique_ptr<Primitive::Static> make_static(Geometry::Packed const& geometry) final { return gfx_make_static(impl, geometry); }
+		std::unique_ptr<Primitive::Skinned> make_skinned(Geometry::Packed const& geometry, MeshJoints const& joints) final {
+			return gfx_make_skinned(impl, geometry, joints);
+		}
 
 		RenderStats stats() const final { return gfx_render_stats(impl); }
 	};
@@ -111,10 +111,10 @@ struct RenderInfo {
 };
 
 struct GraphicsDeviceFactory {
-	virtual GraphicsDevice make() const = 0;
+	virtual RenderDevice make() const = 0;
 };
 
 struct VulkanDeviceFactory : GraphicsDeviceFactory {
-	GraphicsDevice make() const override;
+	RenderDevice make() const override;
 };
 } // namespace levk

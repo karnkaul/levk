@@ -4,7 +4,7 @@
 namespace levk {
 SceneManager::SceneManager(AssetProviders& asset_providers) : m_asset_providers(&asset_providers) {}
 
-GraphicsDevice& SceneManager::graphics_device() const { return m_asset_providers->graphics_device(); }
+RenderDevice& SceneManager::render_device() const { return m_asset_providers->render_device(); }
 Serializer const& SceneManager::serializer() const { return m_asset_providers->serializer(); }
 
 bool SceneManager::load(Uri<Scene> uri) {

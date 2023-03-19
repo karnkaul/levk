@@ -6,17 +6,15 @@
 #include <glm/mat4x4.hpp>
 #include <levk/asset/asset_providers.hpp>
 #include <levk/geometry.hpp>
-#include <levk/graphics_device.hpp>
+#include <levk/graphics/material.hpp>
+#include <levk/graphics/render_device.hpp>
+#include <levk/graphics/renderer.hpp>
+#include <levk/graphics/surface.hpp>
+#include <levk/graphics/texture.hpp>
 #include <levk/impl/defer_queue.hpp>
 #include <levk/impl/desktop_window.hpp>
 #include <levk/impl/vulkan_device.hpp>
 #include <levk/impl/vulkan_surface.hpp>
-#include <levk/material.hpp>
-#include <levk/renderer.hpp>
-#include <levk/skinned_mesh.hpp>
-#include <levk/static_mesh.hpp>
-#include <levk/surface.hpp>
-#include <levk/texture.hpp>
 #include <levk/util/dyn_array.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
@@ -26,8 +24,9 @@
 #include <levk/util/logger.hpp>
 #include <levk/util/ptr.hpp>
 #include <levk/util/unique.hpp>
+#include <levk/util/visitor.hpp>
 #include <levk/util/zip_ranges.hpp>
-#include <levk/window.hpp>
+#include <levk/window/window.hpp>
 #include <spirv_glsl.hpp>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_hash.hpp>
@@ -104,7 +103,7 @@ class Defer {
 		}
 	};
 
-	Unique<Type, Deleter> m_t{};
+	Unique<Type, Deleter> m_t;
 };
 
 vk::Result wait(vk::Device device, vk::ArrayProxy<vk::Fence> const& fences) {
@@ -643,7 +642,7 @@ class BufferVec {
 	}
 
   private:
-	HostBuffer<Buffering> m_buffer{};
+	HostBuffer<Buffering> m_buffer;
 	std::vector<Type> m_vec{};
 };
 
@@ -810,6 +809,7 @@ struct GeometryLayout {
 	std::optional<std::uint32_t> joints_set{};
 	std::uint32_t vertices{};
 	std::uint32_t indices{};
+	std::uint32_t joints{};
 };
 } // namespace
 
@@ -852,7 +852,7 @@ class VulkanMeshGeometry::Impl {
 	}
 
 	Defer<BufferVec<glm::mat4>> instances{};
-	Defer<BufferVec<glm::mat4>> joints{};
+	Defer<BufferVec<glm::mat4>> joints;
 
   private:
 	Defer<UniqueBuffer> m_vibo{};
@@ -901,9 +901,9 @@ struct VulkanDevice::Impl {
 	SamplerStorage samplers{};
 
 	UniqueBuffer blank_buffer{};
-	HostBuffer<> view_ubo_3d{};
-	HostBuffer<> dir_lights_ssbo{};
-	HostBuffer<> view_ubo_ui{};
+	HostBuffer<> view_ubo_3d{vk::BufferUsageFlagBits::eUniformBuffer};
+	HostBuffer<> view_ubo_ui{vk::BufferUsageFlagBits::eUniformBuffer};
+	HostBuffer<> dir_lights_ssbo{vk::BufferUsageFlagBits::eStorageBuffer};
 
 	GraphicsDeviceInfo info{};
 	RenderMode default_render_mode{};
@@ -2012,12 +2012,12 @@ struct GeometryUploader {
 
 	FlexArray<UniqueBuffer, 2> staging_buffers{};
 
-	void write_to(GeometryLayout& out_layout, UniqueBuffer& out_buffer, Geometry::Packed const& geometry) const {
+	void write_to(GeometryLayout& out_layout, UniqueBuffer& out_buffer, Geometry::Packed const& geometry, bool host_visible) const {
 		auto const indices = std::span<std::uint32_t const>{geometry.indices};
 		out_layout.vertices = static_cast<std::uint32_t>(geometry.positions.size());
 		out_layout.indices = static_cast<std::uint32_t>(indices.size());
 		auto const size = geometry.size_bytes();
-		if (out_buffer.get().size < size) { out_buffer = vma.make_buffer(vi_flags_v, size, false); }
+		if (out_buffer.get().size < size) { out_buffer = vma.make_buffer(vi_flags_v, size, host_visible); }
 		auto writer = BufferWriter{out_buffer};
 		out_layout.offsets.positions = writer(std::span{geometry.positions});
 		out_layout.offsets.rgbs = writer(std::span{geometry.rgbs});
@@ -2038,6 +2038,7 @@ struct GeometryUploader {
 		out_layout.vertex_layout = skinned_vertex_layout();
 		out_layout.joints_binding = Bindings::joints_v;
 		out_layout.joints_set = Sets::joints_v;
+		out_layout.joints = static_cast<std::uint32_t>(joints.joints.size());
 	}
 
 	[[nodiscard]] UniqueBuffer upload(GeometryLayout& out_result, vk::CommandBuffer cb, Geometry::Packed const& geometry) {
@@ -2045,7 +2046,7 @@ struct GeometryUploader {
 		auto const size = geometry.size_bytes();
 		auto staging = vma.make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
 		auto ret = vma.make_buffer(vk::BufferUsageFlagBits::eTransferDst | dst_usage_v, size, false);
-		write_to(out_result, staging, geometry);
+		write_to(out_result, staging, geometry, false);
 		cb.copyBuffer(staging.get().buffer, ret.get().buffer, vk::BufferCopy{{}, {}, size});
 		staging_buffers.insert(std::move(staging));
 		return ret;
@@ -2267,37 +2268,201 @@ constexpr RenderMode combine(RenderMode const in, RenderMode def) {
 	return def;
 }
 
+struct VulkanPrimitive {
+	struct Drawable;
+	class Uploaded;
+	class Host;
+
+	struct Static;
+	struct Skinned;
+	struct Dynamic;
+};
+
+struct VulkanPrimitive::Drawable {
+	GeometryLayout const& layout() const { return m_layout; }
+
+	void draw(Vma::Buffer const& vibo, vk::CommandBuffer cb, std::uint32_t instances = 1u) const {
+		if (!vibo.buffer) { return; }
+		vk::Buffer const vbos[] = {vibo.buffer, vibo.buffer, vibo.buffer, vibo.buffer};
+		vk::DeviceSize const vbo_offsets[] = {m_layout.offsets.positions, m_layout.offsets.rgbs, m_layout.offsets.normals, m_layout.offsets.uvs};
+		cb.bindVertexBuffers(0u, vbos, vbo_offsets);
+		if (m_layout.indices > 0) {
+			cb.bindIndexBuffer(vibo.buffer, m_layout.offsets.indices, vk::IndexType::eUint32);
+			cb.drawIndexed(m_layout.indices, instances, 0u, 0u, 0u);
+		} else {
+			cb.draw(m_layout.vertices, instances, 0u, 0u);
+		}
+	}
+
+	void draw(Vma::Buffer const& vibo, Vma::Buffer const& jwbo, vk::CommandBuffer cb) const {
+		if (!vibo.buffer) { return; }
+		assert(m_layout.joints_binding > 0);
+		vk::Buffer const jbos[] = {jwbo.buffer, jwbo.buffer};
+		vk::DeviceSize const jbo_offsets[] = {m_layout.offsets.joints, m_layout.offsets.weights};
+		cb.bindVertexBuffers(*m_layout.joints_binding, jbos, jbo_offsets);
+		draw(vibo, cb);
+	}
+
+	virtual void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) = 0;
+
+	virtual BufferVec<glm::mat4>& get_instance_buffer() = 0;
+
+  protected:
+	GeometryLayout m_layout{};
+};
+
+class VulkanPrimitive::Uploaded : public Drawable {
+  public:
+	static Uploaded make_static(VulkanDevice const& device, Geometry::Packed const& geometry) {
+		auto ret = Uploaded{};
+		ret.instances = {device.impl->defer, {vk::BufferUsageFlagBits::eVertexBuffer}};
+		ret.m_vibo = {device.impl->defer};
+		auto uploader = GeometryUploader{device.impl->vma.get()};
+		auto cmd = Cmd{device};
+		ret.m_vibo = {device.impl->defer, uploader.upload(ret.m_layout, cmd.cb, geometry)};
+		return ret;
+	}
+
+	static Uploaded make_skinned(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints) {
+		assert(!joints.joints.empty());
+		auto ret = Uploaded{};
+		ret.joints = {device.impl->defer, {vk::BufferUsageFlagBits::eStorageBuffer}};
+		ret.m_vibo = {device.impl->defer};
+		ret.m_jwbo = {device.impl->defer};
+		auto uploader = GeometryUploader{device.impl->vma.get()};
+		auto cmd = Cmd{device};
+		ret.m_vibo = {device.impl->defer, uploader.upload(ret.m_layout, cmd.cb, geometry)};
+		ret.m_jwbo = {device.impl->defer, uploader.upload(ret.m_layout, cmd.cb, joints)};
+		return ret;
+	}
+
+	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) final {
+		if (m_layout.joints_binding > 0) {
+			assert(m_jwbo.get());
+			Drawable::draw(m_vibo.get().get(), m_jwbo.get().get(), cb);
+		} else {
+			Drawable::draw(m_vibo.get().get(), cb, instances);
+		}
+	}
+
+	BufferVec<glm::mat4>& get_instance_buffer() final { return instances.get(); }
+
+	Defer<BufferVec<glm::mat4>> joints;
+	Defer<BufferVec<glm::mat4>> instances;
+
+  private:
+	Uploaded() = default;
+
+	Defer<UniqueBuffer> m_vibo{};
+	Defer<UniqueBuffer> m_jwbo{};
+};
+
+class VulkanPrimitive::Host : public Drawable {
+  public:
+	Host(VulkanDevice const& device)
+		: m_vibo(device.impl->defer), m_instances(device.impl->defer, {vk::BufferUsageFlagBits::eVertexBuffer}), m_device(device.impl.get()) {
+		m_layout.vertex_layout = instanced_vertex_layout();
+		m_layout.instance_binding = GeometryUploader::Bindings::instance_v;
+	}
+
+	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) final {
+		if (geometry.positions.empty()) { return; }
+		Drawable::draw(refresh(), cb, instances);
+	}
+
+	BufferVec<glm::mat4>& get_instance_buffer() final { return m_instances.get(); }
+
+	Geometry::Packed geometry{};
+
+  private:
+	Vma::Buffer const& refresh() {
+		auto& v = m_vibo.get().get(m_device->buffered_index);
+		GeometryUploader{m_device->vma.get()}.write_to(m_layout, v, geometry, true);
+		return v.get();
+	}
+
+	Defer<Buffered<UniqueBuffer, buffering_v>> m_vibo{};
+	Defer<BufferVec<glm::mat4>> m_instances{};
+	Ptr<VulkanDevice::Impl> m_device{};
+};
+
+struct VulkanPrimitive::Static : Primitive::Static {
+	Uploaded primitive;
+
+	Static(VulkanDevice const& device, Geometry::Packed const& geometry) : primitive(Uploaded::make_static(device, geometry)) {}
+
+	std::uint32_t vertex_count() const final { return primitive.layout().vertices; }
+	std::uint32_t index_count() const final { return primitive.layout().indices; }
+
+	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) { primitive.draw(cb, instances); }
+};
+
+struct VulkanPrimitive::Skinned : Primitive::Skinned {
+	Uploaded primitive;
+
+	Skinned(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints)
+		: primitive(Uploaded::make_skinned(device, geometry, joints)) {}
+
+	std::uint32_t vertex_count() const final { return primitive.layout().vertices; }
+	std::uint32_t index_count() const final { return primitive.layout().indices; }
+	std::uint32_t joint_count() const final { return primitive.layout().joints; }
+
+	void draw(vk::CommandBuffer cb) { primitive.draw(cb); }
+};
+
+struct VulkanPrimitive::Dynamic : Primitive::Dynamic {
+	Host primitive;
+
+	Dynamic(VulkanDevice const& device) : primitive(device) {}
+
+	std::uint32_t vertex_count() const final { return primitive.layout().vertices; }
+	std::uint32_t index_count() const final { return primitive.layout().indices; }
+	void set_geometry(Geometry::Packed geometry) final { primitive.geometry = std::move(geometry); }
+	Geometry::Packed const& get_geometry() const { return primitive.geometry; }
+
+	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) { primitive.draw(cb, instances); }
+};
+
 struct DrawCmd {
-	HostBuffer<> const& view_ubo;
+	std::reference_wrapper<HostBuffer<> const> view_ubo;
 	vk::RenderPass render_pass{};
 	vk::CommandBuffer cb{};
 	vk::Extent2D extent{};
 	vk::SampleCountFlagBits samples{vk::SampleCountFlagBits::e1};
 };
 
-struct VulkanDrawer : Drawer {
+struct VulkanDrawer {
+	struct Instanced {
+		glm::mat4 const& parent;
+		std::span<Transform const> instances{};
+	};
+
+	struct Skinned {
+		std::span<glm::mat4 const> inverse_bind_matrices{};
+		std::span<glm::mat4 const> joints{};
+	};
+
 	VulkanDevice::Impl& device;
+	AssetProviders const& providers;
 	DrawCmd cmd;
 
-	VulkanDrawer(VulkanDevice const& device, AssetProviders const& providers, DrawCmd cmd) : Drawer(providers), device(*device.impl), cmd(cmd) {}
+	VulkanDrawer(VulkanDevice const& device, AssetProviders const& providers, DrawCmd cmd) : device(*device.impl), providers(providers), cmd(cmd) {}
 
-	Extent2D extent() const final { return {cmd.extent.width, cmd.extent.height}; }
+	Extent2D extent() const { return {cmd.extent.width, cmd.extent.height}; }
 
-	Pipeline bind_pipeline(VulkanMeshGeometry::Impl const& vmg, Topology topology, Material const& material) const {
-		if (vmg.info().vertices == 0) { return {}; }
+	Pipeline bind_pipeline(VertexLayout const& vlayout, Topology topology, Material const& material) const {
 		if (!cmd.cb) {
 			logger::error("[GraphicsDevice] Attempt to call draw outside active render pass");
 			return {};
 		}
-		auto rm = combine(material.render_mode(), device.default_render_mode);
+		auto rm = combine(material.render_mode, device.default_render_mode);
 		auto const state = PipelineState{
 			.mode = from(rm.type),
 			.topology = from(topology),
 			.depth_test = rm.depth_test,
 		};
-		auto const& vlayout = vmg.vertex_layout();
-		auto vert = SpirV::from(m_providers.shader(), vlayout.shader_uri);
-		auto frag = SpirV::from(m_providers.shader(), material.shader_id());
+		auto vert = SpirV::from(providers.shader(), vlayout.shader_uri);
+		auto frag = SpirV::from(providers.shader(), material.shader_uri());
 		if (!vert || !frag) { return {}; }
 		auto const pipe_info = PipelineInfo{
 			cmd.render_pass, vert, frag, vlayout.input.view(), state, cmd.samples,
@@ -2310,64 +2475,89 @@ struct VulkanDrawer : Drawer {
 		return ret;
 	}
 
-	void draw(MeshGeometry const& geometry, Material const& material, InstancedDraw id, Topology topology) const final {
-		if (geometry.vertex_count() == 0) { return; }
-		auto const* vmg = geometry.as<VulkanMeshGeometry>();
-		assert(vmg);
-
-		auto pipeline = bind_pipeline(*vmg->impl, topology, material);
+	void draw_instanced(VulkanPrimitive::Drawable& primitive, Material const& material, Instanced instances, Topology topology) const {
+		auto pipeline = bind_pipeline(primitive.layout().vertex_layout, topology, material);
 		if (!pipeline) { return; }
 		auto shader = VulkanShader{pipeline, device.samplers};
 
-		update_view(device, shader, cmd.view_ubo);
-		material.write_sets(shader, m_providers.texture());
+		update_view(device, shader, cmd.view_ubo.get());
+		material.write_sets(shader, providers.texture());
 		shader.bind(pipeline.layout, cmd.cb);
 
-		assert(!geometry.has_joints());
 		static auto const default_instance_v{Transform{}};
-		if (id.instances.empty()) { id.instances = {&default_instance_v, 1u}; }
-		auto const write_instances = [&](glm::mat4& out, std::size_t i) { out = id.parent * id.instances[i].matrix(); };
-		auto const instance_buffer = vmg->impl->instances.get().write(device.vma, id.instances.size(), device.buffered_index, write_instances);
-		assert(vmg->impl->instance_binding().has_value());
-		cmd.cb.bindVertexBuffers(*vmg->impl->instance_binding(), instance_buffer.buffer, vk::DeviceSize{0});
-		vmg->impl->draw(cmd.cb, static_cast<std::uint32_t>(id.instances.size()));
+		if (instances.instances.empty()) { instances.instances = {&default_instance_v, 1u}; }
+		auto const write_instances = [&](glm::mat4& out, std::size_t i) { out = instances.parent * instances.instances[i].matrix(); };
+		auto const instance_buffer = primitive.get_instance_buffer().write(device.vma, instances.instances.size(), device.buffered_index, write_instances);
+		assert(primitive.layout().instance_binding);
+		cmd.cb.bindVertexBuffers(*primitive.layout().instance_binding, instance_buffer.buffer, vk::DeviceSize{0});
+		primitive.draw(cmd.cb, static_cast<std::uint32_t>(instances.instances.size()));
 		++device.stats.per_frame.draw_calls;
 	}
 
-	void draw(StaticMesh const& mesh, std::span<Transform const> instances, glm::mat4 const& parent) const final {
-		static Material const s_default_mat{std::make_unique<UnlitMaterial>()};
-		for (auto const& primitive : mesh.primitives) {
-			auto const* vmg = primitive.geometry.template as<VulkanMeshGeometry>();
-			assert(vmg);
-			auto const& material = m_providers.material().get(primitive.material, s_default_mat);
-			draw(primitive.geometry, material, {parent, instances}, primitive.topology);
-		}
+	void draw_skinned(VulkanPrimitive::Uploaded& primitive, Material const& material, Skinned const& skin, Topology topology) const {
+		assert(primitive.layout().joints_set);
+		assert(skin.inverse_bind_matrices.size() >= skin.joints.size());
+		auto pipeline = bind_pipeline(primitive.layout().vertex_layout, topology, material);
+		if (!pipeline) { return; }
+
+		auto shader = VulkanShader{pipeline, device.samplers};
+		update_view(device, shader, device.view_ubo_3d);
+		material.write_sets(shader, providers.texture());
+
+		auto const rewrite = [&](glm::mat4& out, std::size_t index) { out = skin.joints[index] * skin.inverse_bind_matrices[index]; };
+		auto const joint_mats = primitive.joints.get().write(device.vma, skin.joints.size(), device.buffered_index, rewrite);
+		shader.update(*primitive.layout().joints_set, 0, joint_mats);
+		shader.bind(pipeline.layout, cmd.cb);
+		primitive.draw(cmd.cb);
+		++device.stats.per_frame.draw_calls;
 	}
 
-	void draw(SkinnedMesh const& mesh, std::span<glm::mat4 const> joints) const final {
-		static Material const s_default_mat{std::make_unique<LitMaterial>()};
-		for (auto const& primitive : mesh.primitives) {
-			auto const* vmg = primitive.geometry.template as<VulkanMeshGeometry>();
-			assert(vmg);
-			assert(primitive.geometry.has_joints());
-			auto joints_set = vmg->impl->joints_set();
-			assert(joints_set);
-			assert(mesh.inverse_bind_matrices.size() >= joints.size());
-			auto const& material = m_providers.material().get(primitive.material, s_default_mat);
-			auto pipeline = bind_pipeline(*vmg->impl, primitive.topology, material);
-			if (!pipeline) { continue; }
+	void draw(Primitive::Static& primitive, Material const& material, Instanced const& instances) const {
+		assert(dynamic_cast<VulkanPrimitive::Static*>(&primitive));
+		auto& vip = static_cast<VulkanPrimitive::Static&>(primitive);
+		draw_instanced(vip.primitive, material, instances, primitive.topology);
+	}
 
-			auto shader = VulkanShader{pipeline, device.samplers};
-			update_view(device, shader, device.view_ubo_3d);
-			material.write_sets(shader, m_providers.texture());
+	void draw(Primitive::Dynamic& primitive, Material const& material, Instanced const& instances) const {
+		assert(dynamic_cast<VulkanPrimitive::Dynamic*>(&primitive));
+		auto& vip = static_cast<VulkanPrimitive::Dynamic&>(primitive);
+		draw_instanced(vip.primitive, material, instances, primitive.topology);
+	}
 
-			auto const rewrite = [&](glm::mat4& out, std::size_t index) { out = joints[index] * mesh.inverse_bind_matrices[index]; };
-			auto const joint_mats = vmg->impl->joints.get().write(device.vma, joints.size(), device.buffered_index, rewrite);
-			shader.update(*joints_set, 0, joint_mats);
-			shader.bind(pipeline.layout, cmd.cb);
-			vmg->impl->draw(cmd.cb);
-			++device.stats.per_frame.draw_calls;
-		}
+	void draw(Primitive::Skinned& primitive, Material const& material, Skinned const& skin) const {
+		assert(dynamic_cast<VulkanPrimitive::Skinned*>(&primitive));
+		auto& vsp = static_cast<VulkanPrimitive::Skinned&>(primitive);
+		draw_skinned(vsp.primitive, material, skin, primitive.topology);
+	}
+};
+
+struct VulkanDrawList : DrawList {
+	VulkanDevice const& device;
+	AssetProviders const& providers;
+
+	VulkanDrawList(VulkanDevice const& device, AssetProviders const& providers, vk::Extent2D extent) : device(device), providers(providers) {
+		m_extent = {extent.width, extent.height};
+	}
+
+	void draw_all(DrawCmd cmd) const {
+		auto drawer = VulkanDrawer{device, providers, cmd};
+		auto const visitor = Visitor{
+			[drawer](Drawable::Instanced const& i) {
+				drawer.draw(i.primitive, i.material, {i.parent, i.instances});
+			},
+			[drawer](Drawable::Dynamic const& d) {
+				drawer.draw(d.primitive, d.material, {d.parent, d.instances});
+			},
+			[drawer](Drawable::Skinned const& s) {
+				drawer.draw(s.primitive, s.material, {s.inverse_bind_matrices, s.joints});
+			},
+		};
+		for (auto const& drawable : m_drawables) { std::visit(visitor, drawable.payload); }
+	}
+
+	void clear(vk::Extent2D extent) {
+		m_drawables.clear();
+		m_extent = {extent.width, extent.height};
 	}
 };
 } // namespace
@@ -2418,10 +2608,6 @@ void levk::gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& 
 	out.impl->blank_buffer = out.impl->vma.get().make_buffer(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eStorageBuffer, 1u, true);
 	static constexpr auto blank_byte_v = std::byte{};
 	std::memcpy(out.impl->blank_buffer.get().ptr, &blank_byte_v, 1u);
-
-	out.impl->view_ubo_3d = {vk::BufferUsageFlagBits::eUniformBuffer};
-	out.impl->view_ubo_ui = {vk::BufferUsageFlagBits::eUniformBuffer};
-	out.impl->dir_lights_ssbo = {vk::BufferUsageFlagBits::eStorageBuffer};
 }
 
 void levk::gfx_destroy_device(VulkanDevice& out) {
@@ -2537,7 +2723,9 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 
 	device.impl->default_render_mode = info.default_render_mode;
 	// dispatch 3D render
-	info.renderer.render_3d(VulkanDrawer{device, info.providers, cmd_3d});
+	auto draw_list = VulkanDrawList{device, info.providers, cmd_3d.extent};
+	info.renderer.render_3d(draw_list);
+	draw_list.draw_all(cmd_3d);
 
 	// trace 3D output image to native render pass
 	auto fs_quad_vert = SpirV::from(info.providers.shader(), "shaders/fs_quad.vert");
@@ -2557,7 +2745,9 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	cmd_ui.cb.draw(6u, 1u, {}, {});
 
 	// dispatch UI render
-	info.renderer.render_ui(VulkanDrawer{device, info.providers, cmd_ui});
+	draw_list.clear(cmd_ui.extent);
+	info.renderer.render_ui(draw_list);
+	draw_list.draw_all(cmd_ui);
 
 	// dispatch Dear ImGui render
 	device.impl->dear_imgui.end_frame();
@@ -2607,27 +2797,15 @@ void levk::gfx_render(VulkanDevice const& device, RenderInfo const& info) {
 	}
 }
 
-levk::MeshGeometry levk::gfx_make_static_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry) {
-	auto ret = VulkanMeshGeometry{};
-	ret.impl = std::make_unique<VulkanMeshGeometry::Impl>(device, geometry, MeshJoints{});
-	return ret;
+auto levk::gfx_make_dynamic(VulkanDevice const& device) -> std::unique_ptr<Primitive::Dynamic> { return std::make_unique<VulkanPrimitive::Dynamic>(device); }
+
+auto levk::gfx_make_static(VulkanDevice const& device, Geometry::Packed const& geometry) -> std::unique_ptr<Primitive::Static> {
+	return std::make_unique<VulkanPrimitive::Static>(device, geometry);
 }
 
-levk::MeshGeometry levk::gfx_make_skinned_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints) {
-	auto ret = VulkanMeshGeometry{};
-	ret.impl = std::make_unique<VulkanMeshGeometry::Impl>(device, geometry, joints);
-	return ret;
+auto levk::gfx_make_skinned(VulkanDevice const& device, Geometry::Packed const& geometry, MeshJoints const& joints) -> std::unique_ptr<Primitive::Skinned> {
+	return std::make_unique<VulkanPrimitive::Skinned>(device, geometry, joints);
 }
-
-levk::MeshGeometry levk::gfx_make_ui_mesh_geometry(VulkanDevice const& device, Geometry::Packed const& geometry) {
-	auto ret = VulkanMeshGeometry{};
-	ret.impl = std::make_unique<VulkanMeshGeometry::Impl>(device, geometry, MeshJoints{});
-	return ret;
-}
-
-std::uint32_t levk::gfx_mesh_vertex_count(VulkanMeshGeometry const& mesh) { return mesh.impl->info().vertices; }
-std::uint32_t levk::gfx_mesh_index_count(VulkanMeshGeometry const& mesh) { return mesh.impl->info().indices; }
-bool levk::gfx_mesh_has_joints(VulkanMeshGeometry const& mesh) { return mesh.impl->has_joints(); }
 
 levk::Texture levk::gfx_make_texture(VulkanDevice const& device, Texture::CreateInfo create_info, Image::View image) {
 	auto ret = VulkanTexture{};

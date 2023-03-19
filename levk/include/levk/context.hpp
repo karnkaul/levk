@@ -9,7 +9,7 @@ class Scene;
 
 class Context {
   public:
-	Context(DataSource const& data_source, UriMonitor& uri_monitor, Serializer const& serializer, Window&& window, GraphicsDevice&& graphics_device);
+	Context(DataSource const& data_source, UriMonitor& uri_monitor, Serializer const& serializer, Window&& window, RenderDevice&& render_device);
 
 	void show() { return engine.get().window().show(); }
 	void hide() { return engine.get().window().hide(); }
@@ -26,12 +26,12 @@ class Context {
 
 struct ContextFactory {
 	WindowFactory const& window;
-	GraphicsDeviceFactory const& graphics_device;
+	GraphicsDeviceFactory const& render_device;
 
-	ContextFactory(WindowFactory const& window, GraphicsDeviceFactory const& graphics_device) : window(window), graphics_device(graphics_device) {}
+	ContextFactory(WindowFactory const& window, GraphicsDeviceFactory const& render_device) : window(window), render_device(render_device) {}
 
 	Context make(DataSource const& data_source, UriMonitor& uri_monitor, Serializer const& serializer) const {
-		return Context{data_source, uri_monitor, serializer, window.make(), graphics_device.make()};
+		return Context{data_source, uri_monitor, serializer, window.make(), render_device.make()};
 	}
 };
 

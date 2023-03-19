@@ -3,17 +3,17 @@
 
 namespace levk {
 MaterialProvider::MaterialProvider(TextureProvider& texture_provider, Serializer const& serializer)
-	: GraphicsAssetProvider<Material>(texture_provider.graphics_device(), texture_provider.data_source(), texture_provider.uri_monitor()),
+	: GraphicsAssetProvider<UMaterial>(texture_provider.render_device(), texture_provider.data_source(), texture_provider.uri_monitor()),
 	  m_texture_provider(&texture_provider), m_serializer(&serializer) {}
 
-MaterialProvider::Payload MaterialProvider::load_payload(Uri<Material> const& uri) const {
+MaterialProvider::Payload MaterialProvider::load_payload(Uri<UMaterial> const& uri) const {
 	auto ret = Payload{};
 	auto json = data_source().read_json(uri);
 	if (!json) {
 		logger::error("[MaterialProvider] Failed to load JSON [{}]", uri.value());
 		return {};
 	}
-	auto mat = m_serializer->deserialize_as<MaterialBase>(json);
+	auto mat = m_serializer->deserialize_as<Material>(json);
 	if (!mat) {
 		logger::error("[MaterialProvider] Failed to deserialize Material [{}]", uri.value());
 		return {};

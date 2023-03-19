@@ -1,6 +1,6 @@
 #pragma once
 #include <levk/asset/asset_provider.hpp>
-#include <levk/texture.hpp>
+#include <levk/graphics/texture.hpp>
 
 namespace levk {
 class TextureProvider : public GraphicsAssetProvider<Texture> {
@@ -10,7 +10,7 @@ class TextureProvider : public GraphicsAssetProvider<Texture> {
 		return ColourSpace::eSrgb;
 	}
 
-	TextureProvider(GraphicsDevice& graphics_device, DataSource const& data_source, UriMonitor& uri_monitor);
+	TextureProvider(RenderDevice& render_device, DataSource const& data_source, UriMonitor& uri_monitor);
 
 	Texture const& get(Uri<Texture> const& uri, Uri<Texture> const& fallback = "white") const;
 

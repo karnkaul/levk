@@ -8,7 +8,7 @@ class SceneManager {
 	SceneManager(AssetProviders& asset_providers);
 
 	AssetProviders& asset_providers() const { return *m_asset_providers; }
-	GraphicsDevice& graphics_device() const;
+	RenderDevice& render_device() const;
 	Serializer const& serializer() const;
 	bool load(Uri<Scene> uri);
 

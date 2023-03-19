@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/engine.hpp>
 #include <levk/entity.hpp>
+#include <levk/graphics/material.hpp>
 #include <levk/serializable.hpp>
 #include <levk/skeleton.hpp>
 #include <levk/uri.hpp>
@@ -16,7 +17,45 @@ struct StaticMeshRenderer {
 	std::vector<Transform> instances{};
 	Uri<StaticMesh> mesh{};
 
-	void render(Drawer const& drawer, Scene const& scene, Entity const& entity) const;
+	void render(DrawList& out, Scene const& scene, Entity const& entity) const;
+};
+
+struct SkinnedMeshRenderer {
+	Skeleton::Instance skeleton{};
+	Uri<SkinnedMesh> mesh{};
+
+	DynArray<glm::mat4> joint_matrices{};
+
+	void set_mesh(Uri<SkinnedMesh> uri, Skeleton::Instance skeleton);
+	void render(DrawList& out, Scene const& scene, Entity const& entity) const;
+};
+
+struct MeshRenderer : RenderComponent {
+	std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer{};
+
+	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer = {}) : renderer(std::move(renderer)) {}
+
+	std::string_view type_name() const override { return "MeshRenderer"; }
+	bool serialize(dj::Json& out) const override;
+	bool deserialize(dj::Json const& json) override;
+	void inspect(imcpp::OpenWindow) override;
+	void render(DrawList& out) const final;
+	void add_assets(AssetList& out, dj::Json const& json) const override;
+};
+
+struct PrimitiveRenderer : RenderComponent {
+	using Static = std::unique_ptr<Primitive::Static>;
+	using Dynamic = std::unique_ptr<Primitive::Dynamic>;
+
+	std::vector<Transform> instances{};
+	UnlitMaterial material{};
+	std::variant<Static, Dynamic> primitive{};
+
+	std::string_view type_name() const override { return "PrimitiveRenderer"; }
+	bool serialize(dj::Json&) const override { return false; }
+	bool deserialize(dj::Json const&) override { return false; }
+	void inspect(imcpp::OpenWindow) override;
+	void render(DrawList& out) const final;
 };
 
 struct SkeletonController : Component {
@@ -33,30 +72,6 @@ struct SkeletonController : Component {
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
 	void inspect(imcpp::OpenWindow) override;
-};
-
-struct SkinnedMeshRenderer {
-	Skeleton::Instance skeleton{};
-	Uri<SkinnedMesh> mesh{};
-
-	DynArray<glm::mat4> joint_matrices{};
-
-	void set_mesh(Uri<SkinnedMesh> uri, Skeleton::Instance skeleton);
-	void render(Drawer const& drawer, Scene const& scene, Entity const& entity) const;
-};
-
-struct MeshRenderer : RenderComponent {
-	std::variant<StaticMeshRenderer, SkinnedMeshRenderer> mesh_renderer{};
-
-	MeshRenderer(std::variant<StaticMeshRenderer, SkinnedMeshRenderer> renderer = StaticMeshRenderer{}) : mesh_renderer(std::move(renderer)) {}
-
-	void render(Drawer const& drawer) const override;
-
-	std::string_view type_name() const override { return "MeshRenderer"; }
-	bool serialize(dj::Json& out) const override;
-	bool deserialize(dj::Json const& json) override;
-	void inspect(imcpp::OpenWindow) override;
-	void add_assets(AssetList& out, dj::Json const& json) const override;
 };
 
 class Scene : public Renderer, public Serializable {
@@ -84,8 +99,8 @@ class Scene : public Renderer, public Serializable {
 
 	bool empty() const { return m_entities.empty(); }
 
-	void render_3d(Drawer const& drawer) const final;
-	void render_ui(Drawer const&) const final {}
+	void render_3d(DrawList& out) const final;
+	void render_ui(DrawList&) const final {}
 
 	std::string_view type_name() const override { return "scene"; }
 	bool serialize(dj::Json& out) const override;

@@ -119,17 +119,17 @@ class AssetProvider {
 	std::unique_ptr<Storage> m_storage{};
 };
 
-class GraphicsDevice;
+class RenderDevice;
 
 template <typename Type>
 class GraphicsAssetProvider : public AssetProvider<Type> {
   public:
-	GraphicsAssetProvider(GraphicsDevice& graphics_device, DataSource const& data_source, UriMonitor& uri_monitor)
-		: AssetProvider<Type>(data_source, uri_monitor), m_graphics_device(&graphics_device) {}
+	GraphicsAssetProvider(RenderDevice& render_device, DataSource const& data_source, UriMonitor& uri_monitor)
+		: AssetProvider<Type>(data_source, uri_monitor), m_render_device(&render_device) {}
 
-	GraphicsDevice& graphics_device() const { return *m_graphics_device; }
+	RenderDevice& render_device() const { return *m_render_device; }
 
   private:
-	Ptr<GraphicsDevice> m_graphics_device{};
+	Ptr<RenderDevice> m_render_device{};
 };
 } // namespace levk

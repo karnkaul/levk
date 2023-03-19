@@ -9,7 +9,7 @@ class Scene;
 
 class AssetProviders {
   public:
-	AssetProviders(GraphicsDevice& graphics_device, DataSource const& data_source, UriMonitor& uri_monitor, Serializer const& serializer);
+	AssetProviders(RenderDevice& render_device, DataSource const& data_source, UriMonitor& uri_monitor, Serializer const& serializer);
 
 	template <typename ProviderT>
 	ProviderT& add(ProviderT provider) {
@@ -21,7 +21,7 @@ class AssetProviders {
 
 	DataSource const& data_source() const { return m_providers.shader->data_source(); }
 	UriMonitor& uri_monitor() const { return m_providers.shader->uri_monitor(); }
-	GraphicsDevice& graphics_device() const { return m_providers.texture->graphics_device(); }
+	RenderDevice& render_device() const { return m_providers.texture->render_device(); }
 	Serializer const& serializer() const { return m_providers.material->serializer(); }
 
 	ShaderProvider& shader() const { return *m_providers.shader; }

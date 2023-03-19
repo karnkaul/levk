@@ -4,9 +4,6 @@
 #include <filesystem>
 
 #include <levk/font/font_library.hpp>
-#include <levk/texture_atlas.hpp>
-#include <levk/util/enumerate.hpp>
-#include <iostream>
 
 namespace levk {
 namespace {
@@ -154,14 +151,14 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 	{
 		m_test.font = test(*this);
 		if (m_test.font) {
-			auto material = UnlitMaterial{};
 			auto height = TextHeight{72u};
 			auto const str = std::string_view{"hello"};
 			auto text_geometry = TextGeometry{};
 			AsciiFont::Pen{*m_test.font, height}.write_line(str, &text_geometry);
-			material.textures.uris[0] = text_geometry.atlas;
-			m_test.mesh.emplace(m_context.engine.get().graphics_device().make_ui_mesh_geometry(text_geometry.geometry));
-			m_test.material.emplace(std::make_unique<UnlitMaterial>(material));
+			m_test.material.textures.uris[0] = text_geometry.atlas;
+
+			m_test.primitive = m_context.engine.get().render_device().make_dynamic();
+			m_test.primitive->set_geometry(text_geometry.geometry);
 		}
 	}
 }
@@ -258,20 +255,21 @@ void Editor::tick(Frame const& frame) {
 
 void Editor::render() {
 	struct TestRenderer : Renderer {
-		Editor const& editor;
+		Editor& editor;
 
-		TestRenderer(Editor const& editor) : editor(editor) {}
+		TestRenderer(Editor& editor) : editor(editor) {}
 
-		void render_3d(Drawer const& drawer) const final { editor.active_scene().render_3d(drawer); }
+		void render_3d(DrawList& out) const final { editor.active_scene().render_3d(out); }
 
-		void render_ui(Drawer const& drawer) const final {
-			editor.active_scene().render_ui(drawer);
-			auto transform = Transform{};
-			transform.set_position({0.0f, 0.0f, -5.0f});
-			drawer.draw(*editor.m_test.mesh, *editor.m_test.material, transform);
+		void render_ui(DrawList& out) const final {
+			editor.active_scene().render_ui(out);
+			editor.m_test.transforms[0].set_position({-100.0f, 0.0f, -5.0f});
+			editor.m_test.transforms[1].set_position({100.0f, 100.0f, 0.0f});
+			static auto const parent{glm::mat4{1.0f}};
+			out.add(*editor.m_test.primitive, editor.m_test.material, DrawList::Instanced{parent, editor.m_test.transforms});
 		}
 	};
-	m_context.engine.get().graphics_device().clear_colour = Rgba::from({0.1f, 0.1f, 0.1f, 1.0f});
+	m_context.engine.get().render_device().clear_colour = Rgba::from({0.1f, 0.1f, 0.1f, 1.0f});
 	m_context.engine.get().render(TestRenderer{*this}, m_context.providers.get(), active_scene().camera, active_scene().lights);
 }
 } // namespace levk
