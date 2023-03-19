@@ -10,6 +10,7 @@ target_sources(levk PRIVATE
   graphics/image.cpp
   graphics/material.cpp
   graphics/render_device.cpp
+  graphics/text_primitive.cpp
   graphics/texture_atlas.cpp
 
   impl/desktop_window.cpp

@@ -34,9 +34,9 @@ class RenderDevice {
 
 	void render(Renderer const& renderer, AssetProviders const& providers, Camera const& camera, Lights const& lights, glm::uvec2 framebuffer_extent);
 
-	std::unique_ptr<Primitive::Dynamic> make_dynamic() { return m_model->make_dynamic(); }
-	std::unique_ptr<Primitive::Static> make_static(Geometry::Packed const& geometry) { return m_model->make_static(geometry); }
-	std::unique_ptr<Primitive::Skinned> make_skinned(Geometry::Packed const& geometry, MeshJoints const& joints) {
+	std::unique_ptr<Primitive::Dynamic> make_dynamic() const { return m_model->make_dynamic(); }
+	std::unique_ptr<Primitive::Static> make_static(Geometry::Packed const& geometry) const { return m_model->make_static(geometry); }
+	std::unique_ptr<Primitive::Skinned> make_skinned(Geometry::Packed const& geometry, MeshJoints const& joints) const {
 		return m_model->make_skinned(geometry, joints);
 	}
 
@@ -66,9 +66,9 @@ class RenderDevice {
 		virtual void render(RenderInfo const& info) const = 0;
 		virtual Texture make_texture(Image::View image, Texture::CreateInfo info) = 0;
 
-		virtual std::unique_ptr<Primitive::Dynamic> make_dynamic() = 0;
-		virtual std::unique_ptr<Primitive::Static> make_static(Geometry::Packed const&) = 0;
-		virtual std::unique_ptr<Primitive::Skinned> make_skinned(Geometry::Packed const&, MeshJoints const&) = 0;
+		virtual std::unique_ptr<Primitive::Dynamic> make_dynamic() const = 0;
+		virtual std::unique_ptr<Primitive::Static> make_static(Geometry::Packed const&) const = 0;
+		virtual std::unique_ptr<Primitive::Skinned> make_skinned(Geometry::Packed const&, MeshJoints const&) const = 0;
 
 		virtual RenderStats stats() const = 0;
 	};
@@ -88,9 +88,9 @@ class RenderDevice {
 
 		Texture make_texture(Image::View image, Texture::CreateInfo create_info) final { return gfx_make_texture(impl, std::move(create_info), image); }
 
-		std::unique_ptr<Primitive::Dynamic> make_dynamic() final { return gfx_make_dynamic(impl); }
-		std::unique_ptr<Primitive::Static> make_static(Geometry::Packed const& geometry) final { return gfx_make_static(impl, geometry); }
-		std::unique_ptr<Primitive::Skinned> make_skinned(Geometry::Packed const& geometry, MeshJoints const& joints) final {
+		std::unique_ptr<Primitive::Dynamic> make_dynamic() const final { return gfx_make_dynamic(impl); }
+		std::unique_ptr<Primitive::Static> make_static(Geometry::Packed const& geometry) const final { return gfx_make_static(impl, geometry); }
+		std::unique_ptr<Primitive::Skinned> make_skinned(Geometry::Packed const& geometry, MeshJoints const& joints) const final {
 			return gfx_make_skinned(impl, geometry, joints);
 		}
 

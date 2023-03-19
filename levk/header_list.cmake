@@ -56,6 +56,7 @@ set(graphics_headers
   include/levk/graphics/render_device.hpp
   include/levk/graphics/shader.hpp
   include/levk/graphics/surface.hpp
+  include/levk/graphics/text_primitive.hpp
   include/levk/graphics/texture_atlas.hpp
   include/levk/graphics/texture_sampler.hpp
   include/levk/graphics/texture.hpp
@@ -136,7 +137,6 @@ set(levk_headers
   include/levk/serializable.hpp
   include/levk/serializer.hpp
   include/levk/skeleton.hpp
-  include/levk/text_geometry.hpp
   include/levk/transform_animation.hpp
   include/levk/transform_controller.hpp
   include/levk/transform.hpp

@@ -140,14 +140,9 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 
 	{
 		if (auto* font = m_context.providers.get().ascii_font().load("fonts/Vera.ttf")) {
-			auto height = TextHeight{72u};
-			auto const str = std::string_view{"hello"};
-			auto text_geometry = TextGeometry{};
-			AsciiFont::Pen{*font, height}.write_line(str, &text_geometry);
-			m_test.material.textures.uris[0] = text_geometry.atlas;
-
-			m_test.primitive = m_context.engine.get().render_device().make_dynamic();
-			m_test.primitive->set_geometry(text_geometry.geometry);
+			m_test.primitive.emplace(m_context.engine.get().render_device());
+			m_test.primitive->height = TextHeight{72u};
+			m_test.primitive->update("hello", *font);
 		}
 	}
 }
@@ -252,10 +247,12 @@ void Editor::render() {
 
 		void render_ui(DrawList& out) const final {
 			editor.active_scene().render_ui(out);
-			editor.m_test.transforms[0].set_position({-100.0f, 0.0f, -5.0f});
-			editor.m_test.transforms[1].set_position({100.0f, 100.0f, 0.0f});
-			static auto const parent{glm::mat4{1.0f}};
-			out.add(*editor.m_test.primitive, editor.m_test.material, DrawList::Instanced{parent, editor.m_test.transforms});
+			if (editor.m_test.primitive) {
+				editor.m_test.transforms[0].set_position({-100.0f, 0.0f, -5.0f});
+				editor.m_test.transforms[1].set_position({100.0f, 100.0f, 0.0f});
+				auto const instances = DrawList::Instanced{.instances = editor.m_test.transforms};
+				out.add(*editor.m_test.primitive->primitive, editor.m_test.primitive->material, instances);
+			}
 		}
 	};
 	m_context.engine.get().render_device().clear_colour = Rgba::from({0.1f, 0.1f, 0.1f, 1.0f});

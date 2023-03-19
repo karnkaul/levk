@@ -45,20 +45,20 @@ Uri<Texture> AsciiFont::texture_uri(TextHeight height) const {
 	return {};
 }
 
-auto AsciiFont::Pen::write_line(const std::string_view line, Ptr<TextGeometry> out_text) -> Pen& {
+auto AsciiFont::Pen::write_line(const std::string_view line, Out out) -> Pen& {
 	for (char const ch : line) {
 		if (ch == '\n') { return *this; }
 		auto const* glyph = &m_font.glyph_for(Ascii{ch}, m_height);
 		if (!*glyph) { glyph = &m_font.glyph_for(Ascii::eTofu, m_height); }
 		if (!*glyph) { continue; }
-		if (out_text) {
+		if (out.geometry) {
 			auto const rect = glyph->rect(cursor);
-			out_text->geometry.append_quad(rect.extent(), vertex_colour.to_vec4(), {rect.centre(), 0.0f}, glyph->uv_rect);
+			out.geometry->append_quad(rect.extent(), vertex_colour.to_vec4(), {rect.centre(), 0.0f}, glyph->uv_rect);
 		}
 		cursor += glm::vec3{glyph->advance, 0.0f};
 	}
-	if (out_text) {
-		if (auto* atlas = m_font.find_font_atlas(m_height)) { out_text->atlas = atlas->texture_uri(); }
+	if (out.atlas) {
+		if (auto* atlas = m_font.find_font_atlas(m_height)) { *out.atlas = atlas->texture_uri(); }
 	}
 	return *this;
 }

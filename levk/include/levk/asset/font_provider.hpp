@@ -4,7 +4,7 @@
 
 namespace levk {
 class TextureProvider;
-class FontLibrary;
+struct FontLibrary;
 
 class AsciiFontProvider : public GraphicsAssetProvider<AsciiFont> {
   public:

@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/context.hpp>
+#include <levk/graphics/text_primitive.hpp>
 #include <levk/imcpp/asset_inspector.hpp>
 #include <levk/imcpp/engine_status.hpp>
 #include <levk/imcpp/gltf_import_wizard.hpp>
@@ -47,8 +48,7 @@ class Editor : public Runtime {
 	std::unique_ptr<AsyncTask<Uri<>>> m_load{};
 
 	struct {
-		std::unique_ptr<Primitive::Dynamic> primitive{};
-		UnlitMaterial material{};
+		std::optional<TextPrimitive> primitive{};
 		Transform transforms[2]{};
 	} m_test{};
 };
