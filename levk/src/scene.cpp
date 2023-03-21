@@ -143,7 +143,7 @@ void StaticMeshRenderer::render(DrawList& out, Scene const& scene, Entity const&
 	auto const& tree = scene.nodes();
 	auto const* m = scene_manager->asset_providers().static_mesh().find(mesh);
 	if (!m || m->primitives.empty()) { return; }
-	out.add(*m, tree.global_transform(tree.get(entity.node_id())), scene_manager->asset_providers().material());
+	out.add(m, tree.global_transform(tree.get(entity.node_id())), scene_manager->asset_providers().material());
 }
 
 void SkinnedMeshRenderer::set_mesh(Uri<SkinnedMesh> uri_, Skeleton::Instance skeleton_) {
@@ -160,7 +160,7 @@ void SkinnedMeshRenderer::render(DrawList& out, Scene const& scene, Entity const
 	if (!m || m->primitives.empty()) { return; }
 	assert(joint_matrices.size() == skeleton.joints.size());
 	for (auto const [id, index] : enumerate(skeleton.joints)) { joint_matrices[index] = tree.global_transform(tree.get(id)); }
-	out.add(*m, joint_matrices.span(), scene_manager->asset_providers().material());
+	out.add(m, joint_matrices.span(), scene_manager->asset_providers().material());
 }
 
 void MeshRenderer::render(DrawList& out) const {
@@ -272,7 +272,7 @@ void PrimitiveRenderer::render(DrawList& out) const {
 		.parent = locator.global_transform(locator.get(entity->node_id())),
 		.instances = this->instances,
 	};
-	std::visit([&](auto const& primitive) { out.add(*primitive, material, instances); }, primitive);
+	std::visit([&](auto const& primitive) { out.add(primitive.get(), &material, instances); }, primitive);
 }
 
 void PrimitiveRenderer::inspect(imcpp::OpenWindow) {

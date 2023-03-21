@@ -28,8 +28,8 @@ fs::path find_dir(fs::path exe, std::span<std::string_view const> patterns) {
 }
 } // namespace
 
-Runtime::Runtime(DataSource const& data_source, UriMonitor& uri_monitor, ContextFactory const& context_factory)
-	: m_context(context_factory.make(data_source, uri_monitor, m_serializer.get())), m_scene_manager(m_context.providers.get()) {}
+Runtime::Runtime(NotNull<DataSource const*> data_source, NotNull<UriMonitor*> uri_monitor, ContextFactory const& context_factory)
+	: m_context(context_factory.make(data_source, uri_monitor, &m_serializer.get())), m_scene_manager(&m_context.providers.get()) {}
 
 Runtime::ReturnCode Runtime::run() {
 	try {

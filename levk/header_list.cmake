@@ -17,6 +17,7 @@ set(util_headers
   include/levk/util/id.hpp
   include/levk/util/logger.hpp
   include/levk/util/monotonic_map.hpp
+  include/levk/util/not_null.hpp
   include/levk/util/nvec3.hpp
   include/levk/util/path_tree.hpp
   include/levk/util/pinned.hpp
@@ -104,6 +105,11 @@ set(font_headers
   include/levk/font/font_library.hpp
   include/levk/font/glyph_slot.hpp
   include/levk/font/static_font_atlas.hpp
+)
+
+set(ui_headers
+  include/levk/ui/drawable.hpp
+  include/levk/ui/view.hpp
 )
 
 set(levk_headers

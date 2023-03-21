@@ -30,9 +30,9 @@ Texture make_texture(RenderDevice& device, Extent2D extent) {
 }
 } // namespace
 
-TextureAtlas::TextureAtlas(TextureProvider& provider, Uri<Texture> uri, CreateInfo const& create_info)
-	: m_uri(std::move(uri)), m_provider(&provider), m_padding(create_info.padding), m_cursor(create_info.padding) {
-	provider.add(m_uri, make_texture(provider.render_device(), create_info.initial_extent));
+TextureAtlas::TextureAtlas(NotNull<TextureProvider*> provider, Uri<Texture> uri, CreateInfo const& create_info)
+	: m_uri(std::move(uri)), m_provider(provider), m_padding(create_info.padding), m_cursor(create_info.padding) {
+	provider->add(m_uri, make_texture(provider->render_device(), create_info.initial_extent));
 }
 
 UvRect TextureAtlas::uv_rect_for(Cell const& cell) const {

@@ -6,12 +6,12 @@
 namespace levk {
 namespace fs = std::filesystem;
 
-TextureProvider::TextureProvider(RenderDevice& render_device, DataSource const& data_source, UriMonitor& uri_monitor)
+TextureProvider::TextureProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source, NotNull<UriMonitor*> uri_monitor)
 	: GraphicsAssetProvider<Texture>(render_device, data_source, uri_monitor) {
-	static constexpr auto white_image_v = FixedPixelMap<1, 1>{{white_v.channels}};
-	add("white", render_device.make_texture(white_image_v.view(), TextureCreateInfo{.name = "white", .mip_mapped = false}));
-	static constexpr auto black_image_v = FixedPixelMap<1, 1>{{black_v.channels}};
-	add("black", render_device.make_texture(black_image_v.view(), TextureCreateInfo{.name = "black", .mip_mapped = false}));
+	static constexpr auto white_image_v = FixedPixelMap<1, 1>{{white_v}};
+	add("white", render_device->make_texture(white_image_v.view(), TextureCreateInfo{.name = "white", .mip_mapped = false}));
+	static constexpr auto black_image_v = FixedPixelMap<1, 1>{{black_v}};
+	add("black", render_device->make_texture(black_image_v.view(), TextureCreateInfo{.name = "black", .mip_mapped = false}));
 }
 
 Texture const& TextureProvider::get(Uri<Texture> const& uri, Uri<Texture> const& fallback) const {

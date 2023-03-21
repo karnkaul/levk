@@ -27,6 +27,14 @@ constexpr levk::CursorMode to_cursor_mode(int const glfw_cursor_mode) {
 	default: return levk::CursorMode::eNormal;
 	}
 }
+
+constexpr glm::vec2 screen_to_world(glm::vec2 screen, glm::vec2 extent, glm::vec2 display_ratio) {
+	auto const he = 0.5f * glm::vec2{extent};
+	auto ret = glm::vec2{screen.x - he.x, he.y - screen.y};
+	auto const dr = display_ratio;
+	if (dr.x == 0.0f || dr.y == 0.0f) { return ret; }
+	return dr * ret;
+}
 } // namespace
 
 void levk::window_create(DesktopWindow& out, glm::uvec2 extent, char const* title) {
@@ -89,11 +97,13 @@ void levk::window_create(DesktopWindow& out, glm::uvec2 extent, char const* titl
 		}
 	});
 	glfwSetScrollCallback(out.window, [](GLFWwindow*, double x, double y) { g_storage.state.input.scroll += glm::dvec2{x, y}; });
-	glfwSetCursorPosCallback(out.window, [](GLFWwindow*, double x, double y) { g_storage.state.input.cursor = glm::dvec2{x, y}; });
+	glfwSetCursorPosCallback(out.window, [](GLFWwindow*, double x, double y) { g_storage.raw_cursor_position = glm::dvec2{x, y}; });
 	glfwSetDropCallback(out.window, [](GLFWwindow*, int count, char const** paths) {
 		for (int i = 0; i < count; ++i) { g_storage.drops.push_back(paths[i]); }
 	});
 	if (glfwRawMouseMotionSupported()) { glfwSetInputMode(out.window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE); }
+
+	g_storage.state.extent = extent;
 }
 
 void levk::window_destroy(DesktopWindow& out) {
@@ -146,6 +156,8 @@ void levk::window_poll(DesktopWindow&) {
 	update(g_storage.state.input.mouse);
 	glfwPollEvents();
 	g_storage.state.drops = g_storage.drops;
+	g_storage.state.input.cursor = screen_to_world(g_storage.raw_cursor_position, g_storage.state.extent, g_storage.state.display_ratio());
+	g_storage.state.input.ui_space = g_storage.state.framebuffer;
 }
 
 char const* levk::window_clipboard(DesktopWindow const& window) { return glfwGetClipboardString(window.window); }

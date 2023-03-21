@@ -19,6 +19,7 @@ struct DesktopWindow::Storage {
 	std::vector<char const*> vulkan_extensions{};
 	std::vector<std::string> drops{};
 	WindowState state{};
+	glm::vec2 raw_cursor_position{};
 };
 
 void window_create(DesktopWindow& out, glm::uvec2 extent, char const* title);

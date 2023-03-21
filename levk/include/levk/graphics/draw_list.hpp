@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/graphics/common.hpp>
 #include <levk/graphics/mesh.hpp>
+#include <levk/util/not_null.hpp>
 #include <span>
 #include <variant>
 #include <vector>
@@ -10,22 +11,22 @@ class MaterialProvider;
 
 struct Drawable {
 	struct Instanced {
-		Primitive::Static& primitive;
-		Material const& material;
+		NotNull<Primitive::Static*> primitive;
+		NotNull<Material const*> material;
 		glm::mat4 parent{1.0f};
 		std::span<Transform const> instances{};
 	};
 
 	struct Dynamic {
-		Primitive::Dynamic& primitive;
-		Material const& material;
+		NotNull<Primitive::Dynamic*> primitive;
+		NotNull<Material const*> material;
 		glm::mat4 parent{1.0f};
 		std::span<Transform const> instances{};
 	};
 
 	struct Skinned {
-		Primitive::Skinned& primitive;
-		Material const& material;
+		NotNull<Primitive::Skinned*> primitive;
+		NotNull<Material const*> material;
 		std::span<glm::mat4 const> inverse_bind_matrices{};
 		std::span<glm::mat4 const> joints{};
 	};
@@ -56,16 +57,16 @@ class DrawList {
 	Extent2D extent() const { return m_extent; }
 	Rect2D<> rect() const { return Rect2D<>::from_extent(extent()); }
 
-	void add(Primitive::Static& primitive, Material const& material, Instanced const& instances);
-	void add(Primitive::Dynamic& primitive, Material const& material, Instanced const& instances);
-	void add(Primitive::Skinned& primitive, Material const& material, Skinned const& skin);
+	void add(NotNull<Primitive::Static*> primitive, NotNull<Material const*> material, Instanced const& instances);
+	void add(NotNull<Primitive::Dynamic*> primitive, NotNull<Material const*> material, Instanced const& instances);
+	void add(NotNull<Primitive::Skinned*> primitive, NotNull<Material const*> material, Skinned const& skin);
+	void add(NotNull<Primitive::Static*> primitive, NotNull<Material const*> material, Transform const& transform);
+	void add(NotNull<Primitive::Dynamic*> primitive, NotNull<Material const*> material, Transform const& transform);
 
-	void add(Primitive::Static& primitive, Material const& material, Transform const& transform) { add(primitive, material, {transform.matrix()}); }
+	void add(NotNull<StaticMesh const*> mesh, Instanced const& instances, MaterialProvider& material_provider);
+	void add(NotNull<StaticMesh const*> mesh, glm::mat4 const& transform, MaterialProvider& material_provider);
 
-	void add(StaticMesh const& mesh, Instanced const& instances, MaterialProvider& provider);
-	void add(StaticMesh const& mesh, glm::mat4 const& transform, MaterialProvider& provider) { add(mesh, Instanced{transform}, provider); }
-
-	void add(SkinnedMesh const& mesh, std::span<glm::mat4 const> joints, MaterialProvider& provider);
+	void add(NotNull<SkinnedMesh const*> mesh, std::span<glm::mat4 const> joints, MaterialProvider& provider);
 
 	std::span<Drawable const> drawables() const { return m_drawables; }
 

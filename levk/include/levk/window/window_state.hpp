@@ -32,5 +32,10 @@ struct WindowState {
 	constexpr bool minimize_changed() const { return triggers & eMinimized; }
 	constexpr bool closed() const { return triggers & eClosed; }
 	constexpr bool resized() const { return triggers & eResized; }
+
+	constexpr glm::vec2 display_ratio() const {
+		if (extent.x == 0 || extent.y == 0 || framebuffer.x == 0 || framebuffer.y == 0) { return {}; }
+		return glm::vec2{framebuffer} / glm::vec2{extent};
+	}
 };
 } // namespace levk

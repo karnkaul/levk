@@ -101,6 +101,13 @@ class Transform {
 	///
 	bool is_dirty() const { return m_dirty; }
 
+	///
+	/// \brief Obtain a transform that combines this with the passed parent.
+	/// \param parent transformation matrix of the parent
+	/// \returns Composition of parent and self
+	///
+	Transform combined(glm::mat4 const& parent) const;
+
   private:
 	Transform& set_dirty();
 

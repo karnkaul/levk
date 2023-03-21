@@ -3,6 +3,8 @@
 #include <levk/asset/gltf_importer.hpp>
 #include <filesystem>
 
+#include <levk/ui/drawable.hpp>
+
 namespace levk {
 namespace {
 namespace fs = std::filesystem;
@@ -71,6 +73,39 @@ struct AssetListLoader : AsyncTask<Uri<>> {
 		return std::move(ret);
 	}
 };
+
+struct TestDrawable : ui::Drawable {
+	glm::vec2 extent{100.0f, 100.0f};
+	bool hovered{};
+
+	TestDrawable(RenderDevice const& render_device) : ui::Drawable(render_device) {}
+
+	void tick(Input const& input, Time dt) override {
+		View::tick(input, dt);
+		if (ui::Rect::from_extent(extent, global_position()).contains(input.cursor)) {
+			tint() = red_v;
+			if (input.is_pressed(MouseButton::e1)) { set_destroyed(); }
+		} else {
+			tint() = white_v;
+		}
+		primitive->set_geometry(make_quad(extent));
+		hovered = false;
+	}
+};
+
+struct TestText : ui::Drawable {
+	Ptr<AsciiFont> font{};
+	std::string text{};
+	TextHeight height{TextHeight::eDefault};
+
+	TestText(AsciiFont& font) : ui::Drawable(font.texture_provider().render_device()), font(&font) {}
+
+	void tick(Input const&, Time) override {
+		auto geometry = Geometry{};
+		AsciiFont::Pen{*font, height}.write_line(text, {&geometry, &texture_uri()});
+		primitive->set_geometry(geometry);
+	}
+};
 } // namespace
 
 void FreeCam::tick(Transform& transform, Input const& input, Time dt) {
@@ -117,7 +152,7 @@ void FreeCam::tick(Transform& transform, Input const& input, Time dt) {
 }
 
 Editor::Editor(std::unique_ptr<DiskVfs> vfs)
-	: Runtime(*vfs, vfs->uri_monitor(), DesktopContextFactory{}), m_free_cam{&m_context.engine.get().window()}, m_vfs(std::move(vfs)) {
+	: Runtime(vfs.get(), &vfs->uri_monitor(), DesktopContextFactory{}), m_free_cam{&m_context.engine.get().window()}, m_vfs(std::move(vfs)) {
 	auto file_menu = [&] {
 		if (ImGui::MenuItem("Save", nullptr, false, !active_scene().empty())) { save_scene(); }
 		ImGui::Separator();
@@ -139,10 +174,22 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 	}
 
 	{
-		if (auto* font = m_context.providers.get().ascii_font().load("fonts/Vera.ttf")) {
+		auto* font = m_context.providers.get().ascii_font().load("fonts/Vera.ttf");
+		if (font) {
 			m_test.primitive.emplace(m_context.engine.get().render_device());
 			m_test.primitive->height = TextHeight{72u};
 			m_test.primitive->update("hello", *font);
+		}
+
+		{
+			auto drawable = std::make_unique<TestDrawable>(m_context.engine.get().render_device());
+			auto* d = m_test.view.add_sub_view(std::move(drawable));
+			if (font) {
+				auto text = std::make_unique<TestText>(*font);
+				text->position.x += 100.0f;
+				text->text = "hi";
+				d->add_sub_view(std::move(text));
+			}
 		}
 	}
 }
@@ -182,6 +229,20 @@ void Editor::tick(Frame const& frame) {
 			}
 			break;
 		}
+	}
+
+	{
+		auto dxy = glm::vec2{};
+		if (frame.state.input.is_held(Key::eW)) { dxy.y += frame.dt.count(); }
+		if (frame.state.input.is_held(Key::eA)) { dxy.x -= frame.dt.count(); }
+		if (frame.state.input.is_held(Key::eS)) { dxy.y -= frame.dt.count(); }
+		if (frame.state.input.is_held(Key::eD)) { dxy.x += frame.dt.count(); }
+		if (std::abs(dxy.x) > 0.0f || std::abs(dxy.y) > 0.0f) {
+			dxy = 10.0f * glm::normalize(dxy);
+			m_test.view.position += dxy;
+		}
+
+		m_test.view.tick(frame.state.input, frame.dt);
 	}
 
 	active_scene().tick(frame.dt);
@@ -247,11 +308,12 @@ void Editor::render() {
 
 		void render_ui(DrawList& out) const final {
 			editor.active_scene().render_ui(out);
+			editor.m_test.view.render(out);
 			if (editor.m_test.primitive) {
 				editor.m_test.transforms[0].set_position({-100.0f, 0.0f, -5.0f});
 				editor.m_test.transforms[1].set_position({100.0f, 100.0f, 0.0f});
 				auto const instances = DrawList::Instanced{.instances = editor.m_test.transforms};
-				out.add(*editor.m_test.primitive->primitive, editor.m_test.primitive->material, instances);
+				out.add(editor.m_test.primitive->primitive.get(), &editor.m_test.primitive->material, instances);
 			}
 		}
 	};

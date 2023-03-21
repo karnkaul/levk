@@ -7,10 +7,10 @@ AssetProviders::AssetProviders(CreateInfo const& create_info) {
 	m_providers.shader = &add(ShaderProvider{create_info.data_source, create_info.uri_monitor});
 	m_providers.skeleton = &add(SkeletonProvider{create_info.data_source, create_info.uri_monitor});
 	m_providers.texture = &add(TextureProvider{create_info.render_device, create_info.data_source, create_info.uri_monitor});
-	m_providers.material = &add(MaterialProvider{*m_providers.texture, create_info.serializer});
-	m_providers.static_mesh = &add(StaticMeshProvider{*m_providers.material});
-	m_providers.skinned_mesh = &add(SkinnedMeshProvider{*m_providers.skeleton, *m_providers.material});
-	m_providers.ascii_font = &add(AsciiFontProvider{*m_providers.texture, create_info.font_library});
+	m_providers.material = &add(MaterialProvider{m_providers.texture, create_info.serializer});
+	m_providers.static_mesh = &add(StaticMeshProvider{m_providers.material});
+	m_providers.skinned_mesh = &add(SkinnedMeshProvider{m_providers.skeleton, m_providers.material});
+	m_providers.ascii_font = &add(AsciiFontProvider{m_providers.texture, create_info.font_library});
 }
 
 void AssetProviders::reload_out_of_date() {

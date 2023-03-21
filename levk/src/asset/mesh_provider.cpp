@@ -74,8 +74,8 @@ StaticMeshProvider::Payload StaticMeshProvider::load_payload(Uri<StaticMesh> con
 	return ret;
 }
 
-SkinnedMeshProvider::SkinnedMeshProvider(SkeletonProvider& skeleton_provider, MaterialProvider& material_provider)
-	: MeshProviderCommon<SkinnedMesh>(material_provider), m_skeleton_provider(&skeleton_provider) {}
+SkinnedMeshProvider::SkinnedMeshProvider(NotNull<SkeletonProvider*> skeleton_provider, NotNull<MaterialProvider*> material_provider)
+	: MeshProviderCommon<SkinnedMesh>(material_provider), m_skeleton_provider(skeleton_provider) {}
 
 SkinnedMeshProvider::Payload SkinnedMeshProvider::load_payload(Uri<SkinnedMesh> const& uri) const {
 	auto ret = Payload{};

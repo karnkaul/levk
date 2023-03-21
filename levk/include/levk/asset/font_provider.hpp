@@ -8,7 +8,7 @@ struct FontLibrary;
 
 class AsciiFontProvider : public GraphicsAssetProvider<AsciiFont> {
   public:
-	AsciiFontProvider(TextureProvider& texture_provider, FontLibrary const& font_library);
+	AsciiFontProvider(NotNull<TextureProvider*> texture_provider, NotNull<FontLibrary const*> font_library);
 
 	TextureProvider& texture_provider() const { return *m_texture_provider; }
 	FontLibrary const& font_library() const { return *m_font_library; }
@@ -16,7 +16,7 @@ class AsciiFontProvider : public GraphicsAssetProvider<AsciiFont> {
   private:
 	Payload load_payload(Uri<AsciiFont> const& uri) const override;
 
-	Ptr<TextureProvider> m_texture_provider{};
-	Ptr<FontLibrary const> m_font_library{};
+	NotNull<TextureProvider*> m_texture_provider;
+	NotNull<FontLibrary const*> m_font_library;
 };
 } // namespace levk

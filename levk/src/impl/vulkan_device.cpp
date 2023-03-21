@@ -2543,13 +2543,13 @@ struct VulkanDrawList : DrawList {
 		auto drawer = VulkanDrawer{device, providers, cmd};
 		auto const visitor = Visitor{
 			[drawer](Drawable::Instanced const& i) {
-				drawer.draw(i.primitive, i.material, {i.parent, i.instances});
+				drawer.draw(*i.primitive, *i.material, {i.parent, i.instances});
 			},
 			[drawer](Drawable::Dynamic const& d) {
-				drawer.draw(d.primitive, d.material, {d.parent, d.instances});
+				drawer.draw(*d.primitive, *d.material, {d.parent, d.instances});
 			},
 			[drawer](Drawable::Skinned const& s) {
-				drawer.draw(s.primitive, s.material, {s.inverse_bind_matrices, s.joints});
+				drawer.draw(*s.primitive, *s.material, {s.inverse_bind_matrices, s.joints});
 			},
 		};
 		for (auto const& drawable : m_drawables) { std::visit(visitor, drawable.payload); }

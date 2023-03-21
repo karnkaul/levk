@@ -58,10 +58,10 @@ struct Entry {
 } // namespace
 
 StaticFontAtlas::StaticFontAtlas(CreateInfo const& create_info) : m_height(clamp(create_info.height)) {
-	if (!create_info.slot_factory.set_height(m_height)) { return; }
+	if (!create_info.slot_factory->set_height(m_height)) { return; }
 
 	auto const codepoints = get_codepoints(create_info.codepoints);
-	auto slot_map = SlotMap::make(codepoints, create_info.slot_factory);
+	auto slot_map = SlotMap::make(codepoints, *create_info.slot_factory);
 	auto slot_count_sqrt = 1u;
 	while (slot_count_sqrt * slot_count_sqrt < codepoints.size()) { ++slot_count_sqrt; }
 	auto atlas_ci = TextureAtlas::CreateInfo{};

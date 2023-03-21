@@ -2,7 +2,7 @@
 #include <levk/graphics/texture.hpp>
 #include <levk/rect.hpp>
 #include <levk/uri.hpp>
-#include <levk/util/ptr.hpp>
+#include <levk/util/not_null.hpp>
 
 namespace levk {
 class TextureProvider;
@@ -18,7 +18,7 @@ class TextureAtlas {
 	using CreateInfo = TextureAtlasCreateInfo;
 	class Writer;
 
-	TextureAtlas(TextureProvider& texture_provider, Uri<Texture> texture_uri, CreateInfo const& create_info = {});
+	TextureAtlas(NotNull<TextureProvider*> texture_provider, Uri<Texture> texture_uri, CreateInfo const& create_info = {});
 
 	TextureProvider const& texture_provider() const { return *m_provider; }
 
@@ -29,7 +29,7 @@ class TextureAtlas {
 	Ptr<Texture> find_texture() const;
 
 	Uri<Texture> m_uri{};
-	Ptr<TextureProvider> m_provider{};
+	NotNull<TextureProvider*> m_provider;
 	glm::uvec2 m_padding{};
 	glm::uvec2 m_cursor{};
 	std::uint32_t m_max_height{};

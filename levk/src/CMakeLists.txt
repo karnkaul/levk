@@ -18,6 +18,9 @@ target_sources(levk PRIVATE
   impl/ft_lib_wrapper.hpp
   impl/vulkan_device.cpp
 
+  ui/drawable.cpp
+  ui/view.cpp
+
   vfs/data_sink.cpp
   vfs/data_source.cpp
   vfs/disk_vfs.cpp

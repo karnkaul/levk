@@ -11,11 +11,11 @@ class Scene;
 class AssetProviders {
   public:
 	struct CreateInfo {
-		RenderDevice& render_device;
-		FontLibrary const& font_library;
-		DataSource const& data_source;
-		UriMonitor& uri_monitor;
-		Serializer const& serializer;
+		NotNull<RenderDevice*> render_device;
+		NotNull<FontLibrary const*> font_library;
+		NotNull<DataSource const*> data_source;
+		NotNull<UriMonitor*> uri_monitor;
+		NotNull<Serializer const*> serializer;
 	};
 
 	AssetProviders(CreateInfo const& create_info);

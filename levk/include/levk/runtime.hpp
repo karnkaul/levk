@@ -14,7 +14,7 @@ class Runtime {
 
 	virtual ~Runtime() = default;
 
-	Runtime(DataSource const& data_source, UriMonitor& uri_monitor, ContextFactory const& context_factory);
+	Runtime(NotNull<DataSource const*> data_source, NotNull<UriMonitor*> uri_monitor, ContextFactory const& context_factory);
 
 	ReturnCode run();
 

@@ -3,8 +3,8 @@
 #include <levk/util/zip_ranges.hpp>
 
 namespace levk {
-AsciiFont::AsciiFont(std::unique_ptr<GlyphSlot::Factory> slot_factory, TextureProvider& texture_provider, Uri<Texture> uri_prefix)
-	: m_slot_factory(std::move(slot_factory)), m_uri_prefix(std::move(uri_prefix)), m_texure_provider(&texture_provider) {}
+AsciiFont::AsciiFont(std::unique_ptr<GlyphSlot::Factory> slot_factory, NotNull<TextureProvider*> texture_provider, Uri<Texture> uri_prefix)
+	: m_slot_factory(std::move(slot_factory)), m_uri_prefix(std::move(uri_prefix)), m_texure_provider(texture_provider) {}
 
 FontGlyph const& AsciiFont::glyph_for(Ascii const ascii, TextHeight height) {
 	height = clamp(height);
@@ -20,8 +20,8 @@ Ptr<StaticFontAtlas const> AsciiFont::make_font_atlas(TextHeight height) {
 	if (!m_slot_factory) { return {}; }
 	auto uri = fmt::format("{}.{}", m_uri_prefix.value(), static_cast<int>(height));
 	auto sfaci = StaticFontAtlas::CreateInfo{
-		.slot_factory = *m_slot_factory,
-		.texture_provider = *m_texure_provider,
+		.slot_factory = m_slot_factory.get(),
+		.texture_provider = m_texure_provider,
 		.texture_uri = std::move(uri),
 		.height = height,
 	};

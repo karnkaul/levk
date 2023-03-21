@@ -2,7 +2,7 @@
 #include <levk/scene_manager.hpp>
 
 namespace levk {
-SceneManager::SceneManager(AssetProviders& asset_providers) : m_asset_providers(&asset_providers) {}
+SceneManager::SceneManager(NotNull<AssetProviders*> asset_providers) : m_asset_providers(asset_providers) {}
 
 RenderDevice& SceneManager::render_device() const { return m_asset_providers->render_device(); }
 Serializer const& SceneManager::serializer() const { return m_asset_providers->serializer(); }

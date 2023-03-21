@@ -12,6 +12,8 @@
 #include <levk/vfs/disk_vfs.hpp>
 #include <main_menu.hpp>
 
+#include <levk/ui/view.hpp>
+
 namespace levk {
 struct FreeCam {
 	Ptr<Window> window{};
@@ -50,6 +52,8 @@ class Editor : public Runtime {
 	struct {
 		std::optional<TextPrimitive> primitive{};
 		Transform transforms[2]{};
+
+		ui::View view{};
 	} m_test{};
 };
 } // namespace levk
