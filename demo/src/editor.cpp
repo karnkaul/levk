@@ -3,7 +3,7 @@
 #include <levk/asset/gltf_importer.hpp>
 #include <filesystem>
 
-#include <levk/ui/drawable.hpp>
+#include <levk/ui/ui_primitive.hpp>
 
 namespace levk {
 namespace {
@@ -74,36 +74,34 @@ struct AssetListLoader : AsyncTask<Uri<>> {
 	}
 };
 
-struct TestDrawable : ui::Drawable {
+struct TestDrawable : UIPrimitive {
 	glm::vec2 extent{100.0f, 100.0f};
-	bool hovered{};
 
-	TestDrawable(RenderDevice const& render_device) : ui::Drawable(render_device) {}
+	using UIPrimitive::UIPrimitive;
 
 	void tick(Input const& input, Time dt) override {
-		View::tick(input, dt);
-		if (ui::Rect::from_extent(extent, global_position()).contains(input.cursor)) {
+		UINode::tick(input, dt);
+		if (UIRect::from_extent(extent, world_position()).contains(input.cursor)) {
 			tint() = red_v;
 			if (input.is_pressed(MouseButton::e1)) { set_destroyed(); }
 		} else {
 			tint() = white_v;
 		}
-		primitive->set_geometry(make_quad(extent));
-		hovered = false;
+		set_quad(QuadCreateInfo{.size = extent});
 	}
 };
 
-struct TestText : ui::Drawable {
-	Ptr<AsciiFont> font{};
+struct TestText : UIPrimitive {
+	NotNull<AsciiFont*> font;
 	std::string text{};
 	TextHeight height{TextHeight::eDefault};
 
-	TestText(AsciiFont& font) : ui::Drawable(font.texture_provider().render_device()), font(&font) {}
+	TestText(NotNull<AsciiFont*> font) : UIPrimitive(font->texture_provider().render_device()), font(font) {}
 
 	void tick(Input const&, Time) override {
 		auto geometry = Geometry{};
 		AsciiFont::Pen{*font, height}.write_line(text, {&geometry, &texture_uri()});
-		primitive->set_geometry(geometry);
+		m_primitive->set_geometry(geometry);
 	}
 };
 } // namespace
@@ -183,12 +181,12 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 
 		{
 			auto drawable = std::make_unique<TestDrawable>(m_context.engine.get().render_device());
-			auto* d = m_test.view.add_sub_view(std::move(drawable));
+			auto* d = m_test.ui_root.add_sub_node(std::move(drawable));
 			if (font) {
-				auto text = std::make_unique<TestText>(*font);
+				auto text = std::make_unique<TestText>(font);
 				text->position.x += 100.0f;
 				text->text = "hi";
-				d->add_sub_view(std::move(text));
+				d->add_sub_node(std::move(text));
 			}
 		}
 	}
@@ -239,10 +237,10 @@ void Editor::tick(Frame const& frame) {
 		if (frame.state.input.is_held(Key::eD)) { dxy.x += frame.dt.count(); }
 		if (std::abs(dxy.x) > 0.0f || std::abs(dxy.y) > 0.0f) {
 			dxy = 10.0f * glm::normalize(dxy);
-			m_test.view.position += dxy;
+			m_test.ui_root.position += dxy;
 		}
 
-		m_test.view.tick(frame.state.input, frame.dt);
+		m_test.ui_root.tick(frame.state.input, frame.dt);
 	}
 
 	active_scene().tick(frame.dt);
@@ -308,7 +306,7 @@ void Editor::render() {
 
 		void render_ui(DrawList& out) const final {
 			editor.active_scene().render_ui(out);
-			editor.m_test.view.render(out);
+			editor.m_test.ui_root.render(out);
 			if (editor.m_test.primitive) {
 				editor.m_test.transforms[0].set_position({-100.0f, 0.0f, -5.0f});
 				editor.m_test.transforms[1].set_position({100.0f, 100.0f, 0.0f});

@@ -53,7 +53,12 @@ auto AsciiFont::Pen::write_line(const std::string_view line, Out out) -> Pen& {
 		if (!*glyph) { continue; }
 		if (out.geometry) {
 			auto const rect = glyph->rect(cursor);
-			out.geometry->append_quad(rect.extent(), vertex_colour.to_vec4(), {rect.centre(), 0.0f}, glyph->uv_rect);
+			out.geometry->append_quad(QuadCreateInfo{
+				.size = rect.extent(),
+				.rgb = vertex_colour.to_vec4(),
+				.origin = {rect.centre(), 0.0f},
+				.uv = glyph->uv_rect,
+			});
 		}
 		cursor += glm::vec3{glyph->advance, 0.0f};
 	}

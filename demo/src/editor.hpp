@@ -12,7 +12,7 @@
 #include <levk/vfs/disk_vfs.hpp>
 #include <main_menu.hpp>
 
-#include <levk/ui/view.hpp>
+#include <levk/ui/ui_node.hpp>
 
 namespace levk {
 struct FreeCam {
@@ -53,7 +53,7 @@ class Editor : public Runtime {
 		std::optional<TextPrimitive> primitive{};
 		Transform transforms[2]{};
 
-		ui::View view{};
+		UINode ui_root{};
 	} m_test{};
 };
 } // namespace levk

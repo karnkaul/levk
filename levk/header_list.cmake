@@ -108,8 +108,8 @@ set(font_headers
 )
 
 set(ui_headers
-  include/levk/ui/drawable.hpp
-  include/levk/ui/view.hpp
+  include/levk/ui/ui_node.hpp
+  include/levk/ui/ui_primitive.hpp
 )
 
 set(levk_headers
@@ -121,6 +121,7 @@ set(levk_headers
   ${assets_headers}
   ${vfs_headers}
   ${font_headers}
+  ${ui_headers}
 
   include/levk/camera.hpp
   include/levk/component_factory.hpp
