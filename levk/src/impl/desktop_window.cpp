@@ -52,24 +52,24 @@ void levk::window_create(DesktopWindow& out, glm::uvec2 extent, char const* titl
 	out.storage->vulkan_extensions = {extensions, extensions + extension_count};
 
 	glfwSetWindowCloseCallback(out.window, [](GLFWwindow* w) {
-		g_storage.state.flags |= WindowState::eClosed;
-		g_storage.state.triggers |= WindowState::eClosed;
+		g_storage.state.flags.set(WindowFlag::eClosed);
+		g_storage.state.triggers.set(WindowFlag::eClosed);
 		glfwSetWindowShouldClose(w, GLFW_TRUE);
 	});
 	glfwSetWindowSizeCallback(out.window, [](GLFWwindow*, int x, int y) {
 		g_storage.state.extent = glm::ivec2{x, y};
-		g_storage.state.triggers |= WindowState::eResized;
+		g_storage.state.triggers.set(WindowFlag::eResized);
 	});
 	glfwSetFramebufferSizeCallback(out.window, [](GLFWwindow*, int x, int y) {
 		g_storage.state.framebuffer = glm::ivec2{x, y};
-		g_storage.state.triggers |= WindowState::eResized;
+		g_storage.state.triggers.set(WindowFlag::eResized);
 	});
 	glfwSetWindowFocusCallback(out.window, [](GLFWwindow*, int gained) {
-		g_storage.state.triggers |= WindowState::eInFocus;
+		g_storage.state.triggers.set(WindowFlag::eInFocus);
 		if (gained == GLFW_TRUE) {
-			g_storage.state.flags |= WindowState::eInFocus;
+			g_storage.state.flags.set(WindowFlag::eInFocus);
 		} else {
-			g_storage.state.flags &= ~WindowState::eInFocus;
+			g_storage.state.flags.reset(WindowFlag::eInFocus);
 		}
 	});
 	glfwSetWindowPosCallback(out.window, [](GLFWwindow*, int x, int y) { g_storage.state.position = {x, y}; });

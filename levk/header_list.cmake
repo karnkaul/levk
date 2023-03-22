@@ -8,6 +8,7 @@ set(util_headers
   include/levk/util/contiguous_storage.hpp
   include/levk/util/dyn_array.hpp
   include/levk/util/enum_array.hpp
+  include/levk/util/enum_concept.hpp
   include/levk/util/enumerate.hpp
   include/levk/util/env.hpp
   include/levk/util/error.hpp

@@ -1,11 +1,8 @@
 #pragma once
-#include <concepts>
+#include <levk/util/enum_concept.hpp>
 #include <cstdint>
 
 namespace levk {
-template <typename Type>
-concept EnumT = std::is_enum_v<Type>;
-
 template <EnumT E, typename Type = std::underlying_type_t<E>>
 class BitFlags {
   public:
