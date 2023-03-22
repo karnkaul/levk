@@ -9,22 +9,23 @@ namespace levk {
 struct Input;
 class DrawList;
 
-using UIRect = Rect2D<>;
+namespace ui {
+using Rect = Rect2D<>;
 
-class UINode {
+class Node {
   public:
-	virtual ~UINode() = default;
+	virtual ~Node() = default;
 
-	UINode& operator=(UINode&&) = delete;
+	Node& operator=(Node&&) = delete;
 
-	Ptr<UINode> super_node() const { return m_super_node; }
+	Ptr<Node> super_node() const { return m_super_node; }
 	glm::vec2 world_position() const;
 
-	Ptr<UINode> add_sub_node(std::unique_ptr<UINode> node);
+	Ptr<Node> add_sub_node(std::unique_ptr<Node> node);
 	void set_destroyed() { m_destroyed = true; }
 	bool is_destroyed() const { return m_destroyed; }
 
-	std::span<std::unique_ptr<UINode> const> sub_nodes() const { return m_sub_nodes; }
+	std::span<std::unique_ptr<Node> const> sub_nodes() const { return m_sub_nodes; }
 
 	virtual void tick(Input const& input, Time dt);
 	virtual void render(DrawList& out) const;
@@ -34,8 +35,9 @@ class UINode {
 	float z_rotation{};
 
   private:
-	std::vector<std::unique_ptr<UINode>> m_sub_nodes{};
-	Ptr<UINode> m_super_node{};
+	std::vector<std::unique_ptr<Node>> m_sub_nodes{};
+	Ptr<Node> m_super_node{};
 	bool m_destroyed{};
 };
+} // namespace ui
 } // namespace levk

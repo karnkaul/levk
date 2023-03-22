@@ -108,8 +108,8 @@ set(font_headers
 )
 
 set(ui_headers
-  include/levk/ui/ui_node.hpp
-  include/levk/ui/ui_primitive.hpp
+  include/levk/ui/node.hpp
+  include/levk/ui/primitive.hpp
 )
 
 set(levk_headers

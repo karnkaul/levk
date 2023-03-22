@@ -3,7 +3,7 @@
 #include <levk/asset/gltf_importer.hpp>
 #include <filesystem>
 
-#include <levk/ui/ui_primitive.hpp>
+#include <levk/ui/primitive.hpp>
 
 namespace levk {
 namespace {
@@ -74,14 +74,14 @@ struct AssetListLoader : AsyncTask<Uri<>> {
 	}
 };
 
-struct TestDrawable : UIPrimitive {
+struct TestDrawable : ui::Primitive {
 	glm::vec2 extent{100.0f, 100.0f};
 
-	using UIPrimitive::UIPrimitive;
+	using ui::Primitive::Primitive;
 
 	void tick(Input const& input, Time dt) override {
-		UINode::tick(input, dt);
-		if (UIRect::from_extent(extent, world_position()).contains(input.cursor)) {
+		Node::tick(input, dt);
+		if (ui::Rect::from_extent(extent, world_position()).contains(input.cursor)) {
 			tint() = red_v;
 			if (input.is_pressed(MouseButton::e1)) { set_destroyed(); }
 		} else {
@@ -91,12 +91,12 @@ struct TestDrawable : UIPrimitive {
 	}
 };
 
-struct TestText : UIPrimitive {
+struct TestText : ui::Primitive {
 	NotNull<AsciiFont*> font;
 	std::string text{};
 	TextHeight height{TextHeight::eDefault};
 
-	TestText(NotNull<AsciiFont*> font) : UIPrimitive(font->texture_provider().render_device()), font(font) {}
+	TestText(NotNull<AsciiFont*> font) : ui::Primitive(font->texture_provider().render_device()), font(font) {}
 
 	void tick(Input const&, Time) override {
 		auto geometry = Geometry{};

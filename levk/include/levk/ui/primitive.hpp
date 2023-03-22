@@ -1,14 +1,15 @@
 #pragma once
 #include <levk/graphics/material.hpp>
 #include <levk/graphics/primitive.hpp>
-#include <levk/ui/ui_node.hpp>
+#include <levk/ui/node.hpp>
 
 namespace levk {
 class RenderDevice;
 
-class UIPrimitive : public UINode {
+namespace ui {
+class Primitive : public Node {
   public:
-	UIPrimitive(RenderDevice const& render_device);
+	Primitive(RenderDevice const& render_device);
 
 	Uri<Texture>& texture_uri() { return m_material.textures.uris[0]; }
 	Rgba& tint() { return m_material.tint; }
@@ -20,7 +21,8 @@ class UIPrimitive : public UINode {
 	void render(DrawList& out) const override;
 
   protected:
-	std::unique_ptr<Primitive::Dynamic> m_primitive{};
+	std::unique_ptr<levk::Primitive::Dynamic> m_primitive{};
 	UnlitMaterial m_material{};
 };
+} // namespace ui
 } // namespace levk
