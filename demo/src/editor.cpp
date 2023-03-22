@@ -75,19 +75,17 @@ struct AssetListLoader : AsyncTask<Uri<>> {
 };
 
 struct TestDrawable : ui::Primitive {
-	glm::vec2 extent{100.0f, 100.0f};
-
 	using ui::Primitive::Primitive;
 
 	void tick(Input const& input, Time dt) override {
 		Node::tick(input, dt);
-		if (ui::Rect::from_extent(extent, world_position()).contains(input.cursor)) {
+		if (world_frame().contains(input.cursor)) {
 			tint() = red_v;
 			if (input.is_pressed(MouseButton::e1)) { set_destroyed(); }
 		} else {
 			tint() = white_v;
 		}
-		set_quad(QuadCreateInfo{.size = extent});
+		set_quad(QuadCreateInfo{.size = frame().extent()});
 	}
 };
 
@@ -176,7 +174,10 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 		if (font) {
 			m_test.primitive.emplace(m_context.engine.get().render_device());
 			m_test.primitive->height = TextHeight{72u};
+			auto const text = std::string_view{"hello"};
+			auto const extent = AsciiFont::Pen{*font, m_test.primitive->height}.line_extent(text);
 			m_test.primitive->update("hello", *font);
+			m_test.transforms[0].set_position({-0.5f * extent.x, -0.5f * extent.y, 0.0f});
 		}
 
 		{
@@ -184,7 +185,7 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 			auto* d = m_test.ui_root.add_sub_node(std::move(drawable));
 			if (font) {
 				auto text = std::make_unique<TestText>(font);
-				text->position.x += 100.0f;
+				text->n_anchor.x = 0.5f;
 				text->text = "hi";
 				d->add_sub_node(std::move(text));
 			}
@@ -237,7 +238,7 @@ void Editor::tick(Frame const& frame) {
 		if (frame.state.input.is_held(Key::eD)) { dxy.x += frame.dt.count(); }
 		if (std::abs(dxy.x) > 0.0f || std::abs(dxy.y) > 0.0f) {
 			dxy = 10.0f * glm::normalize(dxy);
-			m_test.ui_root.position += dxy;
+			m_test.ui_root.set_position(m_test.ui_root.frame().centre() += dxy);
 		}
 
 		m_test.ui_root.tick(frame.state.input, frame.dt);
@@ -308,7 +309,7 @@ void Editor::render() {
 			editor.active_scene().render_ui(out);
 			editor.m_test.ui_root.render(out);
 			if (editor.m_test.primitive) {
-				editor.m_test.transforms[0].set_position({-100.0f, 0.0f, -5.0f});
+				// editor.m_test.transforms[0].set_position({-100.0f, 0.0f, -5.0f});
 				editor.m_test.transforms[1].set_position({100.0f, 100.0f, 0.0f});
 				auto const instances = DrawList::Instanced{.instances = editor.m_test.transforms};
 				out.add(editor.m_test.primitive->primitive.get(), &editor.m_test.primitive->material, instances);

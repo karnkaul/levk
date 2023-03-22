@@ -42,6 +42,7 @@ class AsciiFont::Pen {
 	Pen(AsciiFont& font, TextHeight height = TextHeight::eDefault) : m_font(font), m_height(clamp(height)) {}
 
 	Pen& write_line(std::string_view line, Out out);
+	glm::vec2 line_extent(std::string_view line) const;
 
 	TextHeight height() const { return m_height; }
 
@@ -49,6 +50,8 @@ class AsciiFont::Pen {
 	Rgba vertex_colour{white_v};
 
   private:
+	struct Writer;
+
 	AsciiFont& m_font;
 	TextHeight m_height;
 };

@@ -14,12 +14,20 @@ using Rect = Rect2D<>;
 
 class Node {
   public:
+	static constexpr auto frame_v{Rect::from_extent({100.0f, 100.0f})};
+
 	virtual ~Node() = default;
 
 	Node& operator=(Node&&) = delete;
 
+	Node(Rect frame = frame_v) : m_frame(frame) {}
+
 	Ptr<Node> super_node() const { return m_super_node; }
-	glm::vec2 world_position() const;
+	Rect const& frame() const { return m_frame; }
+	Rect world_frame() const;
+	void set_frame(Rect frame);
+	void set_position(glm::vec2 position);
+	void set_extent(glm::vec2 extent);
 
 	Ptr<Node> add_sub_node(std::unique_ptr<Node> node);
 	void set_destroyed() { m_destroyed = true; }
@@ -30,11 +38,12 @@ class Node {
 	virtual void tick(Input const& input, Time dt);
 	virtual void render(DrawList& out) const;
 
-	glm::vec2 position{};
+	glm::vec2 n_anchor{};
 	float z_index{};
 	float z_rotation{};
 
   private:
+	Rect m_frame{};
 	std::vector<std::unique_ptr<Node>> m_sub_nodes{};
 	Ptr<Node> m_super_node{};
 	bool m_destroyed{};
