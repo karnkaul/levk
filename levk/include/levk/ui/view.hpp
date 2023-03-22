@@ -12,28 +12,28 @@ class DrawList;
 namespace ui {
 using Rect = Rect2D<>;
 
-class Node {
+class View {
   public:
 	static constexpr auto frame_v{Rect::from_extent({100.0f, 100.0f})};
 
-	virtual ~Node() = default;
+	virtual ~View() = default;
 
-	Node& operator=(Node&&) = delete;
+	View& operator=(View&&) = delete;
 
-	Node(Rect frame = frame_v) : m_frame(frame) {}
+	View(Rect frame = frame_v) : m_frame(frame) {}
 
-	Ptr<Node> super_node() const { return m_super_node; }
+	Ptr<View> super_view() const { return m_super_view; }
 	Rect const& frame() const { return m_frame; }
 	Rect world_frame() const;
 	void set_frame(Rect frame);
 	void set_position(glm::vec2 position);
 	void set_extent(glm::vec2 extent);
 
-	Ptr<Node> add_sub_node(std::unique_ptr<Node> node);
+	Ptr<View> add_sub_view(std::unique_ptr<View> view);
 	void set_destroyed() { m_destroyed = true; }
 	bool is_destroyed() const { return m_destroyed; }
 
-	std::span<std::unique_ptr<Node> const> sub_nodes() const { return m_sub_nodes; }
+	std::span<std::unique_ptr<View> const> sub_views() const { return m_sub_views; }
 
 	virtual void tick(Input const& input, Time dt);
 	virtual void render(DrawList& out) const;
@@ -44,8 +44,8 @@ class Node {
 
   private:
 	Rect m_frame{};
-	std::vector<std::unique_ptr<Node>> m_sub_nodes{};
-	Ptr<Node> m_super_node{};
+	std::vector<std::unique_ptr<View>> m_sub_views{};
+	Ptr<View> m_super_view{};
 	bool m_destroyed{};
 };
 } // namespace ui

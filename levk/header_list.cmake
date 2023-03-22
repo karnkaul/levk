@@ -100,7 +100,7 @@ set(vfs_headers
 
 set(font_headers
   include/levk/font/ascii_font.hpp
-  include/levk/font/font_common.hpp
+  include/levk/font/common.hpp
   include/levk/font/font_glyph.hpp
   include/levk/font/font_library.hpp
   include/levk/font/glyph_slot.hpp
@@ -108,8 +108,9 @@ set(font_headers
 )
 
 set(ui_headers
-  include/levk/ui/node.hpp
   include/levk/ui/primitive.hpp
+  include/levk/ui/text.hpp
+  include/levk/ui/view.hpp
 )
 
 set(levk_headers

@@ -1,13 +1,13 @@
 #pragma once
 #include <levk/graphics/material.hpp>
 #include <levk/graphics/primitive.hpp>
-#include <levk/ui/node.hpp>
+#include <levk/ui/view.hpp>
 
 namespace levk {
 class RenderDevice;
 
 namespace ui {
-class Primitive : public Node {
+class Primitive : public View {
   public:
 	Primitive(RenderDevice const& render_device);
 

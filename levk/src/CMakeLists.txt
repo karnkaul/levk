@@ -19,7 +19,8 @@ target_sources(levk PRIVATE
   impl/vulkan_device.cpp
 
   ui/primitive.cpp
-  ui/node.cpp
+  ui/text.cpp
+  ui/view.cpp
 
   vfs/data_sink.cpp
   vfs/data_source.cpp

@@ -15,6 +15,6 @@ void Primitive::render(DrawList& out) const {
 	auto const rot = glm::angleAxis(glm::radians(z_rotation), front_v);
 	auto const mat = glm::translate(glm::toMat4(rot), {world_frame().centre(), z_index});
 	out.add(m_primitive.get(), &m_material, DrawList::Instanced{.parent = mat});
-	Node::render(out);
+	View::render(out);
 }
 } // namespace levk::ui

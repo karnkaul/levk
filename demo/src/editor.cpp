@@ -3,7 +3,7 @@
 #include <levk/asset/gltf_importer.hpp>
 #include <filesystem>
 
-#include <levk/ui/primitive.hpp>
+#include <levk/ui/text.hpp>
 
 namespace levk {
 namespace {
@@ -78,7 +78,7 @@ struct TestDrawable : ui::Primitive {
 	using ui::Primitive::Primitive;
 
 	void tick(Input const& input, Time dt) override {
-		Node::tick(input, dt);
+		View::tick(input, dt);
 		if (world_frame().contains(input.cursor)) {
 			tint() = red_v;
 			if (input.is_pressed(MouseButton::e1)) { set_destroyed(); }
@@ -86,20 +86,6 @@ struct TestDrawable : ui::Primitive {
 			tint() = white_v;
 		}
 		set_quad(QuadCreateInfo{.size = frame().extent()});
-	}
-};
-
-struct TestText : ui::Primitive {
-	NotNull<AsciiFont*> font;
-	std::string text{};
-	TextHeight height{TextHeight::eDefault};
-
-	TestText(NotNull<AsciiFont*> font) : ui::Primitive(font->texture_provider().render_device()), font(font) {}
-
-	void tick(Input const&, Time) override {
-		auto geometry = Geometry{};
-		AsciiFont::Pen{*font, height}.write_line(text, {&geometry, &texture_uri()});
-		m_primitive->set_geometry(geometry);
 	}
 };
 } // namespace
@@ -182,12 +168,12 @@ Editor::Editor(std::unique_ptr<DiskVfs> vfs)
 
 		{
 			auto drawable = std::make_unique<TestDrawable>(m_context.engine.get().render_device());
-			auto* d = m_test.ui_root.add_sub_node(std::move(drawable));
+			auto* d = m_test.ui_root.add_sub_view(std::move(drawable));
 			if (font) {
-				auto text = std::make_unique<TestText>(font);
+				auto text = std::make_unique<ui::Text>(font);
 				text->n_anchor.x = 0.5f;
-				text->text = "hi";
-				d->add_sub_node(std::move(text));
+				text->set_string("hi");
+				d->add_sub_view(std::move(text));
 			}
 		}
 	}

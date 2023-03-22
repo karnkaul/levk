@@ -1,5 +1,5 @@
 #pragma once
-#include <levk/font/font_common.hpp>
+#include <levk/font/common.hpp>
 #include <levk/graphics/material.hpp>
 #include <levk/graphics/primitive.hpp>
 
