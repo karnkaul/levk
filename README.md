@@ -26,7 +26,7 @@ https://user-images.githubusercontent.com/16272243/212808493-0ccdd6b3-f409-4cfb-
 - [x] Scene (in-game)
 - [x] Asset (de)serialization + hot reload
 - [x] Scene management
-- [ ] Fonts and text
+- [x] Fonts and text
 - [ ] Audio
 - [ ] In-game UI
 - [ ] AABB collisions
@@ -41,7 +41,7 @@ https://user-images.githubusercontent.com/16272243/212808493-0ccdd6b3-f409-4cfb-
   - Windows 10
   - Linux: X, Wayland (untested), Raspberry Pi OS (64 bit bullseye+)
   - Mac OSX: untested, will require MoltenVk
-- GPU supporting Vulkan 1.0+, its driver, and loader
+- GPU supporting Vulkan 1.1+, its driver, and loader
 - Vulkan SDK / `glslc` (for compiling glsl shaders to SPIR-V, and validation layers)
 
 ## Usage
@@ -70,6 +70,7 @@ Link to `levk` via CMake: `target_link_libraries(foo PRIVATE levk::lib)`.
 - [VulkanHPP](https://github.com/KhronosGroup/Vulkan-Hpp)
 - [Vulkan Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)
 - [SPIR-V Cross](https://github.com/KhronosGroup/SPIRV-Cross)
+- [Freetype](https://github.com/freetype/freetype)
 
 [Original repository](https://github.com/karnkaul/levk)
 

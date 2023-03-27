@@ -11,6 +11,8 @@ class Primitive : public View {
   public:
 	Primitive(RenderDevice const& render_device);
 
+	Uri<Texture> const& texture_uri() const { return m_material.textures.uris[0]; }
+	Rgba const& tint() const { return m_material.tint; }
 	Uri<Texture>& texture_uri() { return m_material.textures.uris[0]; }
 	Rgba& tint() { return m_material.tint; }
 

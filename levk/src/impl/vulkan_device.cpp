@@ -35,6 +35,7 @@
 #include <map>
 #include <numeric>
 #include <optional>
+#include <ranges>
 #include <unordered_set>
 
 namespace levk {
@@ -80,11 +81,15 @@ template <typename Type>
 struct DeferDeleter {
 	Ptr<DeferQueue> queue{};
 
-	void operator()(Type t) const { queue->push(std::move(t)); }
+	void operator()(Type t) const {
+		if (queue) { queue->push(std::move(t)); }
+	}
 };
 
 template <typename Type>
 class Defer {
+	using Deleter = DeferDeleter<Type>;
+
   public:
 	Defer() = default;
 	Defer(DeferQueue& queue, Type t = {}) : m_t(std::move(t), Deleter{&queue}) {}
@@ -95,14 +100,6 @@ class Defer {
 	Type const& get() const { return m_t.get(); }
 
   private:
-	struct Deleter {
-		Ptr<DeferQueue> queue{};
-
-		void operator()(Type t) const {
-			if (queue) { queue->push(std::move(t)); }
-		}
-	};
-
 	Unique<Type, Deleter> m_t;
 };
 
@@ -147,6 +144,7 @@ struct ImageView {
 	vk::Image image{};
 	vk::ImageView view{};
 	vk::Extent2D extent{};
+	vk::Format format{};
 };
 
 struct ImageCreateInfo {
@@ -219,13 +217,14 @@ struct Vma::Image {
 	Allocation allocation{};
 	vk::Image image{};
 	vk::UniqueImageView view{};
+	vk::Format format{};
 
 	vk::Extent2D extent{};
 	vk::ImageViewType type{};
 	std::uint32_t mip_levels{};
 	std::uint32_t array_layers{};
 
-	ImageView image_view() const { return {image, *view, extent}; }
+	ImageView image_view() const { return {image, *view, extent, format}; }
 
 	bool operator==(Image const& rhs) const { return allocation.allocation == rhs.allocation.allocation; }
 };
@@ -1073,11 +1072,17 @@ vk::UniqueDevice make_device(std::span<char const* const> layers, Gpu const& gpu
 	enabled.samplerAnisotropy = available_features.samplerAnisotropy;
 	enabled.sampleRateShading = available_features.sampleRateShading;
 	auto extensions = FlexArray<char const*, 8>{};
-	for (auto const* ext : required_extensions_v) { extensions.insert(ext); }
 	auto const available_extensions = gpu.device.enumerateDeviceExtensionProperties();
+	for (auto const* ext : required_extensions_v) {
+		auto const found = [ext](vk::ExtensionProperties const& e) { return std::string_view{e.extensionName} == ext; };
+		if (std::ranges::find_if(available_extensions, found) == available_extensions.end()) {
+			throw Error{fmt::format("Required extension [{}] not supported by selected GPU [{}]", ext, gpu.properties.deviceName)};
+		}
+		extensions.insert(ext);
+	}
 	for (auto const* ext : desired_extensions_v) {
 		auto const found = [ext](vk::ExtensionProperties const& e) { return std::string_view{e.extensionName} == ext; };
-		if (std::find_if(available_extensions.begin(), available_extensions.end(), found) != available_extensions.end()) { extensions.insert(ext); }
+		if (std::ranges::find_if(available_extensions, found) != available_extensions.end()) { extensions.insert(ext); }
 	}
 
 	dci.queueCreateInfoCount = 1;
@@ -1346,7 +1351,7 @@ OffScreen<Buffering> OffScreen<Buffering>::make(VulkanDevice const& device, vk::
 	sd.srcSubpass = VK_SUBPASS_EXTERNAL;
 	sd.srcStageMask = vk::PipelineStageFlagBits::eFragmentShader;
 	sd.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-	if (depth != vk::Format{}) { sd.dstStageMask |= vk::PipelineStageFlagBits::eEarlyFragmentTests; }
+	if (depth != vk::Format{}) { sd.dstStageMask |= vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests; }
 	sd.srcAccessMask = vk::AccessFlagBits::eShaderRead;
 	sd.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
 	if (depth != vk::Format{}) { sd.dstAccessMask |= vk::AccessFlagBits::eDepthStencilAttachmentWrite; }
@@ -1395,10 +1400,9 @@ vk::UniqueRenderPass make_fs_quad_pass(VulkanDevice const& device, vk::Format co
 	auto sd = vk::SubpassDependency{};
 	sd.srcSubpass = VK_SUBPASS_EXTERNAL;
 	sd.srcStageMask = vk::PipelineStageFlagBits::eFragmentShader;
-	sd.dstStageMask =
-		vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests;
+	sd.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 	sd.srcAccessMask = vk::AccessFlagBits::eShaderRead;
-	sd.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+	sd.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
 	sds.insert(sd);
 
 	std::swap(sd.srcSubpass, sd.dstSubpass);
@@ -2149,6 +2153,7 @@ UniqueImage Vma::make_image(ImageCreateInfo const& info, vk::Extent2D const exte
 	ret.view = make_image_view(image, info.format, {info.aspect, 0, info.mip_levels, 0, info.array_layers}, type);
 	ret.image = image;
 	ret.allocation.vma = *this;
+	ret.format = info.format;
 	ret.extent = extent;
 	ret.mip_levels = info.mip_levels;
 	ret.array_layers = info.array_layers;
@@ -2590,7 +2595,6 @@ void levk::gfx_create_device(VulkanDevice& out, GraphicsDeviceCreateInfo const& 
 	out.impl->info.current_vsync = from(out.impl->swapchain.info.presentMode);
 	out.impl->info.supported_aa = make_aa(out.impl->gpu.properties);
 	out.impl->info.current_aa = get_samples(out.impl->info.supported_aa, create_info.anti_aliasing);
-	out.impl->info.validation = create_info.validation;
 	out.impl->info.name = out.impl->gpu.properties.deviceName;
 
 	auto const depth = depth_format(out.impl->gpu.device);
