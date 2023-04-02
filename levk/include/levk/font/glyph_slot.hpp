@@ -1,6 +1,6 @@
 #pragma once
 #include <levk/font/common.hpp>
-#include <levk/pixel_map.hpp>
+#include <levk/graphics/pixel_map.hpp>
 
 namespace levk {
 struct GlyphSlot {

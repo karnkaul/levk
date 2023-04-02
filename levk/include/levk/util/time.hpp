@@ -1,6 +1,8 @@
 #pragma once
 #include <chrono>
 
+using namespace std::chrono_literals;
+
 namespace levk {
 using Clock = std::chrono::steady_clock;
 using Time = std::chrono::duration<float>;

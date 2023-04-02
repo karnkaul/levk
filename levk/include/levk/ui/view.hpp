@@ -3,6 +3,7 @@
 #include <levk/util/ptr.hpp>
 #include <levk/util/time.hpp>
 #include <memory>
+#include <span>
 #include <vector>
 
 namespace levk {
@@ -32,6 +33,7 @@ class View {
 	Ptr<View> add_sub_view(std::unique_ptr<View> view);
 	void set_destroyed() { m_destroyed = true; }
 	bool is_destroyed() const { return m_destroyed; }
+	bool contains(Ptr<View const> view) const;
 
 	std::span<std::unique_ptr<View> const> sub_views() const { return m_sub_views; }
 

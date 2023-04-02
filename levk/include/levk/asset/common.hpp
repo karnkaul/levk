@@ -1,10 +1,11 @@
 #pragma once
 #include <djson/json.hpp>
-#include <levk/geometry.hpp>
 #include <levk/graphics/common.hpp>
+#include <levk/graphics/geometry.hpp>
 #include <levk/graphics/material.hpp>
+#include <levk/graphics/skeleton.hpp>
 #include <levk/graphics/texture.hpp>
-#include <levk/skeleton.hpp>
+#include <levk/transform.hpp>
 #include <levk/uri.hpp>
 #include <variant>
 
@@ -59,7 +60,8 @@ struct Material {
 	RenderMode render_mode{};
 	float alpha_cutoff{};
 	AlphaMode alpha_mode{AlphaMode::eOpaque};
-	std::string shader{"shaders/lit.frag"};
+	std::string vertex_shader{"shaders/lit.vert"};
+	std::string fragment_shader{"shaders/lit.frag"};
 	std::string name{};
 };
 

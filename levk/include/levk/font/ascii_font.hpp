@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/font/static_font_atlas.hpp>
+#include <levk/graphics/geometry.hpp>
 #include <levk/util/not_null.hpp>
 
 namespace levk {

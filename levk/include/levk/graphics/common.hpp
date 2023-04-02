@@ -1,11 +1,8 @@
 #pragma once
 #include <glm/vec2.hpp>
-#include <levk/camera.hpp>
-#include <levk/graphics/primitive.hpp>
-#include <levk/lights.hpp>
-#include <levk/rgba.hpp>
-#include <levk/util/dyn_array.hpp>
+#include <levk/util/bit_flags.hpp>
 #include <levk/util/ptr.hpp>
+#include <string_view>
 
 namespace levk {
 class Window;
@@ -32,56 +29,23 @@ inline constexpr std::size_t max_bindings_v{16};
 inline constexpr std::size_t max_lights_v{4};
 inline constexpr float render_scale_limit_v[] = {0.2f, 8.0f};
 
-struct AntiAliasing {
-	enum Type : std::uint8_t {
-		e1x = 1 << 0,
-		e2x = 1 << 1,
-		e4x = 1 << 2,
-		e8x = 1 << 3,
-		e16x = 1 << 4,
-		e32x = 1 << 5,
-	};
-
-	std::uint8_t flags{};
+enum class AntiAliasing : std::uint8_t {
+	e1x = 1 << 0,
+	e2x = 1 << 1,
+	e4x = 1 << 2,
+	e8x = 1 << 3,
+	e16x = 1 << 4,
+	e32x = 1 << 5,
 };
 
-struct Vsync {
-	enum Type : std::uint8_t {
-		eOn = 1 << 0,
-		eAdaptive = 1 << 1,
-		eOff = 1 << 2,
-		eMailbox = 1 << 3,
-	};
+using AntiAliasingFlags = BitFlags<AntiAliasing>;
 
-	std::uint8_t flags{};
+enum class Vsync : std::uint8_t {
+	eOn = 1 << 0,
+	eAdaptive = 1 << 1,
+	eOff = 1 << 2,
+	eMailbox = 1 << 3,
 };
 
-struct ShaderCode {
-	DynArray<std::uint32_t> spir_v{};
-	std::size_t hash{};
-};
-
-struct GraphicsDeviceInfo {
-	std::string_view name{};
-	bool validation{};
-	bool portability{};
-	ColourSpace swapchain{};
-	Vsync supported_vsync{};
-	Vsync::Type current_vsync{};
-	AntiAliasing supported_aa{};
-	AntiAliasing::Type current_aa{};
-	float render_scale{1.0f};
-};
-
-struct GraphicsDeviceCreateInfo {
-	Window const& window;
-	bool validation{true};
-	ColourSpace swapchain{ColourSpace::eSrgb};
-	Vsync::Type vsync{Vsync::eAdaptive};
-	AntiAliasing::Type anti_aliasing{AntiAliasing::e2x};
-};
-
-struct RenderStats {
-	std::uint64_t draw_calls{};
-};
+using VsyncFlags = BitFlags<Vsync>;
 } // namespace levk

@@ -86,6 +86,12 @@ class Transform {
 	///
 	Transform& decompose(glm::mat4 const& mat);
 
+	static Transform from(glm::mat4 const& mat) {
+		auto ret = Transform{};
+		ret.decompose(mat);
+		return ret;
+	}
+
 	///
 	/// \brief Obtain the combined 4x4 transformation matrix.
 	/// \returns The transformation matrix

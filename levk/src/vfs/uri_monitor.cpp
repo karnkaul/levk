@@ -8,6 +8,7 @@ namespace fs = std::filesystem;
 UriMonitor::UriMonitor(std::string mount_point) : m_mount_point(std::move(mount_point)) {}
 
 UriMonitor::Timestamp UriMonitor::last_modified(Uri<> const& uri) const {
+	if (!uri || m_mount_point.empty()) { return {}; }
 	auto const ret = fs::last_write_time(uri.absolute_path(mount_point()));
 	return std::chrono::duration_cast<Timestamp>(ret.time_since_epoch());
 }

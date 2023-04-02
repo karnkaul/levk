@@ -1,4 +1,4 @@
-#include <levk/camera.hpp>
+#include <levk/graphics/camera.hpp>
 #include <levk/util/visitor.hpp>
 
 namespace levk {
@@ -9,7 +9,7 @@ glm::mat4 Camera::view() const {
 }
 
 glm::mat4 Camera::projection(glm::vec2 extent) const {
-	if (extent.x == 0.0f || extent.y == 0.0f) { return glm::identity<glm::mat4>(); }
+	if (extent.x <= 0.0f || extent.y <= 0.0f) { return glm::identity<glm::mat4>(); }
 	auto const visitor = Visitor{
 		[extent](Perspective const& p) { return glm::perspective(p.field_of_view, extent.x / extent.y, p.view_plane.near, p.view_plane.far); },
 		[extent](Orthographic const& o) { return orthographic(extent, o.view_plane); },

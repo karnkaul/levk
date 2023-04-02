@@ -1,9 +1,11 @@
 #pragma once
 #include <levk/asset/material_provider.hpp>
 #include <levk/graphics/mesh.hpp>
-#include <levk/skeleton.hpp>
+#include <levk/graphics/skeleton.hpp>
 
 namespace levk {
+class SkeletonProvider;
+
 template <typename Type>
 class MeshProviderCommon : public GraphicsAssetProvider<Type> {
   public:
@@ -15,14 +17,6 @@ class MeshProviderCommon : public GraphicsAssetProvider<Type> {
 
   private:
 	NotNull<MaterialProvider*> m_material_provider;
-};
-
-class SkeletonProvider : public AssetProvider<Skeleton> {
-  public:
-	using AssetProvider<Skeleton>::AssetProvider;
-
-  private:
-	Payload load_payload(Uri<Skeleton> const& uri) const override;
 };
 
 class StaticMeshProvider : public MeshProviderCommon<StaticMesh> {

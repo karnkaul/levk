@@ -2,7 +2,7 @@
 #include <levk/imcpp/drag_drop.hpp>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/imcpp/scene_graph.hpp>
-#include <levk/scene.hpp>
+#include <levk/scene/scene.hpp>
 #include <levk/service.hpp>
 #include <levk/util/fixed_string.hpp>
 

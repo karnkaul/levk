@@ -1,4 +1,4 @@
-target_sources(levk PRIVATE
+target_sources(${PROJECT_NAME} PRIVATE
   binary_file.cpp
   cli_opts.cpp
   env.cpp

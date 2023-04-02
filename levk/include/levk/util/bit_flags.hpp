@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/util/enum_concept.hpp>
+#include <concepts>
 #include <cstdint>
 
 namespace levk {

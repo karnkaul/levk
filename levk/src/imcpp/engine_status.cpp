@@ -6,7 +6,7 @@
 
 namespace levk::imcpp {
 namespace {
-constexpr std::string_view to_str(Vsync::Type const vsync) {
+constexpr std::string_view to_str(Vsync const vsync) {
 	switch (vsync) {
 	case Vsync::eAdaptive: return "Adaptive";
 	case Vsync::eMailbox: return "Mailbox";
@@ -16,11 +16,11 @@ constexpr std::string_view to_str(Vsync::Type const vsync) {
 	}
 }
 
-void vsync_combo(RenderDevice& device, GraphicsDeviceInfo const& device_info) {
+void vsync_combo(RenderDevice& device, RenderDeviceInfo const& device_info) {
 	auto const supported = device_info.supported_vsync;
 	if (auto combo = imcpp::Combo{"Vsync", to_str(device_info.current_vsync).data()}) {
-		auto add = [&](Vsync::Type const vsync) {
-			if (supported.flags & vsync) {
+		auto add = [&](Vsync const vsync) {
+			if (supported.test(vsync)) {
 				if (ImGui::Selectable(to_str(vsync).data(), device_info.current_vsync == vsync)) { device.set_vsync(vsync); }
 			}
 		};
@@ -56,7 +56,6 @@ void EngineStatus::draw_to(NotClosed<Window>, Engine& engine) {
 		ImGui::PlotLines("dt", dts.data(), static_cast<int>(dts.size()), 0, FixedString{"{:.2f}ms", ms}.c_str(), FLT_MAX, FLT_MAX, {0.0f, 50.0f});
 	}
 	ImGui::Separator();
-	auto const render_stats = device.stats();
-	ImGui::Text("%s", FixedString{"Draw calls: {}", render_stats.draw_calls}.c_str());
+	ImGui::Text("%s", FixedString{"Draw calls: {}", device.draw_calls_last_frame()}.c_str());
 }
 } // namespace levk::imcpp
