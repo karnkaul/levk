@@ -667,6 +667,11 @@ struct DearImGui {
 		if (auto* data = ImGui::GetDrawData()) { ImGui_ImplVulkan_RenderDrawData(data, cb); }
 	}
 };
+
+struct RenderCb {
+	vk::CommandBuffer cb_3d{};
+	vk::CommandBuffer cb_ui{};
+};
 } // namespace
 
 struct Device::Impl {
@@ -681,7 +686,7 @@ struct Device::Impl {
 	Buffered<SetAllocator> set_allocators{};
 	Buffered<ScratchBufferAllocator> scratch_buffer_allocators{};
 
-	Buffered<vk::CommandBuffer> render_cb{};
+	Buffered<RenderCb> render_cbs{};
 	RenderCamera camera_3d{};
 	RenderCamera camera_ui{};
 	RenderScene scene{};
@@ -798,12 +803,17 @@ Device::Device(Window const& window, RenderDeviceCreateInfo const& create_info) 
 
 	impl->scene = RenderScene::make(view_);
 
-	impl->dear_imgui = DearImGui::make(*glfw_window, view_, rtci.colour, rtci.depth);
+	impl->dear_imgui = DearImGui::make(*glfw_window, view_, rtci.colour, {});
 	impl->dear_imgui.new_frame();
 
 	auto const flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer | vk::CommandPoolCreateFlagBits::eTransient;
 	impl->cmd_allocator = CommandAllocator::make(*device, gpu.queue_family, flags);
-	for (auto& cb : impl->render_cb) { cb = impl->cmd_allocator.allocate(); }
+	for (auto& cb : impl->render_cbs) {
+		auto cbs = std::array<vk::CommandBuffer, 2>{};
+		impl->cmd_allocator.allocate(cbs);
+		cb.cb_3d = cbs[0];
+		cb.cb_ui = cbs[1];
+	}
 
 	device_info.supported_vsync = make_vsync(gpu.device.getSurfacePresentModesKHR(*surface));
 	device_info.current_vsync = from(impl->swapchain.info.presentMode);
@@ -860,40 +870,43 @@ bool Device::render(RenderDevice::Frame const& frame) {
 
 	auto const dir_lights = impl->scene.build_dir_lights(frame.lights->dir_lights);
 
-	auto cb = impl->render_cb[buffered_index];
-	cb.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+	auto render_cb = impl->render_cbs[buffered_index];
+	render_cb.cb_3d.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 
 	auto fb_3d = impl->camera_3d.render_target.refresh(scaled(impl->swapchain.info.imageExtent, device_info.render_scale));
-	fb_3d.undef_to_optimal(cb);
+	fb_3d.undef_to_optimal(render_cb.cb_3d);
 
 	render_3d({0.1f, 0.1f, 0.1f, 1.0f}, frame, fb_3d, dir_lights);
 
 	auto fb_ui = Framebuffer{.colour = *acquired};
-	fb_3d.optimal_to_transfer_src(cb);
-	fb_ui.undef_to_transfer_dst(cb);
-	vma.get().full_blit(cb, {fb_3d.output()}, {*acquired});
-	fb_ui.transfer_dst_to_optimal(cb);
+	fb_3d.optimal_to_transfer_src(render_cb.cb_3d);
+	fb_ui.undef_to_transfer_dst(render_cb.cb_3d);
+	vma.get().full_blit(render_cb.cb_3d, {fb_3d.output()}, {*acquired});
+	fb_ui.transfer_dst_to_optimal(render_cb.cb_3d);
 
+	render_cb.cb_ui.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 	render_ui(frame, fb_ui, dir_lights);
+	render_cb.cb_ui.end();
 
-	fb_ui.optimal_to_present(cb);
+	fb_ui.optimal_to_present(render_cb.cb_3d);
 
-	cb.end();
+	render_cb.cb_3d.end();
 
 	auto const wsi = vk::SemaphoreSubmitInfo{sync.draw, {}, vk::PipelineStageFlagBits2::eColorAttachmentOutput};
-	auto const cbi = vk::CommandBufferSubmitInfo{cb};
+	auto const cbis = std::array<vk::CommandBufferSubmitInfo, 2>{render_cb.cb_3d, render_cb.cb_ui};
 	auto const ssi = vk::SemaphoreSubmitInfo{sync.present, {}, vk::PipelineStageFlagBits2::eColorAttachmentOutput};
-	auto submit_info = vk::SubmitInfo2{{}, wsi, cbi, ssi};
+	auto submit_info = vk::SubmitInfo2{{}, wsi, cbis, ssi};
 	queue.with([&](vk::Queue queue) { queue.submit2(submit_info, sync.drawn); });
 
 	return impl->swapchain.present(framebuffer_extent, sync.present);
 }
 
 void Device::render_3d(glm::vec4 clear, RenderDevice::Frame const& frame, Framebuffer& framebuffer, BufferView dir_lights) {
-	auto cb = impl->render_cb[buffered_index];
+	auto cb = impl->render_cbs[buffered_index].cb_3d;
 	framebuffer.begin_render(vk::ClearColorValue{std::array{clear.x, clear.y, clear.z, clear.w}}, cb);
 
-	auto pipeline_builder = PipelineBuilder{impl->pipeline_storage, frame.asset_providers->shader(), *device, framebuffer.pipeline_format()};
+	auto const format = framebuffer.pipeline_format();
+	auto pipeline_builder = PipelineBuilder{impl->pipeline_storage, frame.asset_providers->shader(), *device, format};
 	auto drawer_3d = Drawer{*this, *frame.asset_providers, pipeline_builder, framebuffer.colour.extent, dir_lights, cb};
 	impl->camera_3d.camera = *frame.camera_3d;
 	impl->camera_3d.bind_view_set(drawer_3d.cb, {drawer_3d.extent.width, drawer_3d.extent.height});
@@ -916,9 +929,10 @@ void Device::render_3d(glm::vec4 clear, RenderDevice::Frame const& frame, Frameb
 }
 
 void Device::render_ui(RenderDevice::Frame const& frame, Framebuffer& fb_ui, BufferView dir_lights) {
-	auto cb = impl->render_cb[buffered_index];
+	auto cb = impl->render_cbs[buffered_index].cb_ui;
 	fb_ui.begin_render({}, cb);
-	auto pipeline_builder = PipelineBuilder{impl->pipeline_storage, frame.asset_providers->shader(), *device, fb_ui.pipeline_format()};
+	auto const format = fb_ui.pipeline_format();
+	auto pipeline_builder = PipelineBuilder{impl->pipeline_storage, frame.asset_providers->shader(), *device, format};
 	auto drawer_ui = Drawer{*this, *frame.asset_providers, pipeline_builder, fb_ui.colour.extent, dir_lights, cb};
 	impl->camera_ui.bind_view_set(drawer_ui.cb, {drawer_ui.extent.width, drawer_ui.extent.height});
 	for (auto const& drawable : frame.render_list->ui.drawables()) { drawer_ui.draw(drawable); }
