@@ -53,8 +53,7 @@ bool Texture::resize_canvas(Extent2D new_extent, Rgba background, glm::uvec2 top
 	if (new_extent == extent_) { return true; }
 	if (top_left.x + extent_.x > new_extent.x || top_left.y + extent_.y > new_extent.y) { return false; }
 
-	auto const image_type = m_impl->image.get().get().type;
-	assert(image_type == vk::ImageViewType::e2D);
+	assert(m_impl->image.get().get().type == vk::ImageViewType::e2D);
 	auto pixels = DynPixelMap{new_extent};
 	for (Rgba& rgba : pixels.span()) { rgba = background; }
 	auto const image_view = pixels.view();

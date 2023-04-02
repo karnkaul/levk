@@ -279,7 +279,8 @@ struct App {
 
 	bool import_scene() {
 		auto make_importer = [this] {
-			return import_list.asset_list.scene_importer(args.data_root.generic_string(), args.dest_dir, args.scene_uri, import_logger);
+			return import_list.asset_list.scene_importer(args.data_root.generic_string(), args.dest_dir.generic_string(), args.scene_uri.generic_string(),
+														 import_logger);
 		};
 		return import_asset(std::span{import_list.asset_list.scenes}, "Scene", make_importer);
 	}

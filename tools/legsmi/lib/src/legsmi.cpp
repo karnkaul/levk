@@ -572,7 +572,7 @@ levk::Uri<levk::Scene> SceneImporter::try_import(Scene const& scene) const {
 	}
 
 	auto out_scene = levk::Scene{};
-	auto ret = SceneWalker{mesh_importer, asset_list, export_path, out_scene}(scene);
+	auto ret = SceneWalker{mesh_importer, asset_list, export_path.generic_string(), out_scene}(scene);
 	auto scene_path = fs::path{mesh_importer.uri_prefix} / scene_uri;
 	auto json = dj::Json{};
 	out_scene.serialize(json);
