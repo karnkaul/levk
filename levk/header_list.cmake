@@ -73,7 +73,6 @@ set(imcpp_headers
   include/levk/imcpp/drag_drop.hpp
   include/levk/imcpp/editor_window.hpp
   include/levk/imcpp/engine_status.hpp
-  include/levk/imcpp/gltf_import_wizard.hpp
   include/levk/imcpp/input_text.hpp
   include/levk/imcpp/inspector.hpp
   include/levk/imcpp/log_display.hpp
@@ -89,7 +88,6 @@ set(assets_headers
   include/levk/asset/asset_providers.hpp
   include/levk/asset/common.hpp
   include/levk/asset/font_provider.hpp
-  include/levk/asset/gltf_importer.hpp
   include/levk/asset/material_provider.hpp
   include/levk/asset/mesh_provider.hpp
   include/levk/asset/shader_provider.hpp

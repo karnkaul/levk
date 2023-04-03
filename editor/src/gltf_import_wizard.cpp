@@ -1,6 +1,6 @@
 #include <imgui.h>
-#include <levk/imcpp/gltf_import_wizard.hpp>
-#include <levk/scene.hpp>
+#include <gltf_import_wizard.hpp>
+#include <levk/scene/scene.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/fixed_string.hpp>
 #include <filesystem>
@@ -10,31 +10,32 @@ namespace levk::imcpp {
 namespace fs = std::filesystem;
 
 struct GltfImportWizard::Walk {
-	asset::GltfImporter importer;
+	legsmi::MeshImporter mesh_importer;
+	legsmi::SceneImporter scene_importer;
 	InputText<256>& export_uri;
 	Shared& self;
 	Scene& scene;
 
 	std::unordered_map<std::size_t, Uri<StaticMesh>> imported_meshes{};
 
-	asset::GltfMesh const& get_mesh(std::size_t index) const {
-		auto func = [index](asset::GltfMesh const& in) { return in.index == index; };
-		auto it = std::find_if(self.asset_list.meshes.begin(), self.asset_list.meshes.end(), func);
+	legsmi::Mesh const& get_mesh(std::size_t index) const {
+		auto func = [index](legsmi::Mesh const& in) { return in.index == index; };
+		auto it = std::ranges::find_if(self.asset_list.meshes, func);
 		assert(it != self.asset_list.meshes.end());
 		return *it;
 	}
 
 	Uri<> const& import_mesh(std::size_t index) {
 		if (auto it = imported_meshes.find(index); it != imported_meshes.end()) { return it->second; }
-		auto uri = importer.import_mesh(get_mesh(index));
+		auto uri = mesh_importer.try_import(get_mesh(index));
 		assert(!uri.value().empty());
 		auto [it, _] = imported_meshes.insert_or_assign(index, std::move(uri));
 		return it->second;
 	}
 
 	void add_node(std::size_t index, Id<Node> parent) {
-		auto const& in_node = importer.root.nodes[index];
-		auto& out_node = scene.spawn(NodeCreateInfo{.transform = asset::from(in_node.transform), .name = in_node.name, .parent = parent});
+		auto const& in_node = mesh_importer.root.nodes[index];
+		auto& out_node = scene.spawn(NodeCreateInfo{.transform = legsmi::from(in_node.transform), .name = in_node.name, .parent = parent});
 		if (in_node.mesh) {
 			auto uri = import_mesh(*in_node.mesh);
 			scene.get(out_node.entity).attach(std::make_unique<MeshRenderer>(StaticMeshRenderer{.mesh = std::move(uri)}));
@@ -43,8 +44,8 @@ struct GltfImportWizard::Walk {
 		for (auto const node_index : in_node.children) { add_node(node_index, parent); }
 	}
 
-	std::vector<Uri<StaticMesh>> operator()(asset::GltfScene const& scene) {
-		auto const& in_scene = importer.root.scenes[scene.index];
+	std::vector<Uri<StaticMesh>> operator()(legsmi::Scene const& scene) {
+		auto const& in_scene = mesh_importer.root.scenes[scene.index];
 		for (auto const node_index : in_scene.root_nodes) { add_node(node_index, {}); }
 		auto ret = std::vector<Uri<StaticMesh>>{};
 		ret.reserve(imported_meshes.size());
@@ -99,12 +100,10 @@ void GltfImportWizard::MeshPage::update(Shared& out) {
 	if (allow_import && fs::is_directory(dir) && !fs::is_empty(dir)) { ImGui::TextColored({0.8f, 0.8f, 0.1f, 1.0f}, "Directory not empty"); }
 }
 
-std::variant<Uri<StaticMesh>, Uri<SkinnedMesh>> GltfImportWizard::MeshPage::import_mesh(Shared& out) {
+Uri<Mesh> GltfImportWizard::MeshPage::import_mesh(Shared& out) {
 	auto& selected_entry = entries[selected];
-	auto importer = out.asset_list.importer(out.root_path, std::string{selected_entry.export_uri.view()});
-	auto ret = importer.import_mesh(selected_entry.mesh);
-	if (selected_entry.mesh.mesh_type == MeshType::eSkinned) { return Uri<SkinnedMesh>{std::move(ret)}; }
-	return Uri<StaticMesh>{std::move(ret)};
+	auto importer = out.asset_list.mesh_importer(out.root_path, std::string{selected_entry.export_uri.view()});
+	return importer.try_import(selected_entry.mesh);
 }
 
 void GltfImportWizard::ScenePage::setup(Shared const& shared) {
@@ -158,7 +157,9 @@ Uri<Scene> GltfImportWizard::ScenePage::import_scene(Shared& out) {
 		fs::remove_all(export_path);
 	}
 	auto scene = Scene{};
-	auto ret = Walk{out.asset_list.importer(out.root_path, std::string{assets_dir.view()}), assets_dir, out, scene}(entries[selected].scene);
+	auto mesh_importer = out.asset_list.mesh_importer(out.root_path, std::string{assets_dir.view()});
+	auto scene_importer = out.asset_list.scene_importer(out.root_path, std::string{assets_dir.view()}, std::string{scene_uri.view()});
+	auto ret = Walk{std::move(mesh_importer), std::move(scene_importer), assets_dir, out, scene}(entries[selected].scene);
 	auto scene_path = fs::path{out.root_path} / scene_uri.view();
 	auto json = dj::Json{};
 	scene.serialize(json);
@@ -170,8 +171,8 @@ GltfImportWizard::GltfImportWizard(std::string gltf_path, std::string root) {
 	m_shared.root_path = std::move(root);
 	m_shared.gltf_path = std::move(gltf_path);
 	m_shared.gltf_filename = fs::path{m_shared.gltf_path}.filename().string();
-	m_shared.asset_list = asset::GltfImporter::peek(m_shared.gltf_path);
-	m_shared.allow_scene = std::ranges::none_of(m_shared.asset_list.meshes, [](asset::GltfMesh const& mesh) { return mesh.mesh_type == MeshType::eSkinned; });
+	m_shared.asset_list = legsmi::peek_assets(m_shared.gltf_path);
+	m_shared.allow_scene = std::ranges::none_of(m_shared.asset_list.meshes, [](legsmi::Mesh const& mesh) { return mesh.mesh_type == MeshType::eSkinned; });
 
 	m_pages.mesh.setup(m_shared);
 	if (m_shared.allow_scene) { m_pages.scene.setup(m_shared); }

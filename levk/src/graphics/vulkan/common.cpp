@@ -282,29 +282,6 @@ void Vma::unmap_memory(Buffer& out) const {
 }
 
 void Vma::full_blit(vk::CommandBuffer cb, Blit src, Blit dst, vk::Filter filter) const {
-	// auto barriers = std::array<vk::ImageMemoryBarrier2, 4>{};
-	// barriers[0] = ImageBarrier{src.image.image, src.mip_levels, 1u}.barrier;
-	// barriers[1] = ImageBarrier{dst.image.image, dst.mip_levels, 1u}.barrier;
-
-	// barriers[0].srcAccessMask = barriers[1].srcAccessMask = vk::AccessFlagBits2::eNone;
-	// barriers[0].srcStageMask = barriers[1].srcStageMask = vk::PipelineStageFlagBits2::eNone;
-	// barriers[0].dstStageMask = barriers[1].dstStageMask = vk::PipelineStageFlagBits2::eTransfer;
-
-	// barriers[0].dstAccessMask = vk::AccessFlagBits2::eTransferRead;
-	// barriers[0].oldLayout = src.pre_layout;
-	// barriers[0].newLayout = vk::ImageLayout::eTransferSrcOptimal;
-	// barriers[0].dstAccessMask = vk::AccessFlagBits2::eTransferWrite;
-	// barriers[1].oldLayout = dst.pre_layout;
-	// barriers[1].newLayout = vk::ImageLayout::eTransferDstOptimal;
-
-	// auto const get_post_layout = [](Blit b) {
-	// 	if (b.post_layout != vk::ImageLayout{}) { return b.post_layout; }
-	// 	if (b.pre_layout == vk::ImageLayout::eUndefined) { return vk::ImageLayout::eShaderReadOnlyOptimal; }
-	// 	return b.pre_layout;
-	// };
-
-	// ImageBarrier::transition(cb, barriers);
-
 	static constexpr auto isrl_v = vk::ImageSubresourceLayers{vk::ImageAspectFlagBits::eColor, {}, {}, 1u};
 	auto const extent_src = glm::ivec2{src.image.extent.width, src.image.extent.height};
 	auto const offsets_src = std::array<vk::Offset3D, 2>{vk::Offset3D{}, vk::Offset3D{extent_src.x, extent_src.y, 1u}};
@@ -312,18 +289,6 @@ void Vma::full_blit(vk::CommandBuffer cb, Blit src, Blit dst, vk::Filter filter)
 	auto const offsets_dst = std::array<vk::Offset3D, 2>{vk::Offset3D{}, vk::Offset3D{extent_dst.x, extent_dst.y, 1u}};
 	auto const ib = vk::ImageBlit{isrl_v, offsets_src, isrl_v, offsets_dst};
 	cb.blitImage(src.image.image, vk::ImageLayout::eTransferSrcOptimal, dst.image.image, vk::ImageLayout::eTransferDstOptimal, ib, filter);
-
-	// std::swap(barriers[0].srcAccessMask, barriers[0].dstAccessMask);
-	// std::swap(barriers[0].srcStageMask, barriers[0].dstStageMask);
-	// std::swap(barriers[1].srcAccessMask, barriers[1].dstAccessMask);
-	// std::swap(barriers[1].srcStageMask, barriers[1].dstStageMask);
-
-	// barriers[0].oldLayout = barriers[0].newLayout;
-	// barriers[0].newLayout = get_post_layout(src);
-	// barriers[1].oldLayout = barriers[1].newLayout;
-	// barriers[1].newLayout = get_post_layout(dst);
-
-	// ImageBarrier::transition(cb, barriers);
 }
 
 void Queue::make(Queue& out, vk::Device device, std::uint32_t family, std::uint32_t index) {

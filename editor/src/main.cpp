@@ -1,4 +1,5 @@
 #include <imgui.h>
+#include <gltf_import_wizard.hpp>
 #include <levk/asset/asset_list_loader.hpp>
 #include <levk/graphics/shader.hpp>
 #include <levk/graphics/texture.hpp>
@@ -153,6 +154,7 @@ struct Editor : Runtime {
 	imcpp::AssetInspector asset_inspector{};
 	imcpp::EngineStatus engine_status{};
 	imcpp::LogDisplay log_display{};
+	std::optional<imcpp::GltfImportWizard> gltf_import_wizard{};
 
 	struct {
 		Ptr<ui::View> view{};
@@ -200,7 +202,11 @@ struct Editor : Runtime {
 		if (!load_request && !frame.state.drops.empty()) {
 			for (auto const& drop : frame.state.drops) {
 				auto path = fs::path{drop};
-				if (path.extension() == ".json") {
+				auto const extension = path.extension();
+				if (extension == ".gltf") {
+					gltf_import_wizard.emplace(drop.c_str(), std::string{m_context.data_source().mount_point()});
+					break;
+				} else if (extension == ".json") {
 					if (auto uri = m_context.data_source().trim_to_uri(drop)) {
 						auto const asset_type = m_context.asset_providers.get().asset_type(uri);
 						if (asset_type == "mesh") {
@@ -211,6 +217,20 @@ struct Editor : Runtime {
 					}
 					break;
 				}
+			}
+		}
+
+		if (gltf_import_wizard) {
+			auto result = gltf_import_wizard->update();
+			if (result.inactive) {
+				gltf_import_wizard.reset();
+			} else if (result && result.should_load) {
+				if (result.scene) {
+					load_request = LoadRequest::make(&context().asset_providers.get(), std::move(result.scene));
+				} else if (result.mesh) {
+					load_request = LoadRequest::make(&context().asset_providers.get(), std::move(result.mesh));
+				}
+				gltf_import_wizard.reset();
 			}
 		}
 

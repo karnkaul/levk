@@ -11,6 +11,8 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL Clang OR CMAKE_CXX_COMPILER_ID STREQUAL GNU)
 endif()
 
 target_sources(levk-editor PRIVATE
+  src/gltf_import_wizard.cpp
+  src/gltf_import_wizard.hpp
   src/main_menu.cpp
   src/main_menu.hpp
   src/main.cpp

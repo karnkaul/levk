@@ -3,7 +3,6 @@ target_sources(${PROJECT_NAME} PRIVATE
   buffer_vec.hpp
   common.cpp
   common.hpp
-  descriptor_set.hpp
   device.cpp
   device.hpp
   framebuffer.cpp

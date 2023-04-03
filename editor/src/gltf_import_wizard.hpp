@@ -1,5 +1,5 @@
 #pragma once
-#include <levk/asset/gltf_importer.hpp>
+#include <legsmi/legsmi.hpp>
 #include <levk/imcpp/common.hpp>
 #include <levk/imcpp/input_text.hpp>
 
@@ -14,7 +14,7 @@ class GltfImportWizard {
 
 	struct Result {
 		Uri<Scene> scene{};
-		std::optional<std::variant<Uri<StaticMesh>, Uri<SkinnedMesh>>> mesh{};
+		Uri<Mesh> mesh{};
 		bool should_load{};
 		bool inactive{};
 
@@ -32,7 +32,7 @@ class GltfImportWizard {
 		std::string gltf_path{};
 		std::string gltf_filename{};
 		std::string root_path{};
-		asset::GltfImporter::List asset_list{};
+		legsmi::AssetList asset_list{};
 		bool allow_scene{};
 	};
 
@@ -45,7 +45,7 @@ class GltfImportWizard {
 	struct MeshPage {
 		struct Entry {
 			std::string display_name{};
-			asset::GltfMesh mesh{};
+			legsmi::Mesh mesh{};
 			InputText<256> export_uri{};
 		};
 
@@ -54,13 +54,13 @@ class GltfImportWizard {
 
 		void setup(Shared const& shared);
 		void update(Shared& out);
-		std::variant<Uri<StaticMesh>, Uri<SkinnedMesh>> import_mesh(Shared& out);
+		Uri<Mesh> import_mesh(Shared& out);
 	};
 
 	struct ScenePage {
 		struct Entry {
 			std::string display_name{};
-			asset::GltfScene scene{};
+			legsmi::Scene scene{};
 		};
 
 		std::vector<Entry> entries{};
