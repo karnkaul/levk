@@ -50,7 +50,7 @@ https://user-images.githubusercontent.com/16272243/212808493-0ccdd6b3-f409-4cfb-
 LittleEngineVk (`levk::lib`) is a library intended to be built from source and linked statically, it currently does not support any installation / packaging. 
 Link to `levk` via CMake: `target_link_libraries(foo PRIVATE levk::lib)`.
 
-### Building `levk-demo`
+### Building `levk-editor`
 
 - Clone this repository somewhere.
 - Use CMake and a generator of your choice to configure an out-of-source build (`build` and `out` are ignored in git).

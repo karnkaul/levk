@@ -13,7 +13,7 @@ Runtime::ReturnCode Runtime::run() {
 			auto frame = m_context.next_frame();
 			tick(frame);
 			m_context.active_scene().tick(frame.state, frame.dt);
-			m_context.render();
+			render();
 		}
 	} catch (Error const& e) {
 		logger::error("Runtime error: {}", e.what());
@@ -27,4 +27,6 @@ Runtime::ReturnCode Runtime::run() {
 	}
 	return EXIT_SUCCESS;
 }
+
+void Runtime::render() const { m_context.render(); }
 } // namespace levk

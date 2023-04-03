@@ -21,6 +21,7 @@ class Runtime {
 	Runtime(NotNull<std::unique_ptr<DataSource>> data_source, Engine::CreateInfo const& create_info = {});
 
 	virtual void tick(Frame const& frame) = 0;
+	virtual void render() const;
 
 	virtual void setup() {}
 

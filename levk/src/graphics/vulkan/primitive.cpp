@@ -120,8 +120,6 @@ struct GeometryUploader {
 
 auto UploadedPrimitive::make_static(DeviceView const& device, Geometry::Packed const& geometry) -> UploadedPrimitive {
 	auto ret = UploadedPrimitive{};
-	ret.instance_mats = BufferVec<glm::mat4>::make(device, vk::BufferUsageFlagBits::eVertexBuffer);
-	assert(ret.instance_mats);
 	ret.m_vibo = DeviceBuffer::make(device, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer);
 	auto uploader = GeometryUploader{device.vma};
 	auto cmd = AdHocCmd{device};
@@ -132,8 +130,6 @@ auto UploadedPrimitive::make_static(DeviceView const& device, Geometry::Packed c
 auto UploadedPrimitive::make_skinned(DeviceView const& device, Geometry::Packed const& geometry, MeshJoints const& joints) -> UploadedPrimitive {
 	assert(!joints.joints.empty());
 	auto ret = UploadedPrimitive{};
-	ret.instance_mats = BufferVec<glm::mat4>::make(device, vk::BufferUsageFlagBits::eVertexBuffer);
-	ret.joint_mats = BufferVec<glm::mat4>::make(device, vk::BufferUsageFlagBits::eStorageBuffer);
 	ret.m_vibo = DeviceBuffer::make(device, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer);
 	ret.m_jwbo = DeviceBuffer::make(device, vk::BufferUsageFlagBits::eVertexBuffer);
 	auto uploader = GeometryUploader{device.vma};
@@ -145,7 +141,6 @@ auto UploadedPrimitive::make_skinned(DeviceView const& device, Geometry::Packed 
 
 HostPrimitive::HostPrimitive(DeviceView const& device)
 	: m_vibo(HostBuffer::make(device, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer)), m_device(device) {
-	instance_mats = BufferVec<glm::mat4>::make(device, vk::BufferUsageFlagBits::eVertexBuffer);
 	m_layout.vertex_input = instanced_vertex_input();
 	m_layout.instance_binding = GeometryUploader::Bindings::instance_v;
 }

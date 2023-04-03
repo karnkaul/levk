@@ -5,6 +5,7 @@
 #include <levk/graphics/texture_sampler.hpp>
 #include <levk/uri.hpp>
 #include <levk/util/defer_queue.hpp>
+#include <levk/util/enumerate.hpp>
 #include <levk/util/flex_array.hpp>
 #include <levk/util/ptr.hpp>
 #include <levk/util/unique.hpp>
@@ -273,23 +274,42 @@ struct CommandAllocator {
 	}
 };
 
-struct SetAllocator {
-	static vk::UniqueDescriptorPool make_descriptor_pool(vk::Device device, std::uint32_t max_sets = 32);
+template <typename Key, typename Value>
+struct MappedPool {
+	struct Page {
+		std::vector<Value> values{};
+		std::size_t next_free{};
+	};
 
-	static SetAllocator make(vk::Device device) {
-		auto ret = SetAllocator{};
-		ret.device = device;
-		ret.pools.push_back(make_descriptor_pool(device));
+	Value& next(Key const& key) {
+		auto& page = pages[key];
+		if (page.next_free < page.values.size()) { return page.values[page.next_free++]; }
+		auto& ret = page.values.emplace_back();
+		++page.next_free;
 		return ret;
 	}
 
+	void reset_all() {
+		for (auto& [_, page] : pages) { page.next_free = {}; }
+	}
+
+	std::unordered_map<Key, Page> pages{};
+};
+
+struct SetAllocator {
+	static vk::UniqueDescriptorPool make_descriptor_pool(vk::Device device, std::uint32_t max_sets = 32);
+
+	static SetAllocator make(vk::Device device) { return {.device = device}; }
+
 	vk::Device device{};
-	std::vector<vk::UniqueDescriptorPool> pools{};
+	MappedPool<vk::DescriptorSetLayout, vk::UniqueDescriptorPool> pools{};
 
 	vk::DescriptorSet allocate(vk::DescriptorSetLayout layout);
 	void reset_all();
 
 	vk::DescriptorSet try_allocate(vk::DescriptorSetLayout layout);
+	vk::DescriptorPool get_free_pool(vk::DescriptorSetLayout layout);
+	vk::DescriptorSet try_allocate(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) const;
 };
 
 struct VertexInput {
@@ -427,6 +447,8 @@ struct DeviceBuffer {
 };
 
 struct HostBuffer {
+	struct Pool;
+
 	std::vector<std::byte> bytes{};
 	Defer<Buffered<UniqueBuffer>> buffers{};
 	vk::BufferUsageFlags usage{};
@@ -439,4 +461,41 @@ struct HostBuffer {
 
 	BufferView view();
 };
+
+struct HostBuffer::Pool {
+	DeviceView device{};
+	MappedPool<vk::BufferUsageFlags, HostBuffer> pages{};
+
+	static Pool make(DeviceView const& device) {
+		auto ret = Pool{};
+		ret.device = device;
+		return ret;
+	}
+
+	HostBuffer& next(vk::BufferUsageFlags usage) {
+		auto& ret = pages.next(usage);
+		if (!ret.buffers.get()[0]) { ret = HostBuffer::make(device, usage); }
+		return ret;
+	}
+
+	void reset_all() { pages.reset_all(); }
+};
+
+template <typename Type, typename BufferT, typename Func>
+BufferView write_array(std::size_t size, BufferT& out_buffer, Func for_each_element) {
+	assert(size > 0);
+	auto single = Type{};
+	auto span = std::span<Type const>{};
+	auto vec = std::vector<Type>{};
+	if (size > 1) {
+		vec.resize(size);
+		for (auto [t, index] : enumerate(vec)) { for_each_element(t, index); }
+		span = vec;
+	} else {
+		for_each_element(single, 0u);
+		span = {&single, 1u};
+	}
+	out_buffer.write(span.data(), span.size_bytes(), span.size());
+	return out_buffer.view();
+}
 } // namespace levk::vulkan

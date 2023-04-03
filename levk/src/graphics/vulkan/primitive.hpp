@@ -1,6 +1,6 @@
 #pragma once
 #include <glm/mat4x4.hpp>
-#include <graphics/vulkan/buffer_vec.hpp>
+#include <graphics/vulkan/common.hpp>
 #include <levk/graphics/primitive.hpp>
 
 namespace levk::vulkan {
@@ -39,9 +39,6 @@ struct Primitive {
 	}
 
 	virtual void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) = 0;
-
-	BufferVec<glm::mat4> joint_mats{};
-	BufferVec<glm::mat4> instance_mats{};
 
   protected:
 	GeometryLayout m_layout{};

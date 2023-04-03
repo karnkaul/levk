@@ -1,6 +1,5 @@
 target_sources(${PROJECT_NAME} PRIVATE
   ad_hoc_cmd.hpp
-  buffer_vec.hpp
   common.cpp
   common.hpp
   device.cpp

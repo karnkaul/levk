@@ -686,6 +686,8 @@ struct Device::Impl {
 	Buffered<SetAllocator> set_allocators{};
 	Buffered<ScratchBufferAllocator> scratch_buffer_allocators{};
 
+	Buffered<HostBuffer::Pool> buffer_pools{};
+
 	Buffered<RenderCb> render_cbs{};
 	RenderCamera camera_3d{};
 	RenderCamera camera_ui{};
@@ -729,22 +731,23 @@ void Device::Drawer::draw(Drawable const& drawable) {
 			write_per_mat_sets(shader);
 			previous_material = material;
 		}
-		if (primitive->instance_mats) {
-			assert(primitive->layout().instance_binding);
+		if (primitive->layout().instance_binding) {
 			auto instances = drawable.instances;
 			if (instances.empty()) {
 				static auto const default_instance{Transform{}};
 				instances = {&default_instance, 1};
 			}
+			auto& instance_buffer = device.impl->buffer_pools[device.buffered_index].next(vk::BufferUsageFlagBits::eVertexBuffer);
 			auto const write_instances = [&](glm::mat4& out, std::size_t i) { out = drawable.parent * instances[i].matrix(); };
-			auto const instance_buffer = primitive->instance_mats.write(instances.size(), write_instances);
-			cb.bindVertexBuffers(*primitive->layout().instance_binding, instance_buffer.buffer, vk::DeviceSize{0});
+			write_array<glm::mat4>(instances.size(), instance_buffer, write_instances);
+			cb.bindVertexBuffers(*primitive->layout().instance_binding, instance_buffer.view().buffer, vk::DeviceSize{0});
 		}
-		if (primitive->joint_mats) {
-			assert(primitive->layout().joints_binding && primitive->layout().joints > 0);
+		if (primitive->layout().joints_binding) {
+			assert(primitive->layout().joints > 0);
+			auto& joints_buffer = device.impl->buffer_pools[device.buffered_index].next(vk::BufferUsageFlagBits::eStorageBuffer);
 			auto const write_joints = [&](glm::mat4& out, std::size_t index) { out = drawable.joints[index] * drawable.inverse_bind_matrices[index]; };
-			auto const joints_buffer = primitive->joint_mats.write(drawable.joints.size(), write_joints);
-			shader.update(*primitive->layout().joints_set, 0, joints_buffer);
+			write_array<glm::mat4>(drawable.joints.size(), joints_buffer, write_joints);
+			shader.update(*primitive->layout().joints_set, 0, joints_buffer.view());
 		}
 		shader.bind(pipeline.layout, cb);
 		primitive->draw(cb);
@@ -806,6 +809,8 @@ Device::Device(Window const& window, RenderDeviceCreateInfo const& create_info) 
 	impl->dear_imgui = DearImGui::make(*glfw_window, view_, rtci.colour, {});
 	impl->dear_imgui.new_frame();
 
+	for (auto& buffer_pool : impl->buffer_pools) { buffer_pool = HostBuffer::Pool::make(view_); }
+
 	auto const flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer | vk::CommandPoolCreateFlagBits::eTransient;
 	impl->cmd_allocator = CommandAllocator::make(*device, gpu.queue_family, flags);
 	for (auto& cb : impl->render_cbs) {
@@ -859,6 +864,7 @@ bool Device::render(RenderDevice::Frame const& frame) {
 	draw_calls = {};
 	impl->scratch_buffer_allocators[buffered_index].clear();
 	impl->set_allocators[buffered_index].reset_all();
+	impl->buffer_pools[buffered_index].reset_all();
 
 	if constexpr (debug_v) {
 		static constexpr auto warn_size_v{2048};

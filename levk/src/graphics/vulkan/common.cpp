@@ -308,22 +308,31 @@ vk::UniqueDescriptorPool SetAllocator::make_descriptor_pool(vk::Device device, s
 }
 
 vk::DescriptorSet SetAllocator::allocate(vk::DescriptorSetLayout layout) {
-	auto ret = try_allocate(layout);
-	if (!ret) {
-		pools.push_back(make_descriptor_pool(device));
-		ret = try_allocate(layout);
+	auto ret = vk::DescriptorSet{};
+	for (int loops{}; loops < 128 && !ret; ++loops) {
+		auto pool = get_free_pool(layout);
+		if (!pool) { throw Error{"Failed to allocate descriptor pool"}; }
+		ret = try_allocate(pool, layout);
 	}
 	if (!ret) { throw Error{"Failed to allocate descriptor set"}; }
 	return ret;
 }
 
 void SetAllocator::reset_all() {
-	for (auto& pool : pools) { device.resetDescriptorPool(*pool); }
+	for (auto& [_, page] : pools.pages) {
+		for (auto& pool : page.values) { device.resetDescriptorPool(*pool); }
+		page.next_free = {};
+	}
 }
 
-vk::DescriptorSet SetAllocator::try_allocate(vk::DescriptorSetLayout layout) {
-	auto& pool = pools.back();
-	auto dsai = vk::DescriptorSetAllocateInfo{*pool, layout};
+vk::DescriptorPool SetAllocator::get_free_pool(vk::DescriptorSetLayout layout) {
+	auto& ret = pools.next(layout);
+	if (!ret) { ret = make_descriptor_pool(device); }
+	return *ret;
+}
+
+vk::DescriptorSet SetAllocator::try_allocate(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) const {
+	auto dsai = vk::DescriptorSetAllocateInfo{pool, layout};
 	dsai.descriptorSetCount = 1u;
 	auto ret = vk::DescriptorSet{};
 	if (device.allocateDescriptorSets(&dsai, &ret) != vk::Result::eSuccess) { return {}; }
