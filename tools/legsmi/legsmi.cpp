@@ -3,6 +3,7 @@
 #include <levk/io/serializer.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/service.hpp>
+#include <levk/util/logger.hpp>
 #include <charconv>
 #include <concepts>
 #include <cstdio>
@@ -14,30 +15,32 @@ namespace fs = std::filesystem;
 namespace legsmi {
 namespace {
 
-constexpr std::string_view usage_v{R"(Usage: 
-  legsmi [--data-root=/path/] [--verbose] mesh [--dest-dir=uri/] <path.gltf> <asset_index>
-  legsmi [--data-root=/path/] [--verbose] scene [--dest-dir=uri/] [--scene-uri=uri] <path.gltf> <asset_index>
+constexpr std::string_view usage_v{R"(Usage:
+  legsmi <mesh|scene> [--data-root=/path/] [--verbose] [--dest-dir=uri/] <path.gltf> [asset_indices...]
   legsmi list <path.gltf>
 )"};
 
+enum class Command { eMesh, eScene, eList };
+
 struct Args {
-	enum class Type { eMesh, eScene, eList };
 
 	struct Parser;
 
 	fs::path data_root{};
-	Type type{};
+	Command command{};
 	fs::path dest_dir{};
-	fs::path scene_uri{};
 	fs::path gltf{};
-	std::size_t asset_index{};
+	std::vector<std::size_t> asset_indices{};
 	bool verbose{};
 };
 
 struct Args::Parser {
+	enum class Result { eUnused, eUsed, eError };
+
 	std::span<char const* const> args;
 	Args& out;
 
+	bool at_end() const { return args.empty(); }
 	std::string_view peek() const { return args.empty() ? std::string_view{} : args.front(); }
 
 	std::string_view advance() {
@@ -47,12 +50,18 @@ struct Args::Parser {
 		return ret;
 	}
 
-	bool get_value(std::string_view key, levk::Ptr<std::string_view> out_value = {}) const {
+	static bool unrecognized(std::string_view type, std::string_view arg) {
+		std::fprintf(stderr, "%s", fmt::format("Unrecognized {}: {}\n", type, arg).c_str());
+		return false;
+	}
+
+	bool get_value(std::string_view key, levk::Ptr<std::string_view> out_value = {}) {
 		auto arg = peek();
 		if (arg.starts_with(key)) {
 			arg = arg.substr(key.size());
 			if (arg.empty() || arg.front() != '=') { return false; }
 			if (out_value) { *out_value = arg.substr(1); }
+			advance();
 			return true;
 		}
 		return false;
@@ -62,26 +71,26 @@ struct Args::Parser {
 		auto value = std::string_view{};
 		if (get_value("--data-root", &value)) {
 			out.data_root = value;
-			advance();
 			return true;
 		}
 		return false;
 	}
 
-	bool parse_type() {
-		auto const type = advance();
-		if (type == "mesh") {
-			out.type = Type::eMesh;
+	bool parse_command() {
+		auto const arg = advance();
+		if (arg == "mesh") {
+			out.command = Command::eMesh;
 			return true;
 		}
-		if (type == "scene") {
-			out.type = Type::eScene;
+		if (arg == "scene") {
+			out.command = Command::eScene;
 			return true;
 		}
-		if (type == "list") {
-			out.type = Type::eList;
+		if (arg == "list") {
+			out.command = Command::eList;
 			return true;
 		}
+		unrecognized("command", arg);
 		return false;
 	}
 
@@ -89,16 +98,6 @@ struct Args::Parser {
 		auto value = std::string_view{};
 		if (get_value("--dest-dir", &value)) {
 			out.dest_dir = value;
-			advance();
-			return true;
-		}
-		return false;
-	}
-
-	bool try_parse_scene_uri() {
-		auto value = std::string_view{};
-		if (get_value("--scene-uri", &value)) {
-			out.scene_uri = value;
 			advance();
 			return true;
 		}
@@ -114,32 +113,49 @@ struct Args::Parser {
 		return false;
 	}
 
-	bool parse_option() {
-		if (try_parse_data_root()) { return true; }
-		if (try_parse_verbose()) { return true; }
-		return false;
+	Result parse_option() {
+		if (try_parse_dest_dir()) { return Result::eUsed; }
+		if (try_parse_data_root()) { return Result::eUsed; }
+		if (try_parse_verbose()) { return Result::eUsed; }
+		return Result::eUnused;
 	}
 
-	bool parse_asset_option() {
-		if (try_parse_dest_dir()) { return true; }
-		if (out.type == Type::eScene && try_parse_scene_uri()) { return true; }
-		return false;
+	bool try_parse_asset_index() {
+		auto const value = peek();
+		auto& asset_index = out.asset_indices.emplace_back();
+		auto [_, ec] = std::from_chars(value.data(), value.data() + value.size(), asset_index);
+		if (ec != std::errc{}) {
+			std::fprintf(stderr, "%s", fmt::format("Invalid value for [index]: {}\n", value).c_str());
+			return false;
+		}
+		advance();
+		return true;
 	}
 
 	bool parse(std::span<char const* const> const in) {
 		args = in;
+		if (!parse_command()) { return false; }
 		while (peek().starts_with("--")) {
-			if (!parse_option()) { return false; }
-		}
-		if (!parse_type()) { return false; }
-		while (peek().starts_with("--")) {
-			if (!parse_asset_option()) { return false; }
+			switch (parse_option()) {
+			default:
+			case Result::eError: return false;
+			case Result::eUsed: break;
+			case Result::eUnused: {
+				unrecognized("option", peek());
+				return false;
+			}
+			}
 		}
 		out.gltf = advance();
-		if (out.type == Type::eList) { return peek().empty(); }
-		auto const current = peek();
-		auto [_, ec] = std::from_chars(current.data(), current.data() + current.size(), out.asset_index);
-		if (ec != std::errc{}) { return false; }
+		if (out.gltf.empty()) {
+			std::fprintf(stderr, "%s", fmt::format("Missing required argument: gltf-path\n").c_str());
+			return false;
+		}
+		while (!at_end()) {
+			if (!try_parse_asset_index()) { return false; }
+		}
+		if (out.command == Command::eList) { return peek().empty(); }
+		if (out.asset_indices.empty()) { out.asset_indices.push_back(0u); }
 		return true;
 	}
 };
@@ -232,7 +248,7 @@ struct App {
 			std::fprintf(stderr, "%s", fmt::format("Invalid data root: {}\n", args.data_root.generic_string()).c_str());
 			return false;
 		}
-		if (args.type != Args::Type::eList && !fs::is_directory(args.data_root) && !fs::create_directories(args.data_root)) {
+		if (args.command != Command::eList && !fs::is_directory(args.data_root) && !fs::create_directories(args.data_root)) {
 			std::fprintf(stderr, "%s", fmt::format("Failed to locate/create data root: {}\n", args.gltf.generic_string()).c_str());
 			return false;
 		}
@@ -253,13 +269,11 @@ struct App {
 			args.dest_dir = args.gltf.stem();
 			assert(!args.dest_dir.empty());
 		}
-		if (args.scene_uri.empty()) { args.scene_uri = args.dest_dir / args.dest_dir; }
-		if (args.scene_uri.extension().empty()) { args.scene_uri += ".scene.json"; }
 
-		switch (args.type) {
-		case Args::Type::eList: list_assets(); return true;
-		case Args::Type::eMesh: return import_mesh();
-		case Args::Type::eScene: return import_scene();
+		switch (args.command) {
+		case Command::eList: list_assets(); return true;
+		case Command::eMesh: return import_mesh();
+		case Command::eScene: return import_scene();
 		}
 
 		return true;
@@ -270,40 +284,45 @@ struct App {
 		list_scenes(import_list);
 		std::printf("\n");
 		list_meshes(import_list);
+		std::printf("\n");
 	}
 
 	bool import_mesh() {
-		auto make_importer = [this] { return import_list.asset_list.mesh_importer(args.data_root.generic_string(), std::move(gltf_filename), import_logger); };
-		return import_asset(std::span{import_list.asset_list.meshes}, "Mesh", make_importer);
+		for (auto const index : args.asset_indices) {
+			auto make_importer = [this] { return import_list.asset_list.mesh_importer(args.data_root.generic_string(), gltf_filename, import_logger); };
+			if (!import_asset(std::span{import_list.asset_list.meshes}, "Mesh", index, make_importer)) { return false; }
+		}
+		return true;
 	}
 
 	bool import_scene() {
-		auto make_importer = [this] {
-			return import_list.asset_list.scene_importer(args.data_root.generic_string(), args.dest_dir.generic_string(), args.scene_uri.generic_string(),
-														 import_logger);
-		};
-		return import_asset(std::span{import_list.asset_list.scenes}, "Scene", make_importer);
+		for (auto const index : args.asset_indices) {
+			auto scene_uri = args.dest_dir / args.dest_dir;
+			scene_uri += ".scene.json";
+
+			auto make_importer = [this, uri = scene_uri.generic_string()] {
+				return import_list.asset_list.scene_importer(args.data_root.generic_string(), args.dest_dir.generic_string(), std::move(uri), import_logger);
+			};
+
+			if (!import_asset(std::span{import_list.asset_list.scenes}, "Scene", index, make_importer)) { return false; }
+		}
+		return true;
 	}
 
 	template <typename T, typename F>
-	bool import_asset(std::span<T> assets, std::string_view type, F make_importer) {
-		auto* asset = find_by_index(assets, args.asset_index);
+	bool import_asset(std::span<T> assets, std::string_view type, std::size_t index, F make_importer) {
+		auto* asset = find_by_index(assets, index);
 		if (!asset) {
-			std::fprintf(stderr, "%s", fmt::format("Invalid {} index: {}\n", type, args.asset_index).c_str());
+			std::fprintf(stderr, "%s", fmt::format("Invalid {} index: {}\n", type, index).c_str());
 			return false;
 		}
 		auto importer = make_importer();
 		auto uri = importer.try_import(*asset);
 		if (!uri) {
-			std::fprintf(stderr, "%s", fmt::format("Failed to import {} [{}]\n", type, asset->index).c_str());
+			std::fprintf(stderr, "%s", fmt::format("Failed to import {} [{}]\n", type, index).c_str());
 			return false;
 		}
 		std::printf("%s", fmt::format("[{}] {} imported successfully\n", uri.value(), type).c_str());
-		return true;
-	}
-
-	bool to_do() {
-		std::printf("\n==TODO==\n");
 		return true;
 	}
 };
@@ -311,9 +330,11 @@ struct App {
 } // namespace legsmi
 
 int main(int argc, char** argv) {
+	levk::logger::g_format = "[{level}] {message}";
 	auto serializer = levk::Service<levk::Serializer>::Instance{};
 	serializer.get().bind<levk::LitMaterial>();
 	serializer.get().bind<levk::UnlitMaterial>();
+	serializer.get().bind<levk::SkinnedMaterial>();
 	serializer.get().bind<levk::MeshRenderer>();
 	if (!legsmi::App{}.run({argv + 1, static_cast<std::size_t>(argc - 1)})) { return EXIT_FAILURE; }
 }
