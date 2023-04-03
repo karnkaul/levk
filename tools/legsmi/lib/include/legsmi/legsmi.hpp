@@ -32,19 +32,14 @@ struct Scene {
 struct MeshImporter;
 struct SceneImporter;
 
-struct Defaults {
-	std::string dir_uri{};
-	std::string scene_uri{};
-};
-
 struct AssetList {
 	std::string gltf_path{};
 	std::vector<Mesh> meshes{};
 	std::vector<Scene> scenes{};
+	std::string default_dir_uri{};
 	bool has_skinned_mesh{};
-	Defaults defaults{};
 
-	Defaults make_defaults() const;
+	std::string make_default_scene_uri(std::size_t scene_index) const;
 
 	MeshImporter mesh_importer(std::string root_path, std::string dir_uri, LogDispatch import_logger = {}) const;
 	SceneImporter scene_importer(std::string root_path, std::string dir_uri, std::string scene_uri, LogDispatch import_logger = {}) const;

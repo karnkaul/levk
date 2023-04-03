@@ -68,7 +68,7 @@ void GltfImportWizard::MeshPage::setup(Shared const& shared) {
 		auto& entry = entries.emplace_back();
 		entry.mesh = mesh;
 		entry.display_name = fmt::format("[{}] {}", index, entry.mesh.name);
-		entry.export_uri.set(shared.asset_list.defaults.dir_uri);
+		entry.export_uri.set(shared.asset_list.default_dir_uri);
 	}
 }
 
@@ -104,13 +104,13 @@ Uri<Mesh> GltfImportWizard::MeshPage::import_mesh(Shared& out) {
 }
 
 void GltfImportWizard::ScenePage::setup(Shared const& shared) {
-	scene_uri.set(shared.asset_list.defaults.scene_uri);
 	assets_dir.set(fs::path{shared.gltf_path}.stem().string());
 	entries.clear();
 	for (auto const [scene, index] : enumerate(shared.asset_list.scenes)) {
 		auto& entry = entries.emplace_back();
 		entry.scene = scene;
 		entry.display_name = fmt::format("[{}] {}", index, entry.scene.name);
+		entry.export_uri.set(shared.asset_list.make_default_scene_uri(index));
 	}
 }
 
@@ -138,14 +138,14 @@ void GltfImportWizard::ScenePage::update(Shared& out) {
 	}
 	ImGui::Text("Scene URI");
 	ImGui::SetNextItemWidth(480.0f);
-	scene_uri("##Scene URI");
-	auto const file = fs::path{out.root_path} / scene_uri.view();
+	selected_entry.export_uri("##Scene URI");
+	auto const file = fs::path{out.root_path} / selected_entry.export_uri.view();
 	if (allow_import && fs::is_regular_file(file)) { ImGui::TextColored({0.8f, 0.8f, 0.1f, 1.0f}, "File exists"); }
 }
 
 Uri<Scene> GltfImportWizard::ScenePage::import_scene(Shared& out) {
 	auto scene = Scene{};
-	auto scene_importer = out.asset_list.scene_importer(out.root_path, std::string{assets_dir.view()}, std::string{scene_uri.view()});
+	auto scene_importer = out.asset_list.scene_importer(out.root_path, std::string{assets_dir.view()}, out.asset_list.make_default_scene_uri(selected));
 	return scene_importer.try_import(entries[selected].scene);
 }
 

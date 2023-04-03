@@ -61,12 +61,12 @@ class GltfImportWizard {
 		struct Entry {
 			std::string display_name{};
 			legsmi::Scene scene{};
+			InputText<256> export_uri{};
 		};
 
 		std::vector<Entry> entries{};
 		std::size_t selected{};
 		InputText<256> assets_dir{};
-		InputText<256> scene_uri{};
 
 		void setup(Shared const& shared);
 		void update(Shared& out);

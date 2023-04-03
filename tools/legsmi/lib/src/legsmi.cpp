@@ -528,14 +528,10 @@ void LogDispatch::print(logger::Level level, std::string message) const {
 	log_to(pipe, {std::move(message), level});
 }
 
-Defaults AssetList::make_defaults() const {
-	auto ret = Defaults{};
+std::string AssetList::make_default_scene_uri(std::size_t scene_index) const {
 	auto uri = fs::path{gltf_path}.stem();
-	ret.dir_uri = uri.generic_string() + "/";
 	uri = uri / uri.filename();
-	uri += ".scene.json";
-	ret.scene_uri = uri.generic_string();
-	return ret;
+	return fmt::format("{}.scene_{}.json", uri.generic_string(), scene_index);
 }
 
 MeshImporter AssetList::mesh_importer(std::string root_path, std::string dir_uri, LogDispatch import_logger) const {
@@ -570,25 +566,35 @@ SceneImporter AssetList::scene_importer(std::string root_path, std::string dir_u
 
 levk::Uri<asset::Mesh3D> MeshImporter::try_import(Mesh const& mesh) const {
 	auto const dst_dir = fs::path{uri_prefix} / dir_uri;
-	if (!fs::exists(dst_dir)) { fs::create_directories(dst_dir); }
-	return Exporter{import_logger, root, src_dir, uri_prefix, dir_uri}.export_mesh(make_resource(mesh.name, "mesh", mesh.index));
+	try {
+		if (!fs::exists(dst_dir)) { fs::create_directories(dst_dir); }
+		return Exporter{import_logger, root, src_dir, uri_prefix, dir_uri}.export_mesh(make_resource(mesh.name, "mesh", mesh.index));
+	} catch (std::exception const& e) {
+		import_logger.error("[legsmi] Fatal error: {}", e.what());
+		return {};
+	}
 }
 
 levk::Uri<levk::Scene> SceneImporter::try_import(Scene const& scene) const {
 	auto const export_path = fs::path{mesh_importer.uri_prefix} / mesh_importer.dir_uri;
-	if (fs::exists(export_path)) {
-		mesh_importer.import_logger.info("[legsmi] Deleting [{}]", mesh_importer.dir_uri);
-		fs::remove_all(export_path);
+	try {
+		if (fs::exists(export_path)) {
+			mesh_importer.import_logger.info("[legsmi] Deleting [{}]", mesh_importer.dir_uri);
+			fs::remove_all(export_path);
+		}
+
+		auto out_scene = levk::Scene{};
+		auto ret = SceneWalker{mesh_importer, asset_list, export_path.generic_string(), out_scene}(scene);
+		auto scene_path = fs::path{mesh_importer.uri_prefix} / scene_uri;
+		auto json = dj::Json{};
+		out_scene.serialize(json);
+		json.to_file(scene_path.string().c_str());
+
+		return scene_uri;
+	} catch (std::exception const& e) {
+		mesh_importer.import_logger.error("[legsmi] Fatal error: {}", e.what());
+		return {};
 	}
-
-	auto out_scene = levk::Scene{};
-	auto ret = SceneWalker{mesh_importer, asset_list, export_path.generic_string(), out_scene}(scene);
-	auto scene_path = fs::path{mesh_importer.uri_prefix} / scene_uri;
-	auto json = dj::Json{};
-	out_scene.serialize(json);
-	json.to_file(scene_path.string().c_str());
-
-	return scene_uri;
 }
 } // namespace legsmi
 
@@ -613,8 +619,9 @@ auto legsmi::peek_assets(std::string gltf_path, LogDispatch const& import_logger
 		return ret;
 	}
 	auto json = dj::Json::from_file(gltf_path.c_str());
+	auto uri = fs::path{gltf_path}.stem();
+	ret.default_dir_uri = uri.string() + "/";
 	ret.gltf_path = std::move(gltf_path);
-	ret.defaults = ret.make_defaults();
 	ret.meshes = make_gltf_mesh_list(json, ret.has_skinned_mesh);
 	ret.scenes = make_gltf_scene_list(json);
 	return ret;

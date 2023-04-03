@@ -216,7 +216,7 @@ struct App {
 		src_dir = args.gltf.parent_path();
 		if (args.data_root.empty()) { args.data_root = fs::current_path(); }
 		if (args.dest_dir.empty()) {
-			args.dest_dir = import_list.asset_list.defaults.dir_uri;
+			args.dest_dir = import_list.asset_list.default_dir_uri;
 			assert(!args.dest_dir.empty());
 		}
 
@@ -246,10 +246,10 @@ struct App {
 	}
 
 	bool import_scene() {
-		auto make_importer = [this, uri = import_list.asset_list.defaults.scene_uri] {
-			return import_list.asset_list.scene_importer(args.data_root.generic_string(), args.dest_dir.generic_string(), uri, import_logger);
-		};
 		for (auto const index : args.asset_indices) {
+			auto make_importer = [this, uri = import_list.asset_list.make_default_scene_uri(index)] {
+				return import_list.asset_list.scene_importer(args.data_root.generic_string(), args.dest_dir.generic_string(), uri, import_logger);
+			};
 			if (!import_asset(std::span{import_list.asset_list.scenes}, "Scene", index, make_importer)) { return false; }
 		}
 		return true;
@@ -268,7 +268,7 @@ struct App {
 			std::fprintf(stderr, "%s", fmt::format("Failed to import {} [{}]\n", type, index).c_str());
 			return false;
 		}
-		std::printf("%s", fmt::format("[{}] {} imported successfully\n", uri.value(), type).c_str());
+		std::printf("%s", fmt::format("[{}] {} imported successfully\n", (args.data_root / uri.value()).generic_string(), type).c_str());
 		return true;
 	}
 };
