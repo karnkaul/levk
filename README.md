@@ -6,7 +6,7 @@ This project is a revamp of the original [`LittleEngineVk`](https://github.com/k
 
 [![Build Status](https://github.com/karnkaul/levk/actions/workflows/ci.yml/badge.svg)](https://github.com/karnkaul/levk/actions/workflows/ci.yml)
 
-https://user-images.githubusercontent.com/16272243/212808493-0ccdd6b3-f409-4cfb-989d-74f3239eada1.mp4
+https://user-images.githubusercontent.com/16272243/229443455-b124a865-aa82-425b-bb46-3b2e3b815fe6.mp4
 
 ## Features
 
