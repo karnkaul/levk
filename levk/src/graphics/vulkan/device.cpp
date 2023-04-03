@@ -434,18 +434,18 @@ struct Swapchain {
 
 	std::optional<ImageView> acquire(glm::uvec2 extent, vk::Semaphore semaphore, vk::Fence fence = {}) {
 		assert(!storage.image_index);
-		return device.queue->with([&](vk::Queue) -> std::optional<ImageView> {
-			auto index = std::uint32_t{};
-			auto result = device.device.acquireNextImageKHR(*storage.swapchain, std::numeric_limits<std::uint64_t>::max(), semaphore, fence, &index);
-			switch (result) {
-			case vk::Result::eSuccess: storage.image_index = index; break;
-			case vk::Result::eSuboptimalKHR:
-			case vk::Result::eErrorOutOfDateKHR: refresh(extent); break;
-			default: break;
-			}
-			if (storage.image_index) { return storage.images[static_cast<std::size_t>(*storage.image_index)]; }
-			return {};
+		auto index = std::uint32_t{};
+		auto const result = device.queue->with([&](vk::Queue) {
+			return device.device.acquireNextImageKHR(*storage.swapchain, std::numeric_limits<std::uint64_t>::max(), semaphore, fence, &index);
 		});
+		switch (result) {
+		case vk::Result::eSuccess: storage.image_index = index; break;
+		case vk::Result::eSuboptimalKHR:
+		case vk::Result::eErrorOutOfDateKHR: refresh(extent); break;
+		default: break;
+		}
+		if (storage.image_index) { return storage.images[static_cast<std::size_t>(*storage.image_index)]; }
+		return {};
 	}
 
 	bool present(glm::uvec2 extent, vk::Semaphore wait) {
