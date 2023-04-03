@@ -4,7 +4,7 @@ set(util_headers
   include/levk/util/binary_file.hpp
   include/levk/util/bit_flags.hpp
   include/levk/util/bool.hpp
-  include/levk/util/cli_opts.hpp
+  include/levk/util/cli_args.hpp
   include/levk/util/contiguous_storage.hpp
   include/levk/util/defer_queue.hpp
   include/levk/util/dyn_array.hpp
