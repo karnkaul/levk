@@ -56,9 +56,9 @@ struct Args::Parser : cli_args::Parser {
 		case 'v': args.verbose = true; return true;
 		}
 
-		if (key.full == "data_root") {
+		if (key.full == "data-root") {
 			args.data_root = value;
-		} else if (key.full == "dest_dir") {
+		} else if (key.full == "dest-dir") {
 			args.dest_dir = value;
 		} else {
 			return false;
@@ -75,13 +75,11 @@ struct Args::Parser : cli_args::Parser {
 		args.gltf = in[0];
 		for (in = in.subspan(1); !in.empty(); in = in.subspan(1)) {
 			auto const arg = std::string_view{in.front()};
-			auto asset_index = std::size_t{};
-			auto [ptr, ec] = std::from_chars(arg.data(), arg.data() + arg.size(), asset_index);
-			if (ec != std::errc{} || ptr != arg.data() + arg.size()) {
+			auto& asset_index = args.asset_indices.emplace_back();
+			if (!cli_args::as(asset_index, arg)) {
 				std::fprintf(stderr, "%s", fmt::format("invalid index, must be integral: {}\n", arg).c_str());
 				return false;
 			}
-			args.asset_indices.push_back(asset_index);
 		}
 		if (args.asset_indices.empty()) { args.asset_indices.push_back(0u); }
 		return true;
@@ -151,7 +149,6 @@ struct Menu {};
 struct App {
 	Args args{};
 	fs::path src_dir{};
-	std::string gltf_filename{};
 	ImportList import_list{};
 
 	bool can_import_scene() const { return !import_list.asset_list.has_skinned_mesh; }
@@ -194,10 +191,6 @@ struct App {
 			args.command = Command::eList;
 		}
 
-		// if (!Args::Parser{in, args}.parse(in)) {
-		// 	print_usage(true);
-		// 	return false;
-		// }
 		if (!fs::is_regular_file(args.gltf)) {
 			std::fprintf(stderr, "%s", fmt::format("Invalid file path: {}\n", args.gltf.generic_string()).c_str());
 			return false;
@@ -206,7 +199,7 @@ struct App {
 			std::fprintf(stderr, "%s", fmt::format("Invalid data root: {}\n", args.data_root.generic_string()).c_str());
 			return false;
 		}
-		if (args.command != Command::eList && !fs::is_directory(args.data_root) && !fs::create_directories(args.data_root)) {
+		if (!args.data_root.empty() && args.command != Command::eList && !fs::is_directory(args.data_root) && !fs::create_directories(args.data_root)) {
 			std::fprintf(stderr, "%s", fmt::format("Failed to locate/create data root: {}\n", args.gltf.generic_string()).c_str());
 			return false;
 		}
@@ -221,10 +214,9 @@ struct App {
 			for (auto& level : import_logger.silenced) { level = true; }
 		}
 		src_dir = args.gltf.parent_path();
-		gltf_filename = args.gltf.stem().filename().string();
 		if (args.data_root.empty()) { args.data_root = fs::current_path(); }
 		if (args.dest_dir.empty()) {
-			args.dest_dir = args.gltf.stem();
+			args.dest_dir = import_list.asset_list.defaults.dir_uri;
 			assert(!args.dest_dir.empty());
 		}
 
@@ -246,22 +238,18 @@ struct App {
 	}
 
 	bool import_mesh() {
+		auto make_importer = [this] { return import_list.asset_list.mesh_importer(args.data_root.generic_string(), args.dest_dir, import_logger); };
 		for (auto const index : args.asset_indices) {
-			auto make_importer = [this] { return import_list.asset_list.mesh_importer(args.data_root.generic_string(), gltf_filename, import_logger); };
 			if (!import_asset(std::span{import_list.asset_list.meshes}, "Mesh", index, make_importer)) { return false; }
 		}
 		return true;
 	}
 
 	bool import_scene() {
+		auto make_importer = [this, uri = import_list.asset_list.defaults.scene_uri] {
+			return import_list.asset_list.scene_importer(args.data_root.generic_string(), args.dest_dir.generic_string(), uri, import_logger);
+		};
 		for (auto const index : args.asset_indices) {
-			auto scene_uri = args.dest_dir / args.dest_dir;
-			scene_uri += ".scene.json";
-
-			auto make_importer = [this, uri = scene_uri.generic_string()] {
-				return import_list.asset_list.scene_importer(args.data_root.generic_string(), args.dest_dir.generic_string(), std::move(uri), import_logger);
-			};
-
 			if (!import_asset(std::span{import_list.asset_list.scenes}, "Scene", index, make_importer)) { return false; }
 		}
 		return true;

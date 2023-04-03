@@ -1,10 +1,14 @@
 #pragma once
 #include <levk/util/ptr.hpp>
+#include <charconv>
 #include <span>
 #include <string>
 #include <vector>
 
 namespace levk::cli_args {
+template <typename Type>
+concept Number = std::integral<Type> || std::floating_point<Type>;
+
 ///
 /// \brief Result of parsing options.
 ///
@@ -123,4 +127,10 @@ Result parse(Spec spec, Ptr<Parser> out, std::span<char const* const> args);
 /// \param argv Pointer to first argument
 ///
 Result parse(std::string_view version, std::span<char const* const> argv);
+
+template <Number Type>
+bool as(Type& out, std::string_view const arg) {
+	auto [ptr, ec] = std::from_chars(arg.data(), arg.data() + arg.size(), out);
+	return ec == std::errc{} && ptr == arg.data() + arg.size();
+}
 } // namespace levk::cli_args

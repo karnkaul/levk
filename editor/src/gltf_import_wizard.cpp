@@ -63,15 +63,12 @@ void GltfImportWizard::TypePage::update(Shared& out) {
 }
 
 void GltfImportWizard::MeshPage::setup(Shared const& shared) {
-	auto const directory = fs::path{shared.gltf_path}.stem().string();
 	entries.clear();
 	for (auto const [mesh, index] : enumerate(shared.asset_list.meshes)) {
 		auto& entry = entries.emplace_back();
 		entry.mesh = mesh;
 		entry.display_name = fmt::format("[{}] {}", index, entry.mesh.name);
-		auto export_uri = entry.mesh.name;
-		if (!export_uri.empty()) { export_uri += "/"; }
-		entry.export_uri.set(fmt::format("{}/{}", directory, export_uri));
+		entry.export_uri.set(shared.asset_list.defaults.dir_uri);
 	}
 }
 
@@ -107,12 +104,8 @@ Uri<Mesh> GltfImportWizard::MeshPage::import_mesh(Shared& out) {
 }
 
 void GltfImportWizard::ScenePage::setup(Shared const& shared) {
-	auto dir = fs::path{shared.gltf_path}.stem();
-	assets_dir.set(dir.string());
-	auto file = dir / dir.filename();
-	file += ".scene.json";
-	scene_uri.set(file.generic_string());
-
+	scene_uri.set(shared.asset_list.defaults.scene_uri);
+	assets_dir.set(fs::path{shared.gltf_path}.stem().string());
 	entries.clear();
 	for (auto const [scene, index] : enumerate(shared.asset_list.scenes)) {
 		auto& entry = entries.emplace_back();
@@ -151,20 +144,9 @@ void GltfImportWizard::ScenePage::update(Shared& out) {
 }
 
 Uri<Scene> GltfImportWizard::ScenePage::import_scene(Shared& out) {
-	auto const export_path = fs::path{out.root_path} / assets_dir.view();
-	if (fs::exists(export_path)) {
-		logger::warn("[Import] Deleting [{}]", assets_dir.view());
-		fs::remove_all(export_path);
-	}
 	auto scene = Scene{};
-	auto mesh_importer = out.asset_list.mesh_importer(out.root_path, std::string{assets_dir.view()});
 	auto scene_importer = out.asset_list.scene_importer(out.root_path, std::string{assets_dir.view()}, std::string{scene_uri.view()});
-	auto ret = Walk{std::move(mesh_importer), std::move(scene_importer), assets_dir, out, scene}(entries[selected].scene);
-	auto scene_path = fs::path{out.root_path} / scene_uri.view();
-	auto json = dj::Json{};
-	scene.serialize(json);
-	json.to_file(scene_path.string().c_str());
-	return scene_uri.view();
+	return scene_importer.try_import(entries[selected].scene);
 }
 
 GltfImportWizard::GltfImportWizard(std::string gltf_path, std::string root) {

@@ -528,6 +528,16 @@ void LogDispatch::print(logger::Level level, std::string message) const {
 	log_to(pipe, {std::move(message), level});
 }
 
+Defaults AssetList::make_defaults() const {
+	auto ret = Defaults{};
+	auto uri = fs::path{gltf_path}.stem();
+	ret.dir_uri = uri.generic_string() + "/";
+	uri = uri / uri.filename();
+	uri += ".scene.json";
+	ret.scene_uri = uri.generic_string();
+	return ret;
+}
+
 MeshImporter AssetList::mesh_importer(std::string root_path, std::string dir_uri, LogDispatch import_logger) const {
 	auto ret = MeshImporter{std::move(import_logger)};
 	if (gltf_path.empty()) {
@@ -535,7 +545,7 @@ MeshImporter AssetList::mesh_importer(std::string root_path, std::string dir_uri
 		return ret;
 	}
 	if (root_path.empty()) {
-		ret.import_logger.error("[legsmi] Empty URI prefix");
+		ret.import_logger.error("[legsmi] Empty root path / prefix");
 		return ret;
 	}
 	ret.root = gltf2cpp::parse(gltf_path.c_str());
@@ -603,8 +613,9 @@ auto legsmi::peek_assets(std::string gltf_path, LogDispatch const& import_logger
 		return ret;
 	}
 	auto json = dj::Json::from_file(gltf_path.c_str());
+	ret.gltf_path = std::move(gltf_path);
+	ret.defaults = ret.make_defaults();
 	ret.meshes = make_gltf_mesh_list(json, ret.has_skinned_mesh);
 	ret.scenes = make_gltf_scene_list(json);
-	ret.gltf_path = std::move(gltf_path);
 	return ret;
 }

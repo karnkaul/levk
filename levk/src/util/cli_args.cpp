@@ -95,7 +95,10 @@ struct OptParser {
 	cli_args::Result opt(cli_args::Key key, cli_args::Value value) const {
 		if (key.full == "help") { return print_help(); }
 		if (key.full == "version") { return print_version(); }
-		if (out && !out->option(key, value)) { return Result::eExitFailure; }
+		if (out && !out->option(key, value)) {
+			std::fprintf(stderr, "%s", fmt::format("failed to parse option: {}\n", key.full).c_str());
+			return Result::eExitFailure;
+		}
 		return Result::eContinue;
 	}
 };
