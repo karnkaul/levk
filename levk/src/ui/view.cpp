@@ -25,6 +25,13 @@ Ptr<View> View::add_sub_view(std::unique_ptr<View> view) {
 	return m_sub_views.emplace_back(std::move(view)).get();
 }
 
+bool View::contains(Ptr<View const> view) const {
+	for (auto const& sub_view : m_sub_views) {
+		if (sub_view.get() == view || sub_view->contains(view)) { return true; }
+	}
+	return false;
+}
+
 void View::tick(Input const& input, Time dt) {
 	if (is_destroyed()) { return; }
 	for (auto const& view : m_sub_views) { view->tick(input, dt); }

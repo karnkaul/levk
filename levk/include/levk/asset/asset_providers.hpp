@@ -1,8 +1,10 @@
 #pragma once
 #include <levk/asset/asset_list.hpp>
 #include <levk/asset/font_provider.hpp>
+#include <levk/asset/material_provider.hpp>
 #include <levk/asset/mesh_provider.hpp>
 #include <levk/asset/shader_provider.hpp>
+#include <levk/asset/skeleton_provider.hpp>
 #include <levk/asset/texture_provider.hpp>
 
 namespace levk {

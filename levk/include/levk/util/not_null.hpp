@@ -26,7 +26,7 @@ class NotNull {
 	template <std::convertible_to<Type> T>
 	constexpr NotNull(NotNull<T> const& rhs) : m_t(rhs.get()) {}
 
-	constexpr decltype(auto) get() const { return m_t; }
+	constexpr Type const& get() const { return m_t; }
 	constexpr operator Type() const { return get(); }
 
 	constexpr decltype(auto) operator*() const { return *get(); }

@@ -15,8 +15,8 @@ struct Mesh {
 
 struct StaticMesh : Mesh {
 	struct Primitive {
-		std::unique_ptr<levk::Primitive::Static> primitive{};
-		Uri<Material> material{};
+		StaticPrimitive primitive;
+		Uri<Material> material;
 	};
 
 	std::vector<Primitive> primitives{};
@@ -24,8 +24,8 @@ struct StaticMesh : Mesh {
 
 struct SkinnedMesh : Mesh {
 	struct Primitive {
-		std::unique_ptr<levk::Primitive::Skinned> primitive{};
-		Uri<Material> material{};
+		SkinnedPrimitive primitive;
+		Uri<Material> material;
 	};
 
 	std::vector<Primitive> primitives{};

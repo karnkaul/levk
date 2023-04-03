@@ -19,16 +19,17 @@ https://user-images.githubusercontent.com/16272243/212808493-0ccdd6b3-f409-4cfb-
   - [x] Decoupled skeletons (for reuse with mutiple meshes)
   - [x] Skeleton instances (active in a scene tree)
 - [x] JIT shader compilation (`glslc` required)
-  - [x] Shader (+ pipeline) hot reload
-  - [ ] Built-in / embedded shaders
+- [x] Asset providers
+  - [x] Hot reloading
 - [x] Instanced static mesh renderer
 - [x] Skinned mesh renderer
 - [x] Scene (in-game)
 - [x] Asset (de)serialization + hot reload
 - [x] Scene management
-- [ ] Fonts and text
-- [ ] Audio
+- [x] Fonts and text
+- [x] Dynamic rendering (no render passes)
 - [ ] In-game UI
+- [ ] Audio
 - [ ] AABB collisions
 - [ ] Advanced lighting
 - [ ] Deferred rendering
@@ -39,9 +40,9 @@ https://user-images.githubusercontent.com/16272243/212808493-0ccdd6b3-f409-4cfb-
 - C++20 compiler and stdlib
 - OS with desktop environment and Vulkan loader (`libvulkan1.so` / `vulkan1.dll`)
   - Windows 10
-  - Linux: X, Wayland (untested), Raspberry Pi OS (64 bit bullseye+)
+  - Linux: X, Wayland (untested)
   - Mac OSX: untested, will require MoltenVk
-- GPU supporting Vulkan 1.0+, its driver, and loader
+- GPU supporting Vulkan 1.3+, its driver, and loader
 - Vulkan SDK / `glslc` (for compiling glsl shaders to SPIR-V, and validation layers)
 
 ## Usage
@@ -70,6 +71,7 @@ Link to `levk` via CMake: `target_link_libraries(foo PRIVATE levk::lib)`.
 - [VulkanHPP](https://github.com/KhronosGroup/Vulkan-Hpp)
 - [Vulkan Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)
 - [SPIR-V Cross](https://github.com/KhronosGroup/SPIRV-Cross)
+- [Freetype](https://github.com/freetype/freetype)
 
 [Original repository](https://github.com/karnkaul/levk)
 

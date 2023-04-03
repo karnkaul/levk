@@ -75,7 +75,7 @@ constexpr auto enumerate(It first, It last) {
 ///
 template <typename Index = std::size_t, typename Container>
 constexpr auto enumerate(Container&& container) {
-	return enumerate(std::begin(container), std::end(container));
+	return enumerate<Index>(std::begin(container), std::end(container));
 }
 
 // tests

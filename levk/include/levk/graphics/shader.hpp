@@ -5,6 +5,7 @@
 
 namespace levk {
 class Texture;
+class ShaderBuffer;
 
 template <typename Type>
 concept BufferWriteT = (!std::is_pointer_v<Type>) && std::is_trivially_copyable_v<Type>;
@@ -13,6 +14,7 @@ struct Shader {
 	virtual ~Shader() = default;
 
 	virtual void update(std::uint32_t set, std::uint32_t binding, Texture const& texture) = 0;
+	virtual void update(std::uint32_t set, std::uint32_t binding, ShaderBuffer const& buffer) = 0;
 	virtual void write(std::uint32_t set, std::uint32_t binding, void const* data, std::size_t size) = 0;
 
 	template <BufferWriteT T>

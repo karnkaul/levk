@@ -11,6 +11,8 @@ class Text : public Primitive {
   public:
 	Text(NotNull<AsciiFont*> font);
 
+	static std::unique_ptr<Text> try_make(Uri<AsciiFont> const& uri);
+
 	void set_string(std::string string);
 	std::string_view get_string() const { return m_string; }
 

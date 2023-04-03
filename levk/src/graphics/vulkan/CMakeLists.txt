@@ -1,0 +1,23 @@
+target_sources(${PROJECT_NAME} PRIVATE
+  ad_hoc_cmd.hpp
+  buffer_vec.hpp
+  common.cpp
+  common.hpp
+  device.cpp
+  device.hpp
+  framebuffer.cpp
+  framebuffer.hpp
+  image_barrier.cpp
+  image_barrier.hpp
+  material.hpp
+  material.cpp
+  pipeline.cpp
+  pipeline.hpp
+  primitive.cpp
+  primitive.hpp
+  render_camera.cpp
+  render_camera.hpp
+  render_scene.cpp
+  render_scene.hpp
+  texture.hpp
+)

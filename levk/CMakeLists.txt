@@ -52,8 +52,10 @@ if(LEVK_PCH)
     <chrono>
     <filesystem>
     <functional>
+    <future>
     <memory>
     <mutex>
+    <optional>
     <span>
     <string>
     <unordered_map>

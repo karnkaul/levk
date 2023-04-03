@@ -3,6 +3,7 @@
 #include <levk/rect.hpp>
 #include <levk/uri.hpp>
 #include <levk/util/not_null.hpp>
+#include <vector>
 
 namespace levk {
 class TextureProvider;

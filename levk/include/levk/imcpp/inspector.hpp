@@ -1,6 +1,6 @@
 #pragma once
-#include <levk/entity.hpp>
 #include <levk/imcpp/common.hpp>
+#include <levk/scene/entity.hpp>
 
 namespace levk::imcpp {
 class Inspector {

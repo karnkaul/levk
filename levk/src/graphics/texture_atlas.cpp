@@ -1,4 +1,3 @@
-#include <levk/asset/material_provider.hpp>
 #include <levk/asset/texture_provider.hpp>
 #include <levk/graphics/render_device.hpp>
 #include <levk/graphics/texture_atlas.hpp>
@@ -26,7 +25,7 @@ Texture make_texture(RenderDevice& device, Extent2D extent) {
 	auto sampler = TextureSampler{};
 	sampler.wrap_s = sampler.wrap_t = TextureSampler::Wrap::eClampEdge;
 	sampler.min = sampler.mag = TextureSampler::Filter::eLinear;
-	return device.make_texture(image.view(), Texture::CreateInfo{.mip_mapped = false, .sampler = sampler});
+	return {device.vulkan_device(), image.view(), Texture::CreateInfo{.mip_mapped = false, .sampler = sampler}};
 }
 } // namespace
 

@@ -9,9 +9,9 @@ namespace fs = std::filesystem;
 TextureProvider::TextureProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source, NotNull<UriMonitor*> uri_monitor)
 	: GraphicsAssetProvider<Texture>(render_device, data_source, uri_monitor) {
 	static constexpr auto white_image_v = FixedPixelMap<1, 1>{{white_v}};
-	add("white", render_device->make_texture(white_image_v.view(), TextureCreateInfo{.name = "white", .mip_mapped = false}));
+	add("white", Texture{render_device->vulkan_device(), white_image_v.view(), TextureCreateInfo{.name = "white", .mip_mapped = false}});
 	static constexpr auto black_image_v = FixedPixelMap<1, 1>{{black_v}};
-	add("black", render_device->make_texture(black_image_v.view(), TextureCreateInfo{.name = "black", .mip_mapped = false}));
+	add("black", Texture{render_device->vulkan_device(), black_image_v.view(), TextureCreateInfo{.name = "black", .mip_mapped = false}});
 }
 
 Texture const& TextureProvider::get(Uri<Texture> const& uri, Uri<Texture> const& fallback) const {
@@ -47,7 +47,7 @@ TextureProvider::Payload TextureProvider::load_payload(Uri<Texture> const& uri) 
 		logger::error("[TextureProvider] Failed to create Image [{}]", image_uri);
 		return {};
 	}
-	ret.asset = render_device().make_texture(image, TextureCreateInfo{.colour_space = colour_space});
+	ret.asset.emplace(render_device().vulkan_device(), image, TextureCreateInfo{.colour_space = colour_space});
 	ret.dependencies = {uri, image_uri};
 	logger::info("[TextureProvider] Texture loaded [{}]", uri.value());
 	return ret;

@@ -1,5 +1,6 @@
 #include <levk/font/static_font_atlas.hpp>
 #include <levk/util/zip_ranges.hpp>
+#include <cmath>
 
 namespace levk {
 namespace {

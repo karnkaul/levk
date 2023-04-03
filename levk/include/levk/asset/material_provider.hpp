@@ -1,7 +1,7 @@
 #pragma once
 #include <levk/asset/asset_provider.hpp>
 #include <levk/graphics/material.hpp>
-#include <levk/serializer.hpp>
+#include <levk/io/serializer.hpp>
 
 namespace levk {
 class TextureProvider;

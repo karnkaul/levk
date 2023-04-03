@@ -1,6 +1,7 @@
 #include <levk/asset/asset_providers.hpp>
 #include <levk/asset/common.hpp>
-#include <levk/scene.hpp>
+#include <levk/scene/component.hpp>
+#include <levk/scene/scene.hpp>
 
 namespace levk {
 AssetProviders::AssetProviders(CreateInfo const& create_info) {
@@ -54,7 +55,8 @@ AssetList AssetProviders::build_asset_list(Uri<Scene> const& uri) const {
 		auto asset = asset::Material{};
 		auto json = data_source().read_json(material);
 		asset::from_json(json, asset);
-		ret.shaders.insert(asset.shader);
+		ret.shaders.insert(asset.vertex_shader);
+		ret.shaders.insert(asset.fragment_shader);
 		for (auto const& uri : asset.textures.uris) {
 			if (uri) { ret.textures.insert(uri); }
 		}
