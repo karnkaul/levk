@@ -113,9 +113,12 @@ struct LoadRequest {
 
 	explicit operator bool() const { return loader != nullptr; }
 
-	void post_load(SceneManager& scene_manager, AssetProviders const& asset_providers) {
+	Uri<Scene> post_load(SceneManager& scene_manager, AssetProviders const& asset_providers) {
+		auto ret = Uri<Scene>{};
 		auto const visitor = Visitor{
-			[&scene_manager](Uri<Scene> const& uri) { scene_manager.load(uri); },
+			[&scene_manager, &ret](Uri<Scene> const& uri) {
+				if (scene_manager.load(uri)) { ret = uri; }
+			},
 			[&scene_manager, &asset_providers](Uri<Mesh> const& uri) {
 				switch (asset_providers.mesh_type(uri)) {
 				case MeshType::eNone: break;
@@ -126,6 +129,7 @@ struct LoadRequest {
 		};
 		std::visit(visitor, to_load);
 		loader.reset();
+		return ret;
 	}
 };
 
@@ -143,6 +147,7 @@ struct Editor : Runtime {
 	FreeCam free_cam{};
 	LoadRequest load_request{};
 
+	Uri<Scene> scene_uri{"unnamed.scene.json"};
 	MainMenu main_menu{};
 	imcpp::SceneGraph scene_graph{};
 	imcpp::AssetInspector asset_inspector{};
@@ -157,8 +162,6 @@ struct Editor : Runtime {
 
 	void setup() override {
 		context().active_scene().camera.transform.set_position({0.0f, 0.0f, 5.0f});
-		// context().active_scene().load_into_tree(Uri<StaticMesh>{"Suzanne/Suzanne.mesh_0.json"});
-		// context().scene_manager.get().load("Lantern/Lantern.scene.json");
 
 		auto* font = m_context.asset_providers.get().ascii_font().load("fonts/Vera.ttf");
 		auto drawable = std::make_unique<TestDrawable>(m_context.engine.get().render_device());
@@ -173,7 +176,7 @@ struct Editor : Runtime {
 		free_cam.window = &context().window();
 
 		auto file_menu = [&] {
-			// if (ImGui::MenuItem("Save", nullptr, false, !context().active_scene().empty())) { save_scene(); }
+			if (ImGui::MenuItem("Save", nullptr, false, !context().active_scene().empty())) { save_scene(); }
 			ImGui::Separator();
 			if (ImGui::MenuItem("Exit")) { m_context.shutdown(); }
 		};
@@ -218,7 +221,7 @@ struct Editor : Runtime {
 				ImGui::ProgressBar(load_request.loader->progress());
 				bool ready = load_request.loader->ready();
 				if (ready) {
-					load_request.post_load(m_context.scene_manager.get(), m_context.asset_providers.get());
+					if (auto uri = load_request.post_load(m_context.scene_manager.get(), m_context.asset_providers.get())) { scene_uri = std::move(uri); }
 					loading.close_current();
 				}
 			}
@@ -248,6 +251,15 @@ struct Editor : Runtime {
 		}
 
 		main_menu.display_windows();
+	}
+
+	void save_scene() {
+		auto uri = scene_uri ? scene_uri : Uri<Scene>{"unnamed.scene.json"};
+		auto json = dj::Json{};
+		context().active_scene().serialize(json);
+		auto* disk_vfs = dynamic_cast<DiskVfs const*>(&context().data_source());
+		if (!disk_vfs || !disk_vfs->write_json(json, uri)) { return; }
+		logger::debug("Scene saved {}", uri.value());
 	}
 };
 } // namespace
