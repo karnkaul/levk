@@ -9,6 +9,7 @@ class RenderDevice;
 namespace ui {
 class Primitive : public View {
   public:
+	Primitive();
 	Primitive(RenderDevice const& render_device);
 
 	Uri<Texture> const& texture_uri() const { return m_material.textures.uris[0]; }

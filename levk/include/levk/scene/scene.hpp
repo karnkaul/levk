@@ -2,28 +2,22 @@
 #include <levk/graphics/camera.hpp>
 #include <levk/graphics/lights.hpp>
 #include <levk/graphics/renderer.hpp>
+#include <levk/graphics/skeleton.hpp>
 #include <levk/io/serializable.hpp>
 #include <levk/node.hpp>
 #include <levk/scene/entity.hpp>
 #include <levk/ui/view.hpp>
 #include <levk/util/monotonic_map.hpp>
 #include <levk/util/time.hpp>
+#include <levk/window/window_state.hpp>
 #include <unordered_set>
 
 namespace levk {
-struct WindowState;
 class Serializer;
-struct StaticMesh;
-struct SkinnedMesh;
 
 class Scene : public Renderer, public Serializable {
   public:
 	static AssetList peek_assets(Serializer const& serializer, dj::Json const& json);
-
-	bool load_into_tree(Uri<StaticMesh> const& uri);
-	bool load_into_tree(Uri<SkinnedMesh> const& uri);
-	bool add_to_tree(Uri<StaticMesh> const& uri, StaticMesh const& static_mesh);
-	bool add_to_tree(Uri<SkinnedMesh> const& uri, SkinnedMesh const& skinned_mesh);
 
 	Node& spawn(Node::CreateInfo const& node_create_info = {});
 	void tick(WindowState const& window_state, Time dt);
@@ -41,7 +35,10 @@ class Scene : public Renderer, public Serializable {
 
 	bool empty() const { return m_entities.empty(); }
 
+	virtual void setup() {}
 	void render(RenderList& out) const override;
+
+	Skeleton::Instance instantiate_skeleton(Skeleton const& source, Id<Node> root);
 
 	std::string_view type_name() const override { return "Scene"; }
 	bool serialize(dj::Json& out) const override;
@@ -52,9 +49,17 @@ class Scene : public Renderer, public Serializable {
 	std::string name{};
 	ui::View ui_root{};
 
+  protected:
+	virtual void tick(Time /*dt*/) {}
+
+	WindowState const& window_state() const { return m_window_state; }
+	Input const& input() const { return window_state().input; }
+
   private:
 	Node::Tree m_nodes{};
 	MonotonicMap<Entity> m_entities{};
+
+	WindowState m_window_state{};
 	std::unordered_set<Id<Entity>::id_type> m_to_destroy{};
 };
 } // namespace levk

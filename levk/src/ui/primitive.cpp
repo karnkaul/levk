@@ -1,8 +1,10 @@
 #include <levk/graphics/draw_list.hpp>
 #include <levk/graphics/render_device.hpp>
+#include <levk/service.hpp>
 #include <levk/ui/primitive.hpp>
 
 namespace levk::ui {
+Primitive::Primitive() : Primitive(Service<RenderDevice>::locate()) {}
 Primitive::Primitive(RenderDevice const& render_device) : m_primitive(render_device.vulkan_device()) { m_material.render_mode.depth_test = false; }
 
 void Primitive::render(DrawList& out) const {

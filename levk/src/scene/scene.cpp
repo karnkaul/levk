@@ -8,19 +8,13 @@
 #include <levk/io/serializer.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/scene/scene_manager.hpp>
-#include <levk/scene/skeleton_controller.hpp>
-#include <levk/scene/skinned_mesh_renderer.hpp>
-#include <levk/scene/static_mesh_renderer.hpp>
 #include <levk/service.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/fixed_string.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/window/window_state.hpp>
-#include <filesystem>
 
 namespace levk {
-namespace fs = std::filesystem;
-
 AssetList Scene::peek_assets(Serializer const& serializer, dj::Json const& json) {
 	auto ret = AssetList{};
 	for (auto const& in_entity : json["entities"].array_view()) {
@@ -31,49 +25,6 @@ AssetList Scene::peek_assets(Serializer const& serializer, dj::Json const& json)
 		}
 	}
 	return ret;
-}
-
-bool Scene::load_into_tree(Uri<StaticMesh> const& uri) {
-	auto* scene_manager = Service<SceneManager>::find();
-	if (!scene_manager) { return false; }
-	auto* mesh = scene_manager->asset_providers().static_mesh().load(uri);
-	if (!mesh) { return false; }
-	return add_to_tree(uri, *mesh);
-}
-
-bool Scene::load_into_tree(Uri<SkinnedMesh> const& uri) {
-	auto* scene_manager = Service<SceneManager>::find();
-	if (!scene_manager) { return false; }
-	auto* mesh = scene_manager->asset_providers().skinned_mesh().load(uri);
-	if (!mesh) { return false; }
-	return add_to_tree(uri, *mesh);
-}
-
-bool Scene::add_to_tree(Uri<StaticMesh> const& uri, StaticMesh const& mesh) {
-	auto& node = spawn(NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
-	auto& entity = m_entities.get(node.entity);
-	auto mesh_renderer = std::make_unique<StaticMeshRenderer>();
-	mesh_renderer->mesh = uri;
-	entity.attach(std::move(mesh_renderer));
-	return true;
-}
-
-bool Scene::add_to_tree(Uri<SkinnedMesh> const& uri, SkinnedMesh const& mesh) {
-	auto* scene_manager = Service<SceneManager>::find();
-	if (!scene_manager) { return false; }
-	auto& node = spawn(NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
-	auto& entity = m_entities.get(node.entity);
-	auto skeleton = Skeleton::Instance{};
-	auto enabled = std::optional<Id<Skeleton::Animation>>{};
-	if (mesh.skeleton) {
-		auto const* source_skeleton = scene_manager->asset_providers().skeleton().find(mesh.skeleton);
-		if (!source_skeleton) { return false; }
-		skeleton = source_skeleton->instantiate(m_nodes, node.id());
-		if (!skeleton.animations.empty()) { enabled = 0; }
-	}
-	entity.attach(std::make_unique<SkinnedMeshRenderer>()).set_mesh(uri, std::move(skeleton));
-	entity.attach(std::make_unique<SkeletonController>()).enabled = enabled;
-	return true;
 }
 
 Node& Scene::spawn(Node::CreateInfo const& node_create_info) {
@@ -88,6 +39,9 @@ Node& Scene::spawn(Node::CreateInfo const& node_create_info) {
 }
 
 void Scene::tick(WindowState const& window_state, Time dt) {
+	m_window_state = window_state;
+	tick(dt);
+
 	auto to_tick = std::vector<std::reference_wrapper<Entity>>{};
 	to_tick.reserve(m_entities.size());
 	fill_to_if(m_entities, to_tick, [](Id<Entity>, Entity const& e) { return e.active; });
@@ -124,6 +78,8 @@ void Scene::render(RenderList& out) const {
 
 	ui_root.render(out.ui);
 }
+
+Skeleton::Instance Scene::instantiate_skeleton(Skeleton const& source, Id<Node> root) { return source.instantiate(m_nodes, root); }
 
 bool Scene::serialize(dj::Json& out) const {
 	auto const* serializer = Service<Serializer>::find();

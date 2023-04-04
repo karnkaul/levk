@@ -12,7 +12,7 @@ Runtime::ReturnCode Runtime::run() {
 		while (m_context.is_running()) {
 			auto frame = m_context.next_frame();
 			tick(frame);
-			m_context.active_scene().tick(frame.state, frame.dt);
+			m_context.scene_manager.get().tick(frame.state, frame.dt);
 			render();
 		}
 	} catch (Error const& e) {

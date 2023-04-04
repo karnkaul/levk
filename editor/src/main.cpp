@@ -75,14 +75,16 @@ struct FreeCam {
 	}
 };
 
-struct TestDrawable : ui::Primitive {
+struct TestUiPrimitive : ui::Primitive {
 	using ui::Primitive::Primitive;
+
+	bool clicked{};
 
 	void tick(Input const& input, Time dt) override {
 		View::tick(input, dt);
 		if (world_frame().contains(input.cursor)) {
 			tint() = red_v;
-			if (input.is_pressed(MouseButton::e1)) { set_destroyed(); }
+			if (input.is_pressed(MouseButton::e1)) { clicked = true; }
 		} else {
 			tint() = white_v;
 		}
@@ -123,14 +125,85 @@ struct LoadRequest {
 			[&scene_manager, &asset_providers](Uri<Mesh> const& uri) {
 				switch (asset_providers.mesh_type(uri)) {
 				case MeshType::eNone: break;
-				case MeshType::eSkinned: scene_manager.active_scene().load_into_tree(Uri<SkinnedMesh>{uri}); break;
-				case MeshType::eStatic: scene_manager.active_scene().load_into_tree(Uri<StaticMesh>{uri}); break;
+				case MeshType::eSkinned: scene_manager.load_into_tree(Uri<SkinnedMesh>{uri}); break;
+				case MeshType::eStatic: scene_manager.load_into_tree(Uri<StaticMesh>{uri}); break;
 				}
 			},
 		};
 		std::visit(visitor, to_load);
 		loader.reset();
 		return ret;
+	}
+};
+
+template <typename F>
+void update_and_draw(LoadRequest& load_request, F on_ready) {
+	if (load_request) {
+		if (!ImGui::IsPopupOpen("Loading")) { imcpp::Modal::open("Loading"); }
+		if (auto loading = imcpp::Modal{"Loading"}) {
+			ImGui::Text("%.*s", static_cast<int>(load_request.loader->status().size()), load_request.loader->status().data());
+			ImGui::ProgressBar(load_request.loader->progress());
+			if (load_request.loader->ready()) {
+				on_ready();
+				loading.close_current();
+			}
+		}
+	}
+}
+
+struct TestScene : Scene {
+	struct {
+		Ptr<TestUiPrimitive> primitive{};
+		LoadRequest load_request{};
+		Uri<Scene> to_load{"Lantern/Lantern.scene_0.json"};
+	} test{};
+
+	void setup() override {
+		logger::debug("TestScene::setup()");
+		camera.transform.set_position({0.0f, 0.0f, 5.0f});
+
+		auto* font = Service<AssetProviders>::locate().ascii_font().load("fonts/Vera.ttf");
+		auto ui_primitive = std::make_unique<TestUiPrimitive>();
+		test.primitive = ui_primitive.get();
+		ui_root.add_sub_view(std::move(ui_primitive));
+		if (font) {
+			auto text = std::make_unique<ui::Text>(font);
+			text->n_anchor.x = 0.5f;
+			text->set_string("hi");
+			test.primitive->add_sub_view(std::move(text));
+		}
+	}
+
+	void tick(Time dt) override {
+		Scene::tick(dt);
+		if (input().chord(Key::eE, Key::eLeftControl)) {}
+
+		if (test.primitive) {
+			auto dxy = glm::vec2{};
+			if (input().is_held(Key::eW)) { dxy.y += 1.0f; }
+			if (input().is_held(Key::eA)) { dxy.x -= 1.0f; }
+			if (input().is_held(Key::eS)) { dxy.y -= 1.0f; }
+			if (input().is_held(Key::eD)) { dxy.x += 1.0f; }
+			if (std::abs(dxy.x) > 0.0f || std::abs(dxy.y) > 0.0f) {
+				dxy = 1000.0f * glm::normalize(dxy) * dt.count();
+				test.primitive->set_position(test.primitive->frame().centre() += dxy);
+			}
+
+			if (!test.load_request) {
+				if (auto* test_primitive = dynamic_cast<TestUiPrimitive*>(test.primitive); test_primitive && test_primitive->clicked) {
+					test.load_request = LoadRequest::make(&Service<AssetProviders>::locate(), test.to_load);
+					test.primitive->clicked = false;
+				}
+			}
+			auto on_ready = [this] {
+				if (Service<SceneManager>::locate().load(test.to_load)) {
+					logger::debug("[TestScene] loading [{}]", test.to_load.value());
+				} else {
+					logger::debug("[TestScene] Could not load [{}]", test.to_load.value());
+				}
+			};
+			update_and_draw(test.load_request, on_ready);
+		}
 	}
 };
 
@@ -156,24 +229,10 @@ struct Editor : Runtime {
 	imcpp::LogDisplay log_display{};
 	std::optional<imcpp::GltfImportWizard> gltf_import_wizard{};
 
-	struct {
-		Ptr<ui::View> view{};
-	} test{};
-
 	Editor(std::string_view data_path) : Runtime(std::make_unique<DiskVfs>(data_path), make_eci()) {}
 
 	void setup() override {
-		context().active_scene().camera.transform.set_position({0.0f, 0.0f, 5.0f});
-
-		auto* font = m_context.asset_providers.get().ascii_font().load("fonts/Vera.ttf");
-		auto drawable = std::make_unique<TestDrawable>(m_context.engine.get().render_device());
-		test.view = m_context.active_scene().ui_root.add_sub_view(std::move(drawable));
-		if (font) {
-			auto text = std::make_unique<ui::Text>(font);
-			text->n_anchor.x = 0.5f;
-			text->set_string("hi");
-			test.view->add_sub_view(std::move(text));
-		}
+		context().scene_manager.get().set_active<TestScene>();
 
 		free_cam.window = &context().window();
 
@@ -234,31 +293,10 @@ struct Editor : Runtime {
 			}
 		}
 
-		if (load_request) {
-			if (!ImGui::IsPopupOpen("Loading")) { imcpp::Modal::open("Loading"); }
-			if (auto loading = imcpp::Modal{"Loading"}) {
-				ImGui::Text("%.*s", static_cast<int>(load_request.loader->status().size()), load_request.loader->status().data());
-				ImGui::ProgressBar(load_request.loader->progress());
-				bool ready = load_request.loader->ready();
-				if (ready) {
-					if (auto uri = load_request.post_load(m_context.scene_manager.get(), m_context.asset_providers.get())) { scene_uri = std::move(uri); }
-					loading.close_current();
-				}
-			}
-		}
-
-		if (!context().active_scene().ui_root.contains(test.view)) { test.view = {}; }
-		if (test.view) {
-			auto dxy = glm::vec2{};
-			if (frame.state.input.is_held(Key::eW)) { dxy.y += 1.0f; }
-			if (frame.state.input.is_held(Key::eA)) { dxy.x -= 1.0f; }
-			if (frame.state.input.is_held(Key::eS)) { dxy.y -= 1.0f; }
-			if (frame.state.input.is_held(Key::eD)) { dxy.x += 1.0f; }
-			if (std::abs(dxy.x) > 0.0f || std::abs(dxy.y) > 0.0f) {
-				dxy = 1000.0f * glm::normalize(dxy) * frame.dt.count();
-				test.view->set_position(test.view->frame().centre() += dxy);
-			}
-		}
+		auto const on_request_loaded = [&] {
+			if (auto uri = load_request.post_load(m_context.scene_manager.get(), m_context.asset_providers.get())) { scene_uri = std::move(uri); }
+		};
+		update_and_draw(load_request, on_request_loaded);
 
 		free_cam.tick(context().active_scene().camera.transform, frame.state.input, frame.dt);
 
