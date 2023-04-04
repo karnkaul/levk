@@ -149,6 +149,7 @@ void list_meshes(ImportList const& import_list) {
 struct Menu {};
 
 struct App {
+	levk::Service<levk::Serializer>::Instance serializer{};
 	Args args{};
 	fs::path src_dir{};
 	ImportList import_list{};
@@ -162,6 +163,13 @@ struct App {
 			std::fprintf(stderr, "Missing required argument: command (scene|mesh|list)\n");
 			return false;
 		}
+
+		serializer.get().bind<levk::LitMaterial>();
+		serializer.get().bind<levk::UnlitMaterial>();
+		serializer.get().bind<levk::SkinnedMaterial>();
+		serializer.get().bind<levk::MeshRenderer>();
+		serializer.get().bind<levk::Scene>();
+
 		auto parser = Args::Parser{};
 
 		auto spec = cli_args::Spec{};
@@ -208,7 +216,7 @@ struct App {
 			return false;
 		}
 
-		import_list = ImportList::make(peek_assets(args.gltf.string()));
+		import_list = ImportList::make(peek_assets(args.gltf.string(), &serializer.get()));
 		if (import_list.asset_list.scenes.empty() && import_list.asset_list.meshes.empty()) {
 			std::fprintf(stderr, "%s", fmt::format("Could not find any assets in gltf file: {}\n", args.gltf.generic_string()).c_str());
 			return false;
@@ -281,10 +289,5 @@ struct App {
 
 int main(int argc, char** argv) {
 	levk::logger::g_format = "[{level}] {message}";
-	auto serializer = levk::Service<levk::Serializer>::Instance{};
-	serializer.get().bind<levk::LitMaterial>();
-	serializer.get().bind<levk::UnlitMaterial>();
-	serializer.get().bind<levk::SkinnedMaterial>();
-	serializer.get().bind<levk::MeshRenderer>();
 	if (!legsmi::App{}.run({argv + 1, static_cast<std::size_t>(argc - 1)})) { return EXIT_FAILURE; }
 }

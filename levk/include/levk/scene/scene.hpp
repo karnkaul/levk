@@ -104,7 +104,7 @@ class Scene : public Renderer, public Serializable {
 
 	void render(RenderList& out) const override;
 
-	std::string_view type_name() const override { return "scene"; }
+	std::string_view type_name() const override { return "Scene"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
 

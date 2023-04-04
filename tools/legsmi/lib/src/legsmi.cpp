@@ -1,5 +1,6 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <legsmi/legsmi.hpp>
+#include <levk/io/serializer.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/util/bool.hpp>
 #include <levk/util/enumerate.hpp>
@@ -534,7 +535,7 @@ std::string AssetList::make_default_scene_uri(std::size_t scene_index) const {
 }
 
 MeshImporter AssetList::mesh_importer(std::string root_path, std::string dir_uri, LogDispatch import_logger, bool overwrite) const {
-	auto ret = MeshImporter{.import_logger = std::move(import_logger), .overwrite_existing = overwrite};
+	auto ret = MeshImporter{.import_logger = std::move(import_logger), .serializer = serializer, .overwrite_existing = overwrite};
 	if (gltf_path.empty()) {
 		ret.import_logger.error("[legsmi] Empty GLTF file path");
 		return ret;
@@ -558,7 +559,7 @@ SceneImporter AssetList::scene_importer(std::string root_path, std::string dir_u
 	auto ret = SceneImporter{};
 	ret.mesh_importer = mesh_importer(root_path, dir_uri, std::move(import_logger), overwrite);
 	if (!ret.mesh_importer) { return {}; }
-	ret.asset_list = peek_assets(gltf_path);
+	ret.asset_list = peek_assets(gltf_path, serializer);
 	ret.scene_uri = std::move(scene_uri);
 	return ret;
 }
@@ -589,8 +590,7 @@ levk::Uri<levk::Scene> SceneImporter::try_import(Scene const& scene, ImportMap& 
 		auto ret = SceneWalker{out_imported, mesh_importer, asset_list, export_path.generic_string(), out_scene}(scene);
 
 		auto scene_path = fs::path{mesh_importer.uri_prefix} / scene_uri;
-		auto json = dj::Json{};
-		out_scene.serialize(json);
+		auto json = mesh_importer.serializer->serialize(out_scene);
 		json.to_file(scene_path.string().c_str());
 
 		return scene_uri;
@@ -615,8 +615,8 @@ levk::Transform legsmi::from(gltf2cpp::Transform const& transform) {
 	return ret;
 }
 
-auto legsmi::peek_assets(std::string gltf_path, LogDispatch const& import_logger) -> AssetList {
-	auto ret = AssetList{};
+auto legsmi::peek_assets(std::string gltf_path, levk::NotNull<levk::Serializer const*> serializer, LogDispatch const& import_logger) -> AssetList {
+	auto ret = AssetList{.serializer = serializer};
 	if (!fs::is_regular_file(gltf_path)) {
 		import_logger.error("[legsmi] Invalid GLTF file path [{}]", gltf_path);
 		return ret;

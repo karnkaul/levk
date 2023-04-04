@@ -275,8 +275,7 @@ struct Editor : Runtime {
 
 	void save_scene() {
 		auto uri = scene_uri ? scene_uri : Uri<Scene>{"unnamed.scene.json"};
-		auto json = dj::Json{};
-		context().active_scene().serialize(json);
+		auto json = context().serializer.get().serialize(context().active_scene());
 		auto* disk_vfs = dynamic_cast<DiskVfs const*>(&context().data_source());
 		if (!disk_vfs || !disk_vfs->write_json(json, uri)) { return; }
 		logger::debug("Scene saved {}", uri.value());

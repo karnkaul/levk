@@ -1,6 +1,7 @@
 #include <imgui.h>
 #include <gltf_import_wizard.hpp>
 #include <levk/scene/scene.hpp>
+#include <levk/service.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/fixed_string.hpp>
 #include <filesystem>
@@ -110,7 +111,7 @@ GltfImportWizard::GltfImportWizard(std::string gltf_path, std::string root) {
 	m_shared.root_path = std::move(root);
 	m_shared.gltf_path = std::move(gltf_path);
 	m_shared.gltf_filename = fs::path{m_shared.gltf_path}.filename().string();
-	m_shared.asset_list = legsmi::peek_assets(m_shared.gltf_path);
+	m_shared.asset_list = legsmi::peek_assets(m_shared.gltf_path, &Service<Serializer>::locate());
 	m_shared.allow_scene = std::ranges::none_of(m_shared.asset_list.meshes, [](legsmi::Mesh const& mesh) { return mesh.mesh_type == MeshType::eSkinned; });
 
 	m_pages.mesh.setup(m_shared);

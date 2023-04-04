@@ -25,6 +25,7 @@ Context::Context(NotNull<DataSource const*> data_source, Engine::CreateInfo cons
 	serializer.get().bind<UnlitMaterial>();
 	serializer.get().bind<LitMaterial>();
 	serializer.get().bind<SkinnedMaterial>();
+	serializer.get().bind<Scene>();
 }
 
 void Context::render() const {
