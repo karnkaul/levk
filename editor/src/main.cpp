@@ -83,7 +83,7 @@ struct TestUiPrimitive : ui::Primitive {
 	void tick(Input const& input, Time dt) override {
 		View::tick(input, dt);
 		if (world_frame().contains(input.cursor)) {
-			tint() = red_v;
+			tint() = yellow_v;
 			if (input.is_pressed(MouseButton::e1)) { clicked = true; }
 		} else {
 			tint() = white_v;
@@ -164,12 +164,13 @@ struct TestScene : Scene {
 
 		auto* font = Service<AssetProviders>::locate().ascii_font().load("fonts/Vera.ttf");
 		auto ui_primitive = std::make_unique<TestUiPrimitive>();
+		ui_primitive->set_extent({200.0f, 75.0f});
 		test.primitive = ui_primitive.get();
 		ui_root.add_sub_view(std::move(ui_primitive));
 		if (font) {
 			auto text = std::make_unique<ui::Text>(font);
-			text->n_anchor.x = 0.5f;
-			text->set_string("hi");
+			text->set_string("click");
+			text->tint() = black_v;
 			test.primitive->add_sub_view(std::move(text));
 		}
 	}
@@ -189,22 +190,22 @@ struct TestScene : Scene {
 				test.primitive->set_position(test.primitive->frame().centre() += dxy);
 			}
 
-			if (test.primitive && test.primitive->clicked) {
+			if (test.primitive->clicked) {
 				if (!test.load_request && Service<SceneManager>().locate().data_source().contains(test.to_load)) {
 					test.load_request = LoadRequest::make(&Service<AssetProviders>::locate(), test.to_load);
 				}
-				test.primitive->clicked = false;
+				test.primitive->set_destroyed();
+				test.primitive = {};
 			}
-
-			auto on_ready = [this] {
-				if (Service<SceneManager>::locate().load(test.to_load)) {
-					logger::debug("[TestScene] loading [{}]", test.to_load.value());
-				} else {
-					logger::debug("[TestScene] Could not load [{}]", test.to_load.value());
-				}
-			};
-			update_and_draw(test.load_request, on_ready);
 		}
+		auto on_ready = [this] {
+			if (Service<SceneManager>::locate().load(test.to_load)) {
+				logger::debug("[TestScene] loading [{}]", test.to_load.value());
+			} else {
+				logger::debug("[TestScene] Could not load [{}]", test.to_load.value());
+			}
+		};
+		update_and_draw(test.load_request, on_ready);
 	}
 };
 

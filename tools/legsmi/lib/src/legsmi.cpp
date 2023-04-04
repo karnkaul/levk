@@ -221,15 +221,15 @@ struct Exporter {
 		return {};
 	}
 
-	bool should_overwrite(fs::path const uri) const {
+	bool should_overwrite(std::string const& uri) const {
 		if (out_imported.all.contains(uri)) { return false; }
 		if (!fs::exists(uri)) { return true; }
 		if (overwrite) {
-			import_logger.info("[legsmi] Overwriting target asset: [{}]", uri.generic_string());
+			import_logger.info("[legsmi] Overwriting target asset: [{}]", uri);
 			fs::remove(uri);
 			return true;
 		} else {
-			import_logger.info("[legsmi] Import target exists, reusing: [{}]", uri.generic_string());
+			import_logger.info("[legsmi] Import target exists, reusing: [{}]", uri);
 		}
 		return false;
 	}
@@ -239,7 +239,7 @@ struct Exporter {
 		if (auto it = out_imported.images.find(index); it != out_imported.images.end()) { return it->second; }
 		auto uri = (dir_uri / in.source_filename).generic_string();
 		auto dst = uri_prefix / uri;
-		if (!should_overwrite(dst)) { return uri; }
+		if (!should_overwrite(dst.generic_string())) { return uri; }
 
 		fs::create_directories(dst.parent_path());
 		fs::copy_file(in_dir / in.source_filename, dst);
@@ -254,7 +254,7 @@ struct Exporter {
 		auto image_uri = copy_image(in_root.images[in.source], index);
 		auto uri = (dir_uri / fmt::format("{}.json", in_root.images[in.source].source_filename)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (!should_overwrite(dst)) { return uri; }
+		if (!should_overwrite(dst.generic_string())) { return uri; }
 
 		auto json = dj::Json{};
 		json["image"] = std::move(image_uri);
@@ -268,7 +268,7 @@ struct Exporter {
 		if (auto it = out_imported.materials.find(resource.index); it != out_imported.materials.end()) { return it->second; }
 		auto uri = (dir_uri / fmt::format("{}.json", resource.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (!should_overwrite(dst)) { return uri; }
+		if (!should_overwrite(dst.generic_string())) { return uri; }
 
 		auto const& in = in_root.materials[resource.index];
 		auto material = asset::Material{};
@@ -299,7 +299,7 @@ struct Exporter {
 												  std::vector<glm::vec4> weights) {
 		auto uri = (dir_uri / fmt::format("mesh_{}.geometry_{}.bin", mesh_index, primitive_index)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (!should_overwrite(dst)) { return uri; }
+		if (!should_overwrite(dst.generic_string())) { return uri; }
 
 		auto bin = asset::BinGeometry{};
 		bin.geometry = to_geometry(in.primitives[primitive_index]);
@@ -314,7 +314,7 @@ struct Exporter {
 	levk::Uri<asset::Mesh3D> operator()(Resource const& resource) {
 		auto uri = (dir_uri / fmt::format("{}.json", resource.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (!should_overwrite(dst)) { return uri; }
+		if (!should_overwrite(dst.generic_string())) { return uri; }
 
 		auto out_mesh = asset::Mesh3D{.type = asset::Mesh3D::Type::eStatic};
 		auto const& in_mesh = in_root.meshes[resource.index];
@@ -374,7 +374,7 @@ struct Exporter {
 	levk::Uri<asset::BinSkeletalAnimation> export_skeletal_animation(Resource const& resource, asset::BinSkeletalAnimation const& animation) {
 		auto uri = (dir_uri / fmt::format("{}.bin", resource.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (!should_overwrite(dst)) { return uri; }
+		if (!should_overwrite(dst.generic_string())) { return uri; }
 
 		if (!animation.write(dst.generic_string().c_str())) {
 			import_logger.error("[legsmi] Failed to import Skeletal Animation: [{}]", uri);
@@ -388,7 +388,7 @@ struct Exporter {
 	levk::Uri<levk::Skeleton> export_skeleton(Resource const& resource_skin) {
 		auto uri = (dir_uri / fmt::format("{}.json", resource_skin.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (!should_overwrite(dst)) { return uri; }
+		if (!should_overwrite(dst.generic_string())) { return uri; }
 
 		auto skin_node = Ptr<gltf2cpp::Node const>{};
 		for (auto& node : in_root.nodes) {

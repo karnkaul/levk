@@ -255,7 +255,9 @@ struct App {
 	}
 
 	bool import_mesh() {
-		auto make_importer = [this] { return import_list.asset_list.mesh_importer(args.data_root.generic_string(), args.dest_dir, import_logger, args.force); };
+		auto make_importer = [this] {
+			return import_list.asset_list.mesh_importer(args.data_root.generic_string(), args.dest_dir.generic_string(), import_logger, args.force);
+		};
 		for (auto const index : args.asset_indices) {
 			if (!import_asset(std::span{import_list.asset_list.meshes}, "Mesh", index, make_importer)) { return false; }
 		}
