@@ -48,6 +48,7 @@ bool SceneManager::add_to_tree(Uri<SkinnedMesh> const& uri, SkinnedMesh const& m
 	return true;
 }
 
+DataSource const& SceneManager::data_source() const { return m_asset_providers->data_source(); }
 RenderDevice& SceneManager::render_device() const { return m_asset_providers->render_device(); }
 Serializer const& SceneManager::serializer() const { return m_asset_providers->serializer(); }
 

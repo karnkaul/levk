@@ -189,12 +189,13 @@ struct TestScene : Scene {
 				test.primitive->set_position(test.primitive->frame().centre() += dxy);
 			}
 
-			if (!test.load_request) {
-				if (auto* test_primitive = dynamic_cast<TestUiPrimitive*>(test.primitive); test_primitive && test_primitive->clicked) {
+			if (test.primitive && test.primitive->clicked) {
+				if (!test.load_request && Service<SceneManager>().locate().data_source().contains(test.to_load)) {
 					test.load_request = LoadRequest::make(&Service<AssetProviders>::locate(), test.to_load);
-					test.primitive->clicked = false;
 				}
+				test.primitive->clicked = false;
 			}
+
 			auto on_ready = [this] {
 				if (Service<SceneManager>::locate().load(test.to_load)) {
 					logger::debug("[TestScene] loading [{}]", test.to_load.value());

@@ -2,6 +2,7 @@
 #include <levk/graphics/render_device.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/util/not_null.hpp>
+#include <levk/vfs/data_source.hpp>
 #include <levk/vfs/uri_monitor.hpp>
 
 namespace levk {
@@ -15,6 +16,7 @@ class SceneManager {
 	bool add_to_tree(Uri<SkinnedMesh> const& uri, SkinnedMesh const& skinned_mesh);
 
 	AssetProviders& asset_providers() const { return *m_asset_providers; }
+	DataSource const& data_source() const;
 	RenderDevice& render_device() const;
 	Serializer const& serializer() const;
 
