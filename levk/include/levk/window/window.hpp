@@ -27,14 +27,17 @@ class Window {
 	CursorMode cursor_mode() const;
 	void set_cursor_mode(CursorMode mode);
 
-	Ptr<glfw::Window> glfw_window() const { return m_glfw_window.get(); }
+	void set_title(char const* title);
+	void set_extent(Extent2D extent);
+
+	Ptr<glfw::Window> glfw_window() const { return m_impl.get(); }
 
   private:
 	struct Deleter {
 		void operator()(glfw::Window const*) const;
 	};
 
-	std::unique_ptr<glfw::Window, Deleter> m_glfw_window{};
+	std::unique_ptr<glfw::Window, Deleter> m_impl{};
 
 	friend struct Wsi;
 };

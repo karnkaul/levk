@@ -233,6 +233,7 @@ struct Editor : Runtime {
 	Editor(std::string_view data_path) : Runtime(std::make_unique<DiskVfs>(data_path), make_eci()) {}
 
 	void setup() override {
+		set_window_title();
 		context().scene_manager.get().set_active<TestScene>();
 
 		free_cam.window = &context().window();
@@ -295,7 +296,10 @@ struct Editor : Runtime {
 		}
 
 		auto const on_request_loaded = [&] {
-			if (auto uri = load_request.post_load(m_context.scene_manager.get(), m_context.asset_providers.get())) { scene_uri = std::move(uri); }
+			if (auto uri = load_request.post_load(m_context.scene_manager.get(), m_context.asset_providers.get())) {
+				scene_uri = std::move(uri);
+				set_window_title();
+			}
 		};
 		update_and_draw(load_request, on_request_loaded);
 
@@ -318,6 +322,11 @@ struct Editor : Runtime {
 		auto* disk_vfs = dynamic_cast<DiskVfs const*>(&context().data_source());
 		if (!disk_vfs || !disk_vfs->write_json(json, uri)) { return; }
 		logger::debug("Scene saved {}", uri.value());
+	}
+
+	void set_window_title() const {
+		auto const title = fmt::format("levk Editor - {}", scene_uri.value());
+		context().window().set_title(title.c_str());
 	}
 };
 } // namespace
