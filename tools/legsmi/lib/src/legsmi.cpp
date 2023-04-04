@@ -525,7 +525,11 @@ void LogDispatch::print(logger::Level level, std::string message) const {
 
 std::string AssetList::make_default_scene_uri(std::size_t scene_index) const {
 	auto uri = fs::path{gltf_path}.stem();
-	uri = uri / uri.filename();
+	if (scene_index < scenes.size() && !scenes[scene_index].name.empty()) {
+		uri /= scenes[scene_index].name;
+	} else {
+		uri /= uri.filename();
+	}
 	return fmt::format("{}.scene_{}.json", uri.generic_string(), scene_index);
 }
 
