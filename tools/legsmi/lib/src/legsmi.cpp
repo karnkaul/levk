@@ -2,6 +2,9 @@
 #include <legsmi/legsmi.hpp>
 #include <levk/io/serializer.hpp>
 #include <levk/scene/scene.hpp>
+#include <levk/scene/skeleton_controller.hpp>
+#include <levk/scene/skinned_mesh_renderer.hpp>
+#include <levk/scene/static_mesh_renderer.hpp>
 #include <levk/util/bool.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
@@ -294,7 +297,6 @@ struct Exporter {
 
 	levk::Uri<asset::BinGeometry> export_geometry(gltf2cpp::Mesh const& in, std::size_t primitive_index, std::size_t mesh_index, std::vector<glm::uvec4> joints,
 												  std::vector<glm::vec4> weights) {
-		if (auto it = out_imported.geometries.find(primitive_index); it != out_imported.geometries.end()) { return it->second; }
 		auto uri = (dir_uri / fmt::format("mesh_{}.geometry_{}.bin", mesh_index, primitive_index)).generic_string();
 		auto dst = uri_prefix / uri;
 		if (!should_overwrite(dst)) { return uri; }
@@ -306,7 +308,6 @@ struct Exporter {
 		[[maybe_unused]] bool const res = bin.write(dst.string().c_str());
 		assert(res);
 		import_logger.info("[legsmi] BinGeometry [{}] imported", uri);
-		out_imported.add_to(out_imported.geometries, primitive_index, uri);
 		return uri;
 	}
 
@@ -501,7 +502,7 @@ struct SceneWalker {
 		auto& out_node = out_scene.spawn(levk::NodeCreateInfo{.transform = legsmi::from(in_node.transform), .name = in_node.name, .parent = parent});
 		if (in_node.mesh) {
 			auto uri = import_mesh(*in_node.mesh);
-			out_scene.get(out_node.entity).attach(std::make_unique<levk::MeshRenderer>(levk::StaticMeshRenderer{.mesh = std::move(uri)}));
+			out_scene.get(out_node.entity).attach(std::make_unique<levk::StaticMeshRenderer>()).mesh = std::move(uri);
 		}
 		parent = out_node.id();
 		for (auto const node_index : in_node.children) { add_node(node_index, parent); }

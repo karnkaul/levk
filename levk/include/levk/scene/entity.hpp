@@ -1,5 +1,5 @@
 #pragma once
-#include <levk/scene/component.hpp>
+#include <levk/scene/render_component.hpp>
 #include <levk/util/id.hpp>
 #include <levk/util/ptr.hpp>
 #include <levk/util/type_id.hpp>
@@ -66,6 +66,7 @@ class Entity final {
 	std::vector<Ptr<Component>> m_sorted{};
 	Id<Entity> m_id{};
 	Id<Node> m_node{};
+	Id<Component>::id_type m_next_component_id{};
 	Ptr<Scene> m_scene{};
 
 	friend class Scene;

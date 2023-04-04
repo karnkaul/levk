@@ -12,10 +12,6 @@ StaticMeshProvider::Payload StaticMeshProvider::load_payload(Uri<StaticMesh> con
 		logger::error("[StaticMeshProvider] Failed to load JSON [{}]", uri.value());
 		return {};
 	}
-	if (json["type"].as_string() != "static") {
-		logger::error("[StaticMeshProvider] JSON is not a StaticMesh [{}]", uri.value());
-		return {};
-	}
 	ret.asset.emplace();
 	ret.asset->name = json["name"].as_string();
 	auto asset = asset::Mesh3D{};
@@ -45,10 +41,6 @@ SkinnedMeshProvider::Payload SkinnedMeshProvider::load_payload(Uri<SkinnedMesh> 
 	auto json = data_source().read_json(uri);
 	if (!json) {
 		logger::error("[SkinnedMeshProvider] Failed to load JSON [{}]", uri.value());
-		return {};
-	}
-	if (json["type"].as_string() != "skinned") {
-		logger::error("[SkinnedMeshProvider] JSON is not a SkinnedMesh [{}]", uri.value());
 		return {};
 	}
 	ret.asset.emplace();

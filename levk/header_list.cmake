@@ -121,8 +121,12 @@ set(font_headers
 set(scene_headers
   include/levk/scene/component.hpp
   include/levk/scene/entity.hpp
+  include/levk/scene/primitive_renderer.hpp
   include/levk/scene/scene_manager.hpp
   include/levk/scene/scene.hpp
+  include/levk/scene/skeleton_controller.hpp
+  include/levk/scene/skinned_mesh_renderer.hpp
+  include/levk/scene/static_mesh_renderer.hpp
 )
 
 set(ui_headers

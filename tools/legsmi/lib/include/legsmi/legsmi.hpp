@@ -42,7 +42,6 @@ struct SceneImporter;
 
 struct ImportMap {
 	std::unordered_map<std::size_t, std::string> images{};
-	std::unordered_map<std::size_t, std::string> geometries{};
 	std::unordered_map<std::size_t, std::string> materials{};
 	std::unordered_map<std::size_t, std::string> meshes{};
 	std::unordered_map<std::size_t, std::string> skeletons{};

@@ -8,7 +8,6 @@
 namespace levk {
 class Entity;
 class Scene;
-struct RenderList;
 
 class Component : public Serializable {
   public:
@@ -28,11 +27,5 @@ class Component : public Serializable {
 	Id<Entity> m_entity{};
 
 	friend class Entity;
-};
-
-class RenderComponent : public Component {
-  public:
-	void tick(Time) override {}
-	virtual void render(RenderList& out) const = 0;
 };
 } // namespace levk

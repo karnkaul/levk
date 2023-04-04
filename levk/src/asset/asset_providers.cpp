@@ -27,10 +27,8 @@ std::string AssetProviders::asset_type(Uri<> const& uri) const {
 MeshType AssetProviders::mesh_type(Uri<> const& uri) const {
 	auto json = data_source().read_json(uri);
 	if (!json || json["asset_type"].as_string() != "mesh") { return MeshType::eNone; }
-	auto const type = json["type"].as_string();
-	if (type == "skinned") { return MeshType::eSkinned; }
-	if (type == "static") { return MeshType::eStatic; }
-	return MeshType::eNone;
+	if (json.contains("skeleton")) { return MeshType::eSkinned; }
+	return MeshType::eStatic;
 }
 
 AssetList AssetProviders::build_asset_list(Uri<Scene> const& uri) const {

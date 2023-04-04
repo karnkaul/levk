@@ -1,5 +1,8 @@
 #include <levk/context.hpp>
 #include <levk/scene/scene.hpp>
+#include <levk/scene/skeleton_controller.hpp>
+#include <levk/scene/skinned_mesh_renderer.hpp>
+#include <levk/scene/static_mesh_renderer.hpp>
 
 namespace levk {
 namespace {
@@ -20,7 +23,8 @@ Context::Context(NotNull<DataSource const*> data_source, Engine::CreateInfo cons
 	  asset_providers(make_apci(engine.get(), data_source, &uri_monitor.get(), &serializer.get())), scene_manager(&asset_providers.get()) {
 
 	component_factory.get().bind<SkeletonController>();
-	component_factory.get().bind<MeshRenderer>();
+	component_factory.get().bind<StaticMeshRenderer>();
+	component_factory.get().bind<SkinnedMeshRenderer>();
 
 	serializer.get().bind<UnlitMaterial>();
 	serializer.get().bind<LitMaterial>();

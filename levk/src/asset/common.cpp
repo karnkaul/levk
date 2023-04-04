@@ -406,21 +406,20 @@ void asset::to_json(dj::Json& out, Skeleton const& asset) {
 
 void asset::from_json(dj::Json const& json, Mesh3D& out) {
 	assert(json["asset_type"].as_string() == "mesh");
-	out.type = json["type"].as_string() == "skinned" ? Mesh3D::Type::eSkinned : Mesh3D::Type::eStatic;
+	out.skeleton = std::string{json["skeleton"].as_string()};
+	out.type = out.skeleton.is_empty() ? Mesh3D::Type::eStatic : Mesh3D::Type::eSkinned;
 	for (auto const& in_primitive : json["primitives"].array_view()) {
 		auto primitive = Mesh3D::Primitive{};
 		primitive.geometry = std::string{in_primitive["geometry"].as_string()};
 		primitive.material = std::string{in_primitive["material"].as_string()};
 		out.primitives.push_back(std::move(primitive));
 	}
-	out.skeleton = std::string{json["skeleton"].as_string()};
 	for (auto const& in_ibm : json["inverse_bind_matrices"].array_view()) { from_json(in_ibm, out.inverse_bind_matrices.emplace_back()); }
 	out.name = json["name"].as_string();
 }
 
 void asset::to_json(dj::Json& out, Mesh3D const& asset) {
 	out["asset_type"] = "mesh";
-	out["type"] = asset.type == Mesh3D::Type::eSkinned ? "skinned" : "static";
 	if (!asset.primitives.empty()) {
 		auto& primitives = out["primitives"];
 		for (auto const& in_primitive : asset.primitives) {

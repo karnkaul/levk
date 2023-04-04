@@ -2,6 +2,9 @@
 #include <legsmi/legsmi.hpp>
 #include <levk/io/serializer.hpp>
 #include <levk/scene/scene.hpp>
+#include <levk/scene/skeleton_controller.hpp>
+#include <levk/scene/skinned_mesh_renderer.hpp>
+#include <levk/scene/static_mesh_renderer.hpp>
 #include <levk/service.hpp>
 #include <levk/util/cli_args.hpp>
 #include <levk/util/logger.hpp>
@@ -167,7 +170,9 @@ struct App {
 		serializer.get().bind<levk::LitMaterial>();
 		serializer.get().bind<levk::UnlitMaterial>();
 		serializer.get().bind<levk::SkinnedMaterial>();
-		serializer.get().bind<levk::MeshRenderer>();
+		serializer.get().bind<levk::StaticMeshRenderer>();
+		serializer.get().bind<levk::SkinnedMeshRenderer>();
+		serializer.get().bind<levk::SkeletonController>();
 		serializer.get().bind<levk::Scene>();
 
 		auto parser = Args::Parser{};
