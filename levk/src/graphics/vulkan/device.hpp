@@ -64,7 +64,8 @@ struct Device {
 	bool render(RenderDevice::Frame const& t);
 
 	void render_3d(glm::vec4 clear, RenderDevice::Frame const& frame, Framebuffer& framebuffer, BufferView dir_lights);
-	void render_ui(RenderDevice::Frame const& frame, Framebuffer& framebuffer, BufferView dir_lights);
+	void render_ui(ImageView const& output_3d, RenderDevice::Frame const& frame, Framebuffer& framebuffer, BufferView dir_lights);
+	void draw_3d_to_ui(ImageView const& output_3d, PipelineBuilder& pipeline_builder, vk::Extent2D extent);
 
 	View view();
 };

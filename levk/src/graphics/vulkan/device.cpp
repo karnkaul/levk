@@ -509,20 +509,7 @@ struct Shader : levk::Shader {
 	void update(std::uint32_t set, std::uint32_t binding, levk::Texture const& texture) final {
 		auto* vtex = texture.vulkan_texture();
 		if (!vtex) { return; }
-		auto const& image = vtex->image.get().get().image_view();
-		if (set >= sets.size() || set >= descriptor_set_layouts.size()) { return; }
-		if (binding >= set_layouts[set].bindings.size()) { return; }
-		auto& descriptor_set = sets[set];
-		if (!descriptor_set) { descriptor_set = device.set_allocator->allocate(descriptor_set_layouts[set]); }
-		auto wds = vk::WriteDescriptorSet{descriptor_set};
-		auto const sampler = device.sampler_storage->get(device.device, texture.sampler);
-		if (!sampler) { return; }
-		auto const image_info = vk::DescriptorImageInfo{sampler, image.view, vk::ImageLayout::eReadOnlyOptimal};
-		wds.descriptorCount = 1u;
-		wds.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-		wds.dstBinding = binding;
-		wds.pImageInfo = &image_info;
-		device.device.updateDescriptorSets(wds, {});
+		return update(set, binding, vtex->image.get().get().image_view(), texture.sampler);
 	}
 
 	void write(std::uint32_t set, std::uint32_t binding, void const* data, std::size_t size) final {
@@ -553,6 +540,22 @@ struct Shader : levk::Shader {
 		auto* host_buffer = buffer.vulkan_buffer();
 		if (!host_buffer) { return; }
 		update(set, binding, host_buffer->view());
+	}
+
+	void update(std::uint32_t set, std::uint32_t binding, ImageView const& image, TextureSampler const& sampler) {
+		if (set >= sets.size() || set >= descriptor_set_layouts.size()) { return; }
+		if (binding >= set_layouts[set].bindings.size()) { return; }
+		auto& descriptor_set = sets[set];
+		if (!descriptor_set) { descriptor_set = device.set_allocator->allocate(descriptor_set_layouts[set]); }
+		auto wds = vk::WriteDescriptorSet{descriptor_set};
+		auto const vk_sampler = device.sampler_storage->get(device.device, sampler);
+		if (!vk_sampler) { return; }
+		auto const image_info = vk::DescriptorImageInfo{vk_sampler, image.view, vk::ImageLayout::eReadOnlyOptimal};
+		wds.descriptorCount = 1u;
+		wds.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+		wds.dstBinding = binding;
+		wds.pImageInfo = &image_info;
+		device.device.updateDescriptorSets(wds, {});
 	}
 
 	void update(std::uint32_t set, std::uint32_t binding, BufferView const& buffer_view) {
@@ -882,16 +885,15 @@ bool Device::render(RenderDevice::Frame const& frame) {
 	auto fb_3d = impl->camera_3d.render_target.refresh(scaled(impl->swapchain.info.imageExtent, device_info.render_scale));
 	fb_3d.undef_to_optimal(render_cb.cb_3d);
 
-	render_3d({0.1f, 0.1f, 0.1f, 1.0f}, frame, fb_3d, dir_lights);
+	auto const clear_colour = device_info.clear_colour.to_vec4();
+	render_3d({clear_colour.x, clear_colour.y, clear_colour.z, clear_colour.w}, frame, fb_3d, dir_lights);
 
 	auto fb_ui = Framebuffer{.colour = *acquired};
-	fb_3d.optimal_to_transfer_src(render_cb.cb_3d);
-	fb_ui.undef_to_transfer_dst(render_cb.cb_3d);
-	vma.get().full_blit(render_cb.cb_3d, {fb_3d.output()}, {*acquired});
-	fb_ui.transfer_dst_to_optimal(render_cb.cb_3d);
+	fb_3d.optimal_to_read_only(render_cb.cb_3d);
+	fb_ui.undef_to_optimal(render_cb.cb_3d);
 
 	render_cb.cb_ui.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-	render_ui(frame, fb_ui, dir_lights);
+	render_ui(fb_3d.output(), frame, fb_ui, dir_lights);
 	render_cb.cb_ui.end();
 
 	fb_ui.optimal_to_present(render_cb.cb_3d);
@@ -934,11 +936,13 @@ void Device::render_3d(glm::vec4 clear, RenderDevice::Frame const& frame, Frameb
 	framebuffer.end_render(cb);
 }
 
-void Device::render_ui(RenderDevice::Frame const& frame, Framebuffer& fb_ui, BufferView dir_lights) {
+void Device::render_ui(ImageView const& output_3d, RenderDevice::Frame const& frame, Framebuffer& fb_ui, BufferView dir_lights) {
 	auto cb = impl->render_cbs[buffered_index].cb_ui;
 	fb_ui.begin_render({}, cb);
 	auto const format = fb_ui.pipeline_format();
 	auto pipeline_builder = PipelineBuilder{impl->pipeline_storage, frame.asset_providers->shader(), *device, format};
+	draw_3d_to_ui(output_3d, pipeline_builder, fb_ui.output().extent);
+
 	auto drawer_ui = Drawer{*this, *frame.asset_providers, pipeline_builder, fb_ui.colour.extent, dir_lights, cb};
 	impl->camera_ui.bind_view_set(drawer_ui.cb, {drawer_ui.extent.width, drawer_ui.extent.height});
 	for (auto const& drawable : frame.render_list->ui.drawables()) { drawer_ui.draw(drawable); }
@@ -947,6 +951,19 @@ void Device::render_ui(RenderDevice::Frame const& frame, Framebuffer& fb_ui, Buf
 	impl->dear_imgui.render(cb);
 
 	fb_ui.end_render(cb);
+}
+
+void Device::draw_3d_to_ui(ImageView const& output_3d, PipelineBuilder& pipeline_builder, vk::Extent2D extent) {
+	auto cb = impl->render_cbs[buffered_index].cb_ui;
+	auto layout = pipeline_builder.try_build_layout("shaders/fs_quad.vert", "shaders/fs_quad.frag");
+	assert(layout);
+	auto pipeline = pipeline_builder.try_build({}, {}, layout->hash);
+	assert(pipeline);
+	pipeline.bind(cb, extent);
+	auto shader = Shader{view(), pipeline};
+	shader.update(0, 0, output_3d, {});
+	shader.bind(pipeline.layout, cb);
+	cb.draw(6u, 1u, 0u, 0u);
 }
 
 auto Device::view() -> View {

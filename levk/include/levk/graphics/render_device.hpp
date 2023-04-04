@@ -32,6 +32,7 @@ struct RenderDeviceInfo {
 	AntiAliasingFlags supported_aa{};
 	AntiAliasing current_aa{};
 	float render_scale{1.0f};
+	Rgba clear_colour{black_v};
 };
 
 class RenderDevice {
@@ -52,6 +53,7 @@ class RenderDevice {
 	float set_render_scale(float desired);
 	std::uint64_t draw_calls_last_frame() const;
 	bool set_vsync(Vsync desired);
+	void set_clear(Rgba clear);
 
 	bool render(Frame const& t);
 

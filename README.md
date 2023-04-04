@@ -29,10 +29,9 @@ https://user-images.githubusercontent.com/16272243/229443455-b124a865-aa82-425b-
 - [x] Fonts and text
 - [x] Dynamic rendering (no render passes)
 - [ ] In-game UI
+- [ ] Shadows
 - [ ] Audio
 - [ ] AABB collisions
-- [ ] Advanced lighting
-- [ ] Deferred rendering
 
 ## Requirements
 

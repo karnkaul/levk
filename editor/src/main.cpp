@@ -235,6 +235,7 @@ struct Editor : Runtime {
 
 	void setup() override {
 		set_window_title();
+		context().render_device().set_clear(Rgba::from({0.05f, 0.05f, 0.05f, 1.0f}));
 		context().scene_manager.get().set_active<TestScene>();
 
 		free_cam.window = &context().window();

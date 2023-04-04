@@ -29,6 +29,11 @@ bool RenderDevice::set_vsync(Vsync desired) {
 	return m_vulkan_device->set_vsync(desired);
 }
 
+void RenderDevice::set_clear(Rgba clear) {
+	assert(m_vulkan_device);
+	m_vulkan_device->device_info.clear_colour = clear;
+}
+
 bool RenderDevice::render(Frame const& frame) {
 	assert(m_vulkan_device);
 	return m_vulkan_device->render(frame);
