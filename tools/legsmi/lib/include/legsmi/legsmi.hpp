@@ -3,6 +3,8 @@
 #include <levk/asset/common.hpp>
 #include <levk/graphics/render_device.hpp>
 #include <levk/util/logger.hpp>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace levk {
 class Scene;
@@ -32,6 +34,22 @@ struct Scene {
 struct MeshImporter;
 struct SceneImporter;
 
+struct ImportMap {
+	std::unordered_map<std::size_t, std::string> images{};
+	std::unordered_map<std::size_t, std::string> geometries{};
+	std::unordered_map<std::size_t, std::string> materials{};
+	std::unordered_map<std::size_t, std::string> meshes{};
+	std::unordered_map<std::size_t, std::string> skeletons{};
+	std::unordered_map<std::size_t, std::string> animations{};
+
+	std::unordered_set<std::string> all{};
+
+	void add_to(std::unordered_map<std::size_t, std::string>& out, std::size_t index, std::string const& uri) {
+		out.insert_or_assign(index, uri);
+		all.insert(uri);
+	}
+};
+
 struct AssetList {
 	std::string gltf_path{};
 	std::vector<Mesh> meshes{};
@@ -41,8 +59,8 @@ struct AssetList {
 
 	std::string make_default_scene_uri(std::size_t scene_index) const;
 
-	MeshImporter mesh_importer(std::string root_path, std::string dir_uri, LogDispatch import_logger = {}) const;
-	SceneImporter scene_importer(std::string root_path, std::string dir_uri, std::string scene_uri, LogDispatch import_logger = {}) const;
+	MeshImporter mesh_importer(std::string root_path, std::string dir_uri, LogDispatch import_logger = {}, bool overwrite = {}) const;
+	SceneImporter scene_importer(std::string root_path, std::string dir_uri, std::string scene_uri, LogDispatch import_logger = {}, bool overwrite = {}) const;
 
 	explicit operator bool() const { return !gltf_path.empty(); }
 };
@@ -53,8 +71,9 @@ struct MeshImporter {
 	std::string src_dir{};
 	std::string uri_prefix{};
 	std::string dir_uri{};
+	bool overwrite_existing{};
 
-	levk::Uri<asset::Mesh3D> try_import(Mesh const& mesh) const;
+	levk::Uri<asset::Mesh3D> try_import(Mesh const& mesh, ImportMap& out_imported) const;
 
 	explicit operator bool() const { return !!root; }
 };
@@ -64,7 +83,7 @@ struct SceneImporter {
 	MeshImporter mesh_importer{};
 	std::string scene_uri{};
 
-	levk::Uri<levk::Scene> try_import(Scene const& scene) const;
+	levk::Uri<levk::Scene> try_import(Scene const& scene, ImportMap& out_imported) const;
 
 	explicit operator bool() const { return !!mesh_importer; }
 };

@@ -26,6 +26,7 @@ struct Args {
 	fs::path dest_dir{};
 	fs::path gltf{};
 	std::vector<std::size_t> asset_indices{};
+	bool force{};
 	bool verbose{};
 };
 
@@ -54,6 +55,7 @@ struct Args::Parser : cli_args::Parser {
 		case '\0':
 		default: break;
 		case 'v': args.verbose = true; return true;
+		case 'f': args.force = true; return true;
 		}
 
 		if (key.full == "data-root") {
@@ -150,6 +152,7 @@ struct App {
 	Args args{};
 	fs::path src_dir{};
 	ImportList import_list{};
+	ImportMap imported{};
 
 	bool can_import_scene() const { return !import_list.asset_list.has_skinned_mesh; }
 	LogDispatch import_logger{};
@@ -164,9 +167,10 @@ struct App {
 		auto spec = cli_args::Spec{};
 		spec.app_name = "legsmi";
 		spec.options = {
-			cli_args::Opt{cli_args::Key{"verbose", 'v'}, {}, true, "verbose logging"},
+			cli_args::Opt{cli_args::Key{"force", 'f'}, {}, true, "force reimport existing assets"},
 			cli_args::Opt{cli_args::Key{"data-root"}, "/path/", false, "path to data root"},
 			cli_args::Opt{cli_args::Key{"dest-dir"}, "uri/", false, "destination directory"},
+			cli_args::Opt{cli_args::Key{"verbose", 'v'}, {}, true, "verbose logging"},
 		};
 		spec.commands = {
 			"mesh",
@@ -238,7 +242,7 @@ struct App {
 	}
 
 	bool import_mesh() {
-		auto make_importer = [this] { return import_list.asset_list.mesh_importer(args.data_root.generic_string(), args.dest_dir, import_logger); };
+		auto make_importer = [this] { return import_list.asset_list.mesh_importer(args.data_root.generic_string(), args.dest_dir, import_logger, args.force); };
 		for (auto const index : args.asset_indices) {
 			if (!import_asset(std::span{import_list.asset_list.meshes}, "Mesh", index, make_importer)) { return false; }
 		}
@@ -248,7 +252,7 @@ struct App {
 	bool import_scene() {
 		for (auto const index : args.asset_indices) {
 			auto make_importer = [this, uri = import_list.asset_list.make_default_scene_uri(index)] {
-				return import_list.asset_list.scene_importer(args.data_root.generic_string(), args.dest_dir.generic_string(), uri, import_logger);
+				return import_list.asset_list.scene_importer(args.data_root.generic_string(), args.dest_dir.generic_string(), uri, import_logger, args.force);
 			};
 			if (!import_asset(std::span{import_list.asset_list.scenes}, "Scene", index, make_importer)) { return false; }
 		}
@@ -263,7 +267,7 @@ struct App {
 			return false;
 		}
 		auto importer = make_importer();
-		auto uri = importer.try_import(*asset);
+		auto uri = importer.try_import(*asset, imported);
 		if (!uri) {
 			std::fprintf(stderr, "%s", fmt::format("Failed to import {} [{}]\n", type, index).c_str());
 			return false;

@@ -195,19 +195,13 @@ Resource make_resource(std::string_view in, std::string_view type, std::size_t i
 }
 
 struct Exporter {
+	ImportMap& out_imported;
 	LogDispatch const& import_logger;
 	gltf2cpp::Root const& in_root;
 	fs::path in_dir;
 	fs::path uri_prefix;
 	fs::path dir_uri;
-
-	struct {
-		std::unordered_map<Index<gltf2cpp::Image>, std::string> images{};
-		std::unordered_map<Index<gltf2cpp::Geometry>, std::string> geometries{};
-		std::unordered_map<Index<gltf2cpp::Material>, std::string> materials{};
-		std::unordered_map<Index<gltf2cpp::Mesh>, std::string> meshes{};
-		std::unordered_map<Index<gltf2cpp::Skin>, std::string> skeletons{};
-	} exported{};
+	bool overwrite;
 
 	std::optional<Index<gltf2cpp::Skin>> find_skin(Resource const& resource) const {
 		for (auto const [node, index] : levk::enumerate(in_root.nodes)) {
@@ -223,19 +217,30 @@ struct Exporter {
 		return {};
 	}
 
+	bool should_overwrite(fs::path const uri) const {
+		if (out_imported.all.contains(uri)) { return false; }
+		if (!fs::exists(uri)) { return true; }
+		if (overwrite) {
+			import_logger.info("[legsmi] Overwriting target asset: [{}]", uri.generic_string());
+			fs::remove(uri);
+			return true;
+		} else {
+			import_logger.info("[legsmi] Import target exists, reusing: [{}]", uri.generic_string());
+		}
+		return false;
+	}
+
 	std::string copy_image(gltf2cpp::Image const& in, std::size_t index) {
 		assert(!in.source_filename.empty());
-		if (auto it = exported.images.find(index); it != exported.images.end()) { return it->second; }
+		if (auto it = out_imported.images.find(index); it != out_imported.images.end()) { return it->second; }
 		auto uri = (dir_uri / in.source_filename).generic_string();
 		auto dst = uri_prefix / uri;
-		if (fs::exists(dst)) {
-			import_logger.info("[legsmi] Import target exists, reusing: [{}]", uri);
-			return uri;
-		}
+		if (!should_overwrite(dst)) { return uri; }
+
 		fs::create_directories(dst.parent_path());
 		fs::copy_file(in_dir / in.source_filename, dst);
 		import_logger.info("[legsmi] Image [{}] copied", uri);
-		exported.images.insert_or_assign(index, uri);
+		out_imported.add_to(out_imported.images, index, uri);
 		return uri;
 	}
 
@@ -245,10 +250,8 @@ struct Exporter {
 		auto image_uri = copy_image(in_root.images[in.source], index);
 		auto uri = (dir_uri / fmt::format("{}.json", in_root.images[in.source].source_filename)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (fs::exists(dst)) {
-			import_logger.info("[legsmi] Import target exists, reusing: [{}]", uri);
-			return uri;
-		}
+		if (!should_overwrite(dst)) { return uri; }
+
 		auto json = dj::Json{};
 		json["image"] = std::move(image_uri);
 		json["colour_space"] = colour_space == levk::ColourSpace::eLinear ? "linear" : "sRGB";
@@ -258,13 +261,11 @@ struct Exporter {
 	}
 
 	levk::Uri<levk::Material> export_material(Resource const& resource, bool skinned) {
-		if (auto it = exported.materials.find(resource.index); it != exported.materials.end()) { return it->second; }
+		if (auto it = out_imported.materials.find(resource.index); it != out_imported.materials.end()) { return it->second; }
 		auto uri = (dir_uri / fmt::format("{}.json", resource.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (fs::exists(dst)) {
-			import_logger.info("[legsmi] Import target exists, reusing: [{}]", uri);
-			return uri;
-		}
+		if (!should_overwrite(dst)) { return uri; }
+
 		auto const& in = in_root.materials[resource.index];
 		auto material = asset::Material{};
 		material.albedo = levk::Rgba::from(glm::vec4{in.pbr.base_color_factor[0], in.pbr.base_color_factor[1], in.pbr.base_color_factor[2], 1.0f});
@@ -286,19 +287,17 @@ struct Exporter {
 		to_json(json, material);
 		json.to_file(dst.string().c_str());
 		import_logger.info("[legsmi] Material [{}] imported", uri);
-		exported.materials.insert_or_assign(resource.index, uri);
+		out_imported.add_to(out_imported.materials, resource.index, uri);
 		return uri;
 	}
 
 	levk::Uri<asset::BinGeometry> export_geometry(gltf2cpp::Mesh const& in, std::size_t primitive_index, std::size_t mesh_index, std::vector<glm::uvec4> joints,
 												  std::vector<glm::vec4> weights) {
-		if (auto it = exported.geometries.find(primitive_index); it != exported.geometries.end()) { return it->second; }
+		if (auto it = out_imported.geometries.find(primitive_index); it != out_imported.geometries.end()) { return it->second; }
 		auto uri = (dir_uri / fmt::format("mesh_{}.geometry_{}.bin", mesh_index, primitive_index)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (fs::exists(dst)) {
-			import_logger.info("[legsmi] Import target exists, reusing: [{}]", uri);
-			return uri;
-		}
+		if (!should_overwrite(dst)) { return uri; }
+
 		auto bin = asset::BinGeometry{};
 		bin.geometry = to_geometry(in.primitives[primitive_index]);
 		bin.joints = std::move(joints);
@@ -306,17 +305,15 @@ struct Exporter {
 		[[maybe_unused]] bool const res = bin.write(dst.string().c_str());
 		assert(res);
 		import_logger.info("[legsmi] BinGeometry [{}] imported", uri);
-		exported.geometries.insert_or_assign(primitive_index, uri);
+		out_imported.add_to(out_imported.geometries, primitive_index, uri);
 		return uri;
 	}
 
-	levk::Uri<asset::Mesh3D> export_mesh(Resource const& resource) {
+	levk::Uri<asset::Mesh3D> operator()(Resource const& resource) {
 		auto uri = (dir_uri / fmt::format("{}.json", resource.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (fs::exists(dst)) {
-			import_logger.info("[legsmi] Import target exists, reusing: [{}]", uri);
-			return uri;
-		}
+		if (!should_overwrite(dst)) { return uri; }
+
 		auto out_mesh = asset::Mesh3D{.type = asset::Mesh3D::Type::eStatic};
 		auto const& in_mesh = in_root.meshes[resource.index];
 		for (auto const& [in_primitive, primitive_index] : levk::enumerate(in_mesh.primitives)) {
@@ -368,31 +365,28 @@ struct Exporter {
 		to_json(json, out_mesh);
 		json.to_file(dst.string().c_str());
 		import_logger.info("[legsmi] Mesh [{}] imported", uri);
+		out_imported.add_to(out_imported.meshes, resource.index, uri);
 		return uri;
 	}
 
 	levk::Uri<asset::BinSkeletalAnimation> export_skeletal_animation(Resource const& resource, asset::BinSkeletalAnimation const& animation) {
 		auto uri = (dir_uri / fmt::format("{}.bin", resource.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (fs::exists(dst)) {
-			import_logger.info("[legsmi] Import target exists, reusing: [{}]", uri);
-			return uri;
-		}
+		if (!should_overwrite(dst)) { return uri; }
+
 		if (!animation.write(dst.generic_string().c_str())) {
 			import_logger.error("[legsmi] Failed to import Skeletal Animation: [{}]", uri);
 			return {};
 		}
 		import_logger.info("[legsmi] Skeleton Animation [{}] imported", uri);
+		out_imported.add_to(out_imported.animations, resource.index, uri);
 		return uri;
 	}
 
 	levk::Uri<levk::Skeleton> export_skeleton(Resource const& resource_skin) {
 		auto uri = (dir_uri / fmt::format("{}.json", resource_skin.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
-		if (fs::exists(dst)) {
-			import_logger.info("[legsmi] Import target exists, reusing: [{}]", uri);
-			return uri;
-		}
+		if (!should_overwrite(dst)) { return uri; }
 
 		auto skin_node = Ptr<gltf2cpp::Node const>{};
 		for (auto& node : in_root.nodes) {
@@ -401,7 +395,7 @@ struct Exporter {
 		if (!skin_node) { return {}; }
 
 		assert(skin_node->mesh.has_value());
-		if (auto it = exported.skeletons.find(resource_skin.index); it != exported.skeletons.end()) { return it->second; }
+		if (auto it = out_imported.skeletons.find(resource_skin.index); it != out_imported.skeletons.end()) { return it->second; }
 
 		auto const& in = in_root.skins[resource_skin.index];
 		auto [joints, map] = MapGltfNodesToJoints{}(in, in_root.nodes);
@@ -471,12 +465,13 @@ struct Exporter {
 		to_json(json, asset);
 		json.to_file(dst.string().c_str());
 		import_logger.info("[legsmi] Skeleton [{}] imported", uri);
-		exported.skeletons.insert_or_assign(resource_skin.index, uri);
+		out_imported.add_to(out_imported.skeletons, resource_skin.index, uri);
 		return uri;
 	}
 };
 
 struct SceneWalker {
+	ImportMap& out_imported;
 	MeshImporter const& importer;
 	AssetList const& asset_list;
 	std::string export_uri;
@@ -494,7 +489,7 @@ struct SceneWalker {
 
 	levk::Uri<> const& import_mesh(std::size_t index) {
 		if (auto it = imported_meshes.find(index); it != imported_meshes.end()) { return it->second; }
-		auto uri = importer.try_import(get_mesh(index));
+		auto uri = importer.try_import(get_mesh(index), out_imported);
 		assert(!uri.value().empty());
 		auto [it, _] = imported_meshes.insert_or_assign(index, std::move(uri));
 		return it->second;
@@ -534,8 +529,8 @@ std::string AssetList::make_default_scene_uri(std::size_t scene_index) const {
 	return fmt::format("{}.scene_{}.json", uri.generic_string(), scene_index);
 }
 
-MeshImporter AssetList::mesh_importer(std::string root_path, std::string dir_uri, LogDispatch import_logger) const {
-	auto ret = MeshImporter{std::move(import_logger)};
+MeshImporter AssetList::mesh_importer(std::string root_path, std::string dir_uri, LogDispatch import_logger, bool overwrite) const {
+	auto ret = MeshImporter{.import_logger = std::move(import_logger), .overwrite_existing = overwrite};
 	if (gltf_path.empty()) {
 		ret.import_logger.error("[legsmi] Empty GLTF file path");
 		return ret;
@@ -555,36 +550,40 @@ MeshImporter AssetList::mesh_importer(std::string root_path, std::string dir_uri
 	return ret;
 }
 
-SceneImporter AssetList::scene_importer(std::string root_path, std::string dir_uri, std::string scene_uri, LogDispatch import_logger) const {
+SceneImporter AssetList::scene_importer(std::string root_path, std::string dir_uri, std::string scene_uri, LogDispatch import_logger, bool overwrite) const {
 	auto ret = SceneImporter{};
-	ret.mesh_importer = mesh_importer(root_path, dir_uri, std::move(import_logger));
+	ret.mesh_importer = mesh_importer(root_path, dir_uri, std::move(import_logger), overwrite);
 	if (!ret.mesh_importer) { return {}; }
 	ret.asset_list = peek_assets(gltf_path);
 	ret.scene_uri = std::move(scene_uri);
 	return ret;
 }
 
-levk::Uri<asset::Mesh3D> MeshImporter::try_import(Mesh const& mesh) const {
+levk::Uri<asset::Mesh3D> MeshImporter::try_import(Mesh const& mesh, ImportMap& out_imported) const {
 	auto const dst_dir = fs::path{uri_prefix} / dir_uri;
 	try {
 		if (!fs::exists(dst_dir)) { fs::create_directories(dst_dir); }
-		return Exporter{import_logger, root, src_dir, uri_prefix, dir_uri}.export_mesh(make_resource(mesh.name, "mesh", mesh.index));
+		return Exporter{
+			.out_imported = out_imported,
+			.import_logger = import_logger,
+			.in_root = root,
+			.in_dir = src_dir,
+			.uri_prefix = uri_prefix,
+			.dir_uri = dir_uri,
+			.overwrite = overwrite_existing,
+		}(make_resource(mesh.name, "mesh", mesh.index));
 	} catch (std::exception const& e) {
 		import_logger.error("[legsmi] Fatal error: {}", e.what());
 		return {};
 	}
 }
 
-levk::Uri<levk::Scene> SceneImporter::try_import(Scene const& scene) const {
+levk::Uri<levk::Scene> SceneImporter::try_import(Scene const& scene, ImportMap& out_imported) const {
 	auto const export_path = fs::path{mesh_importer.uri_prefix} / mesh_importer.dir_uri;
 	try {
-		if (fs::exists(export_path)) {
-			mesh_importer.import_logger.info("[legsmi] Deleting [{}]", mesh_importer.dir_uri);
-			fs::remove_all(export_path);
-		}
-
 		auto out_scene = levk::Scene{};
-		auto ret = SceneWalker{mesh_importer, asset_list, export_path.generic_string(), out_scene}(scene);
+		auto ret = SceneWalker{out_imported, mesh_importer, asset_list, export_path.generic_string(), out_scene}(scene);
+
 		auto scene_path = fs::path{mesh_importer.uri_prefix} / scene_uri;
 		auto json = dj::Json{};
 		out_scene.serialize(json);

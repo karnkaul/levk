@@ -159,7 +159,7 @@ struct ParseOpt {
 			if (peek() == '=') { break; }
 			auto const* opt = find_opt(out.valid_spec, prev);
 			if (!opt) { return unknown_option({&prev, 1}); }
-			return out.opt(opt->key, {});
+			if (auto result = out.opt(opt->key, {}); result != Result::eContinue) { return result; }
 		}
 		if (peek() == '=') {
 			if (prev == '\0') { return unknown_option(""); }
