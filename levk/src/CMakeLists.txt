@@ -8,6 +8,7 @@ add_subdirectory(imcpp)
 add_subdirectory(font)
 add_subdirectory(scene)
 add_subdirectory(ui)
+add_subdirectory(impl)
 
 target_sources(${PROJECT_NAME} PRIVATE
   camera.cpp

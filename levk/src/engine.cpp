@@ -1,4 +1,5 @@
 #include <font/lib_wrapper.hpp>
+#include <impl/frame_profiler.hpp>
 #include <levk/engine.hpp>
 #include <levk/io/component_factory.hpp>
 #include <levk/io/serializer.hpp>
@@ -49,10 +50,13 @@ RenderDevice& Engine::render_device() const { return m_impl->render_device.get()
 FontLibrary const& Engine::font_library() const { return *m_impl->font_library; }
 
 Frame Engine::next_frame() {
+	FrameProfiler::instance().profile(FrameProfile::Type::eFrameTime);
 	m_impl->window.get().poll();
 	m_impl->fps();
 	return {.state = m_impl->window.get().state(), .dt = m_impl->dt()};
 }
+
+FrameProfile Engine::frame_profile() const { return FrameProfiler::instance().previous_profile(); }
 
 Time Engine::delta_time() const { return m_impl->dt.value; }
 int Engine::framerate() const { return m_impl->fps.fps == 0 ? m_impl->fps.frames : m_impl->fps.fps; }

@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/build_version.hpp>
+#include <levk/frame_profile.hpp>
 #include <levk/graphics/render_device.hpp>
 #include <levk/util/time.hpp>
 #include <levk/window/window.hpp>
@@ -31,6 +32,7 @@ class Engine {
 	FontLibrary const& font_library() const;
 
 	Frame next_frame();
+	FrameProfile frame_profile() const;
 
 	Time delta_time() const;
 	int framerate() const;

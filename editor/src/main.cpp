@@ -212,7 +212,7 @@ struct TestScene : Scene {
 struct Editor : Runtime {
 	static Engine::CreateInfo make_eci() {
 		auto rdci = RenderDevice::CreateInfo{
-			.validation = true,
+			.validation = debug_v,
 			.vsync = Vsync::eOff,
 		};
 		return Engine::CreateInfo{

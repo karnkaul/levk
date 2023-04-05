@@ -57,5 +57,18 @@ void EngineStatus::draw_to(NotClosed<Window>, Engine& engine) {
 	}
 	ImGui::Separator();
 	ImGui::Text("%s", FixedString{"Draw calls: {}", device.draw_calls_last_frame()}.c_str());
+
+	ImGui::Separator();
+	if (auto tn = TreeNode{"Frame Profile"}) {
+		auto const frame_profile = engine.frame_profile();
+		auto const frame_time = frame_profile.profile[FrameProfile::Type::eFrameTime];
+		ImGui::Text("%s", FixedString{"Frame time: {:.2f}ms", frame_time.count() * 1000.0f}.c_str());
+		for (FrameProfile::Type type = FrameProfile::Type{}; type < FrameProfile::Type::eFrameTime; type = FrameProfile::Type(int(type) + 1)) {
+			auto const ratio = frame_profile.profile[type] / frame_time;
+			auto const label = FrameProfile::to_string_v[type];
+			auto const overlay = FixedString{"{} ({:.0f}%)", label, ratio * 100.0f};
+			ImGui::ProgressBar(ratio, {-1.0f, 0.0f}, overlay.c_str());
+		}
+	}
 }
 } // namespace levk::imcpp

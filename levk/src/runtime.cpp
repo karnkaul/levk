@@ -1,3 +1,4 @@
+#include <impl/frame_profiler.hpp>
 #include <levk/runtime.hpp>
 #include <levk/util/error.hpp>
 
@@ -11,6 +12,7 @@ Runtime::ReturnCode Runtime::run() {
 		m_context.show();
 		while (m_context.is_running()) {
 			auto frame = m_context.next_frame();
+			FrameProfiler::instance().profile(FrameProfile::Type::eTick);
 			tick(frame);
 			m_context.scene_manager.get().tick(frame.state, frame.dt);
 			render();

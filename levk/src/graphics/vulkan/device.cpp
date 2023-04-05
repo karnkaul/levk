@@ -12,6 +12,7 @@
 #include <graphics/vulkan/render_scene.hpp>
 #include <graphics/vulkan/render_target.hpp>
 #include <graphics/vulkan/texture.hpp>
+#include <impl/frame_profiler.hpp>
 #include <levk/asset/asset_providers.hpp>
 #include <levk/asset/shader_provider.hpp>
 #include <levk/graphics/material.hpp>
@@ -845,6 +846,7 @@ bool Device::render(RenderDevice::Frame const& frame) {
 	auto const framebuffer_extent = impl->window->framebuffer_extent();
 	if (framebuffer_extent.x == 0 || framebuffer_extent.y == 0) { return false; }
 
+	FrameProfiler::instance().profile(FrameProfile::Type::eAcquireFrame);
 	auto sync = impl->render_sync[buffered_index].view();
 	auto acquired = impl->swapchain.acquire(framebuffer_extent, sync.draw);
 	if (!acquired) { return false; }
@@ -877,6 +879,7 @@ bool Device::render(RenderDevice::Frame const& frame) {
 		}
 	}
 
+	FrameProfiler::instance().profile(FrameProfile::Type::eRender3D);
 	auto const dir_lights = impl->scene.build_dir_lights(frame.lights->dir_lights);
 
 	auto render_cb = impl->render_cbs[buffered_index];
@@ -892,6 +895,7 @@ bool Device::render(RenderDevice::Frame const& frame) {
 	fb_3d.optimal_to_read_only(render_cb.cb_3d);
 	fb_ui.undef_to_optimal(render_cb.cb_3d);
 
+	FrameProfiler::instance().profile(FrameProfile::Type::eRenderUI);
 	render_cb.cb_ui.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 	render_ui(fb_3d.output(), frame, fb_ui, dir_lights);
 	render_cb.cb_ui.end();
@@ -900,13 +904,18 @@ bool Device::render(RenderDevice::Frame const& frame) {
 
 	render_cb.cb_3d.end();
 
+	FrameProfiler::instance().profile(FrameProfile::Type::eRenderSubmit);
 	auto const wsi = vk::SemaphoreSubmitInfo{sync.draw, {}, vk::PipelineStageFlagBits2::eColorAttachmentOutput};
 	auto const cbis = std::array<vk::CommandBufferSubmitInfo, 2>{render_cb.cb_3d, render_cb.cb_ui};
 	auto const ssi = vk::SemaphoreSubmitInfo{sync.present, {}, vk::PipelineStageFlagBits2::eColorAttachmentOutput};
 	auto submit_info = vk::SubmitInfo2{{}, wsi, cbis, ssi};
 	queue.with([&](vk::Queue queue) { queue.submit2(submit_info, sync.drawn); });
 
-	return impl->swapchain.present(framebuffer_extent, sync.present);
+	FrameProfiler::instance().profile(FrameProfile::Type::eRenderPresent);
+	auto const ret = impl->swapchain.present(framebuffer_extent, sync.present);
+
+	FrameProfiler::instance().finish();
+	return ret;
 }
 
 void Device::render_3d(glm::vec4 clear, RenderDevice::Frame const& frame, Framebuffer& framebuffer, BufferView dir_lights) {

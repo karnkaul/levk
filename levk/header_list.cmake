@@ -150,6 +150,7 @@ set(levk_headers
   include/levk/context.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
+  include/levk/frame_profile.hpp
   include/levk/interpolator.hpp
   include/levk/node.hpp
   include/levk/rect.hpp
