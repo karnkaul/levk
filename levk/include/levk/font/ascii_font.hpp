@@ -1,5 +1,7 @@
 #pragma once
 #include <levk/font/static_font_atlas.hpp>
+#include <levk/graphics/geometry.hpp>
+#include <levk/util/not_null.hpp>
 
 namespace levk {
 enum struct Ascii : char {
@@ -11,7 +13,7 @@ class AsciiFont {
 	class Pen;
 	struct Out;
 
-	AsciiFont(std::unique_ptr<GlyphSlot::Factory> slot_factory, TextureProvider& texture_provider, Uri<Texture> uri_prefix);
+	AsciiFont(std::unique_ptr<GlyphSlot::Factory> slot_factory, NotNull<TextureProvider*> texture_provider, Uri<Texture> uri_prefix);
 
 	FontGlyph const& glyph_for(Ascii ascii, TextHeight height);
 
@@ -20,6 +22,7 @@ class AsciiFont {
 	void destroy_font_atlas(TextHeight height);
 
 	Uri<Texture> texture_uri(TextHeight height = TextHeight::eDefault) const;
+	TextureProvider& texture_provider() const { return *m_texure_provider; }
 
 	explicit operator bool() const { return m_slot_factory != nullptr; }
 
@@ -27,7 +30,7 @@ class AsciiFont {
 	std::unordered_map<TextHeight, StaticFontAtlas> m_atlases{};
 	std::unique_ptr<GlyphSlot::Factory> m_slot_factory{};
 	Uri<Texture> m_uri_prefix{};
-	Ptr<TextureProvider> m_texure_provider{};
+	NotNull<TextureProvider*> m_texure_provider;
 };
 
 struct AsciiFont::Out {
@@ -40,6 +43,7 @@ class AsciiFont::Pen {
 	Pen(AsciiFont& font, TextHeight height = TextHeight::eDefault) : m_font(font), m_height(clamp(height)) {}
 
 	Pen& write_line(std::string_view line, Out out);
+	glm::vec2 line_extent(std::string_view line) const;
 
 	TextHeight height() const { return m_height; }
 
@@ -47,6 +51,8 @@ class AsciiFont::Pen {
 	Rgba vertex_colour{white_v};
 
   private:
+	struct Writer;
+
 	AsciiFont& m_font;
 	TextHeight m_height;
 };

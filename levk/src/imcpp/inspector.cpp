@@ -1,8 +1,8 @@
 #include <imgui.h>
-#include <levk/component_factory.hpp>
 #include <levk/imcpp/inspector.hpp>
 #include <levk/imcpp/reflector.hpp>
-#include <levk/scene.hpp>
+#include <levk/io/component_factory.hpp>
+#include <levk/scene/scene.hpp>
 #include <levk/service.hpp>
 #include <levk/util/fixed_string.hpp>
 

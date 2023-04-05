@@ -7,9 +7,9 @@
 namespace levk {
 namespace fs = std::filesystem;
 
-AsciiFontProvider::AsciiFontProvider(TextureProvider& texture_provider, FontLibrary const& font_library)
-	: GraphicsAssetProvider<AsciiFont>(texture_provider.render_device(), texture_provider.data_source(), texture_provider.uri_monitor()),
-	  m_texture_provider(&texture_provider), m_font_library(&font_library) {}
+AsciiFontProvider::AsciiFontProvider(NotNull<TextureProvider*> texture_provider, NotNull<FontLibrary const*> font_library)
+	: GraphicsAssetProvider<AsciiFont>(&texture_provider->render_device(), &texture_provider->data_source(), &texture_provider->uri_monitor()),
+	  m_texture_provider(texture_provider), m_font_library(font_library) {}
 
 auto AsciiFontProvider::load_payload(Uri<AsciiFont> const& uri) const -> Payload {
 	auto ret = Payload{};
@@ -28,7 +28,7 @@ auto AsciiFontProvider::load_payload(Uri<AsciiFont> const& uri) const -> Payload
 		return {};
 	}
 	auto uri_prefix = Uri<Texture>{(fs::path{uri.value()} / "atlas").generic_string()};
-	ret.asset = AsciiFont{std::move(slot_factory), *m_texture_provider, std::move(uri_prefix)};
+	ret.asset = AsciiFont{std::move(slot_factory), m_texture_provider, std::move(uri_prefix)};
 	if (!*ret.asset) {
 		logger::warn("[FontProvider] Failed to load font [{}]", uri.value());
 		return {};

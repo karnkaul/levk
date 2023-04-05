@@ -1,54 +1,25 @@
 #pragma once
+#include <glm/mat4x4.hpp>
 #include <levk/graphics/common.hpp>
+#include <levk/graphics/drawable.hpp>
 #include <levk/graphics/mesh.hpp>
-#include <span>
+#include <algorithm>
 #include <variant>
 #include <vector>
 
 namespace levk {
 class MaterialProvider;
 
-struct Drawable {
-	struct Instanced {
-		Primitive::Static& primitive;
-		Material const& material;
-		glm::mat4 parent{1.0f};
-		std::span<Transform const> instances{};
-	};
-
-	struct Dynamic {
-		Primitive::Dynamic& primitive;
-		Material const& material;
-		glm::mat4 parent{1.0f};
-		std::span<Transform const> instances{};
-	};
-
-	struct Skinned {
-		Primitive::Skinned& primitive;
-		Material const& material;
-		std::span<glm::mat4 const> inverse_bind_matrices{};
-		std::span<glm::mat4 const> joints{};
-	};
-
-	using Payload = std::variant<Instanced, Skinned, Dynamic>;
-
-	Payload payload;
-
-	Drawable(Instanced instanced) : payload(std::move(instanced)) {}
-	Drawable(Skinned skinned) : payload(std::move(skinned)) {}
-	Drawable(Dynamic dynamic) : payload(std::move(dynamic)) {}
-};
-
 class DrawList {
   public:
 	virtual ~DrawList() = default;
 
-	struct Instanced {
+	struct Instances {
 		glm::mat4 parent{1.0f};
 		std::span<Transform const> instances{};
 	};
 
-	struct Skinned {
+	struct Skin {
 		std::span<glm::mat4 const> inverse_bind_matrices{};
 		std::span<glm::mat4 const> joints{};
 	};
@@ -56,18 +27,28 @@ class DrawList {
 	Extent2D extent() const { return m_extent; }
 	Rect2D<> rect() const { return Rect2D<>::from_extent(extent()); }
 
-	void add(Primitive::Static& primitive, Material const& material, Instanced const& instances);
-	void add(Primitive::Dynamic& primitive, Material const& material, Instanced const& instances);
-	void add(Primitive::Skinned& primitive, Material const& material, Skinned const& skin);
+	void add(NotNull<StaticPrimitive const*> primitive, NotNull<Material const*> material, Instances const& instances);
+	void add(NotNull<DynamicPrimitive const*> primitive, NotNull<Material const*> material, Instances const& instances);
+	void add(NotNull<SkinnedPrimitive const*> primitive, NotNull<Material const*> material, Skin const& skin);
+	void add(NotNull<StaticPrimitive const*> primitive, NotNull<Material const*> material, Transform const& transform);
+	void add(NotNull<DynamicPrimitive const*> primitive, NotNull<Material const*> material, Transform const& transform);
 
-	void add(Primitive::Static& primitive, Material const& material, Transform const& transform) { add(primitive, material, {transform.matrix()}); }
+	void add(NotNull<StaticMesh const*> mesh, Instances const& instances, MaterialProvider& material_provider);
+	void add(NotNull<StaticMesh const*> mesh, glm::mat4 const& transform, MaterialProvider& material_provider);
 
-	void add(StaticMesh const& mesh, Instanced const& instances, MaterialProvider& provider);
-	void add(StaticMesh const& mesh, glm::mat4 const& transform, MaterialProvider& provider) { add(mesh, Instanced{transform}, provider); }
+	void add(NotNull<SkinnedMesh const*> mesh, std::span<glm::mat4 const> joints, MaterialProvider& provider);
 
-	void add(SkinnedMesh const& mesh, std::span<glm::mat4 const> joints, MaterialProvider& provider);
+	void add(Drawable drawable) { m_drawables.push_back(std::move(drawable)); }
 
 	std::span<Drawable const> drawables() const { return m_drawables; }
+
+	template <typename Func>
+	void sort_by(Func func) {
+		if (m_drawables.size() < 2) { return; }
+		std::sort(m_drawables.begin(), m_drawables.end(), func);
+	}
+
+	void merge(DrawList const& rhs) { std::copy(rhs.m_drawables.begin(), rhs.m_drawables.end(), std::back_inserter(m_drawables)); }
 
   protected:
 	std::vector<Drawable> m_drawables{};

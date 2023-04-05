@@ -1,4 +1,3 @@
-#include <levk/asset/material_provider.hpp>
 #include <levk/asset/texture_provider.hpp>
 #include <levk/graphics/render_device.hpp>
 #include <levk/graphics/texture_atlas.hpp>
@@ -26,13 +25,13 @@ Texture make_texture(RenderDevice& device, Extent2D extent) {
 	auto sampler = TextureSampler{};
 	sampler.wrap_s = sampler.wrap_t = TextureSampler::Wrap::eClampEdge;
 	sampler.min = sampler.mag = TextureSampler::Filter::eLinear;
-	return device.make_texture(image.view(), Texture::CreateInfo{.mip_mapped = false, .sampler = sampler});
+	return {device.vulkan_device(), image.view(), Texture::CreateInfo{.mip_mapped = false, .sampler = sampler}};
 }
 } // namespace
 
-TextureAtlas::TextureAtlas(TextureProvider& provider, Uri<Texture> uri, CreateInfo const& create_info)
-	: m_uri(std::move(uri)), m_provider(&provider), m_padding(create_info.padding), m_cursor(create_info.padding) {
-	provider.add(m_uri, make_texture(provider.render_device(), create_info.initial_extent));
+TextureAtlas::TextureAtlas(NotNull<TextureProvider*> provider, Uri<Texture> uri, CreateInfo const& create_info)
+	: m_uri(std::move(uri)), m_provider(provider), m_padding(create_info.padding), m_cursor(create_info.padding) {
+	provider->add(m_uri, make_texture(provider->render_device(), create_info.initial_extent));
 }
 
 UvRect TextureAtlas::uv_rect_for(Cell const& cell) const {

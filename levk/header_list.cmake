@@ -4,10 +4,12 @@ set(util_headers
   include/levk/util/binary_file.hpp
   include/levk/util/bit_flags.hpp
   include/levk/util/bool.hpp
-  include/levk/util/cli_opts.hpp
+  include/levk/util/cli_args.hpp
   include/levk/util/contiguous_storage.hpp
+  include/levk/util/defer_queue.hpp
   include/levk/util/dyn_array.hpp
   include/levk/util/enum_array.hpp
+  include/levk/util/enum_concept.hpp
   include/levk/util/enumerate.hpp
   include/levk/util/env.hpp
   include/levk/util/error.hpp
@@ -17,6 +19,7 @@ set(util_headers
   include/levk/util/id.hpp
   include/levk/util/logger.hpp
   include/levk/util/monotonic_map.hpp
+  include/levk/util/not_null.hpp
   include/levk/util/nvec3.hpp
   include/levk/util/path_tree.hpp
   include/levk/util/pinned.hpp
@@ -32,13 +35,6 @@ set(util_headers
   include/levk/util/zip_ranges.hpp
 )
 
-set(impl_headers
-  include/levk/impl/defer_queue.hpp
-  include/levk/impl/desktop_window.hpp
-  include/levk/impl/vulkan_device.hpp
-  include/levk/impl/vulkan_surface.hpp
-)
-
 set(window_headers
   include/levk/window/common.hpp
   include/levk/window/window_state.hpp
@@ -47,19 +43,28 @@ set(window_headers
 )
 
 set(graphics_headers
+  include/levk/graphics/camera.hpp
   include/levk/graphics/common.hpp
+  include/levk/graphics/draw_list.hpp
+  include/levk/graphics/drawable.hpp
+  include/levk/graphics/geometry.hpp
   include/levk/graphics/image.hpp
+  include/levk/graphics/lights.hpp
   include/levk/graphics/material.hpp
   include/levk/graphics/mesh.hpp
   include/levk/graphics/primitive.hpp
-  include/levk/graphics/renderer.hpp
   include/levk/graphics/render_device.hpp
+  include/levk/graphics/render_list.hpp
+  include/levk/graphics/renderer.hpp
+  include/levk/graphics/rgba.hpp
+  include/levk/graphics/shader_buffer.hpp
+  include/levk/graphics/shader_code.hpp
   include/levk/graphics/shader.hpp
-  include/levk/graphics/surface.hpp
-  include/levk/graphics/text_primitive.hpp
+  include/levk/graphics/skeleton.hpp
   include/levk/graphics/texture_atlas.hpp
   include/levk/graphics/texture_sampler.hpp
   include/levk/graphics/texture.hpp
+  include/levk/graphics/transform_animation.hpp
 )
 
 set(imcpp_headers
@@ -68,7 +73,6 @@ set(imcpp_headers
   include/levk/imcpp/drag_drop.hpp
   include/levk/imcpp/editor_window.hpp
   include/levk/imcpp/engine_status.hpp
-  include/levk/imcpp/gltf_import_wizard.hpp
   include/levk/imcpp/input_text.hpp
   include/levk/imcpp/inspector.hpp
   include/levk/imcpp/log_display.hpp
@@ -78,15 +82,16 @@ set(imcpp_headers
 )
 
 set(assets_headers
+  include/levk/asset/asset_list_loader.hpp
   include/levk/asset/asset_list.hpp
   include/levk/asset/asset_provider.hpp
   include/levk/asset/asset_providers.hpp
   include/levk/asset/common.hpp
   include/levk/asset/font_provider.hpp
-  include/levk/asset/gltf_importer.hpp
   include/levk/asset/material_provider.hpp
   include/levk/asset/mesh_provider.hpp
   include/levk/asset/shader_provider.hpp
+  include/levk/asset/skeleton_provider.hpp
   include/levk/asset/texture_provider.hpp
 )
 
@@ -97,13 +102,37 @@ set(vfs_headers
   include/levk/vfs/uri_monitor.hpp
 )
 
+set(io_headers
+  include/levk/io/binding_map.hpp
+  include/levk/io/component_factory.hpp
+  include/levk/io/serializable.hpp
+  include/levk/io/serializer.hpp
+)
+
 set(font_headers
   include/levk/font/ascii_font.hpp
-  include/levk/font/font_common.hpp
+  include/levk/font/common.hpp
   include/levk/font/font_glyph.hpp
   include/levk/font/font_library.hpp
   include/levk/font/glyph_slot.hpp
   include/levk/font/static_font_atlas.hpp
+)
+
+set(scene_headers
+  include/levk/scene/component.hpp
+  include/levk/scene/entity.hpp
+  include/levk/scene/primitive_renderer.hpp
+  include/levk/scene/scene_manager.hpp
+  include/levk/scene/scene.hpp
+  include/levk/scene/skeleton_controller.hpp
+  include/levk/scene/skinned_mesh_renderer.hpp
+  include/levk/scene/static_mesh_renderer.hpp
+)
+
+set(ui_headers
+  include/levk/ui/primitive.hpp
+  include/levk/ui/text.hpp
+  include/levk/ui/view.hpp
 )
 
 set(levk_headers
@@ -115,30 +144,18 @@ set(levk_headers
   ${assets_headers}
   ${vfs_headers}
   ${font_headers}
+  ${scene_headers}
+  ${ui_headers}
 
-  include/levk/camera.hpp
-  include/levk/component_factory.hpp
-  include/levk/component.hpp
   include/levk/context.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
-  include/levk/entity.hpp
-  include/levk/geometry.hpp
+  include/levk/frame_profile.hpp
   include/levk/interpolator.hpp
-  include/levk/lights.hpp
   include/levk/node.hpp
-  include/levk/pixel_map.hpp
   include/levk/rect.hpp
-  include/levk/rgba.hpp
   include/levk/runtime.hpp
-  include/levk/scene_manager.hpp
-  include/levk/scene.hpp
   include/levk/service.hpp
-  include/levk/serializable.hpp
-  include/levk/serializer.hpp
-  include/levk/skeleton.hpp
-  include/levk/transform_animation.hpp
-  include/levk/transform_controller.hpp
   include/levk/transform.hpp
   include/levk/uri.hpp
 )

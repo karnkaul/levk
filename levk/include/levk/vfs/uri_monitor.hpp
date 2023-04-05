@@ -11,7 +11,7 @@ class UriMonitor {
 	using Timestamp = std::chrono::milliseconds;
 	using OnModified = Signal<Uri<> const&>;
 
-	UriMonitor(std::string mount_point);
+	explicit UriMonitor(std::string mount_point);
 
 	std::string_view mount_point() const { return m_mount_point; }
 

@@ -26,6 +26,8 @@ ByteArray DiskVfs::read(Uri<> const& uri) const {
 	return ret;
 }
 
+bool DiskVfs::contains(Uri<> const& uri) const { return fs::is_regular_file(uri.absolute_path(mount_point())); }
+
 bool DiskVfs::write(std::span<std::byte const> bytes, Uri<> const& uri) const {
 	auto file = std::ofstream{uri.absolute_path(mount_point()), std::ios::binary};
 	if (!file) { return false; }

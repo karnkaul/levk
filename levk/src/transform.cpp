@@ -10,4 +10,10 @@ Transform& Transform::decompose(glm::mat4 const& mat) {
 	m_dirty = false;
 	return *this;
 }
+
+Transform Transform::combined(glm::mat4 const& parent) const {
+	auto ret = Transform{};
+	ret.decompose(parent * matrix());
+	return ret;
+}
 } // namespace levk

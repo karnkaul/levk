@@ -1,5 +1,5 @@
 #pragma once
-#include <levk/pixel_map.hpp>
+#include <levk/graphics/pixel_map.hpp>
 #include <levk/util/unique.hpp>
 #include <string>
 

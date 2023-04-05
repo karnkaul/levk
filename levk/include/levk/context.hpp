@@ -1,6 +1,8 @@
 #pragma once
 #include <levk/asset/asset_providers.hpp>
 #include <levk/engine.hpp>
+#include <levk/io/component_factory.hpp>
+#include <levk/scene/scene_manager.hpp>
 #include <levk/service.hpp>
 
 namespace levk {
@@ -9,38 +11,26 @@ class Scene;
 
 class Context {
   public:
-	Context(DataSource const& data_source, UriMonitor& uri_monitor, Serializer const& serializer, Window&& window, RenderDevice&& render_device);
+	Context(NotNull<DataSource const*> data_source, Engine::CreateInfo const& create_info = {});
 
 	void show() { return engine.get().window().show(); }
 	void hide() { return engine.get().window().hide(); }
 	void shutdown() { return engine.get().window().close(); }
 	bool is_running() const { return engine.get().window().is_open(); }
 	Frame next_frame() { return engine.get().next_frame(); }
-	void render(Scene const& scene);
+	void render() const;
 
-	DataSource const& data_source() const { return providers.get().data_source(); }
+	DataSource const& data_source() const { return asset_providers.get().data_source(); }
+	RenderDevice& render_device() const { return engine.get().render_device(); }
+	Window& window() const { return engine.get().window(); }
+	Scene& active_scene() { return scene_manager.get().active_scene(); }
+	Scene const& active_scene() const { return scene_manager.get().active_scene(); }
 
+	Service<Serializer>::Instance serializer{};
+	Service<ComponentFactory>::Instance component_factory{};
+	Service<UriMonitor>::Instance uri_monitor;
 	Service<Engine>::Instance engine;
-	Service<AssetProviders>::Instance providers;
-};
-
-struct ContextFactory {
-	WindowFactory const& window;
-	GraphicsDeviceFactory const& render_device;
-
-	ContextFactory(WindowFactory const& window, GraphicsDeviceFactory const& render_device) : window(window), render_device(render_device) {}
-
-	Context make(DataSource const& data_source, UriMonitor& uri_monitor, Serializer const& serializer) const {
-		return Context{data_source, uri_monitor, serializer, window.make(), render_device.make()};
-	}
-};
-
-struct DesktopContextFactoryStorage {
-	DesktopWindowFactory desktop_window{};
-	VulkanDeviceFactory vulkan_device{};
-};
-
-struct DesktopContextFactory : DesktopContextFactoryStorage, ContextFactory {
-	DesktopContextFactory() : ContextFactory(desktop_window, vulkan_device) {}
+	Service<AssetProviders>::Instance asset_providers;
+	Service<SceneManager>::Instance scene_manager;
 };
 } // namespace levk

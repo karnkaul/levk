@@ -9,8 +9,8 @@ namespace levk {
 class StaticFontAtlas {
   public:
 	struct CreateInfo {
-		GlyphSlot::Factory& slot_factory;
-		TextureProvider& texture_provider;
+		NotNull<GlyphSlot::Factory*> slot_factory;
+		NotNull<TextureProvider*> texture_provider;
 		Uri<Texture> texture_uri;
 
 		std::span<Codepoint const> codepoints{};

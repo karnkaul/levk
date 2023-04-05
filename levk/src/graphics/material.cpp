@@ -1,9 +1,9 @@
+#include <graphics/vulkan/material.hpp>
 #include <levk/asset/common.hpp>
 #include <levk/asset/texture_provider.hpp>
 #include <levk/graphics/material.hpp>
-#include <levk/service.hpp>
+#include <levk/graphics/shader.hpp>
 #include <levk/util/enumerate.hpp>
-#include <cstring>
 
 namespace levk {
 namespace {
@@ -41,27 +41,57 @@ bool MaterialTextures::deserialize(dj::Json const& json) {
 	return true;
 }
 
+void Material::Deleter::operator()(vulkan::Material const* ptr) const { delete ptr; }
+
+Material::Material() : m_impl(new vulkan::Material{}) {}
+
 bool Material::serialize(dj::Json& out) const {
 	textures.serialize(out["textures"]);
 	asset::to_json(out["render_mode"], render_mode);
+	out["vertex_shader"] = vertex_shader.value();
+	out["fragment_shader"] = fragment_shader.value();
 	return true;
 }
 
 bool Material::deserialize(dj::Json const& json) {
 	textures.deserialize(json["textures"]);
 	asset::from_json(json["render_mode"], render_mode);
+	vertex_shader = json["vertex_shader"].as_string();
+	fragment_shader = json["fragment_shader"].as_string();
 	return true;
 }
 
+UnlitMaterial::UnlitMaterial() {
+	vertex_shader = "shaders/unlit.vert";
+	fragment_shader = "shaders/unlit.frag";
+}
+
 void UnlitMaterial::write_sets(Shader& shader, TextureProvider const& provider) const {
-	shader.update(1, 0, provider.get(textures.uris[0]));
-	shader.write(2, 0, Rgba::to_srgb(tint.to_vec4()));
+	shader.update(2, 0, provider.get(textures.uris[0]));
+	shader.write(2, 1, Rgba::to_srgb(tint.to_vec4()));
+}
+
+bool UnlitMaterial::serialize(dj::Json& out) const {
+	Material::serialize(out);
+	asset::to_json(out["tint"], tint);
+	return true;
+}
+
+bool UnlitMaterial::deserialize(dj::Json const& json) {
+	Material::deserialize(json);
+	asset::from_json(json["tint"], tint);
+	return true;
+}
+
+LitMaterial::LitMaterial() {
+	vertex_shader = "shaders/lit.vert";
+	fragment_shader = "shaders/lit.frag";
 }
 
 void LitMaterial::write_sets(Shader& shader, TextureProvider const& provider) const {
-	shader.update(1, 0, provider.get(textures.uris[0]));
-	shader.update(1, 1, provider.get(textures.uris[1]));
-	shader.update(1, 2, provider.get(textures.uris[2], "black"));
+	shader.update(2, 0, provider.get(textures.uris[0]));
+	shader.update(2, 1, provider.get(textures.uris[1]));
+	shader.update(2, 2, provider.get(textures.uris[2], "black"));
 	struct MatUBO {
 		glm::vec4 albedo;
 		glm::vec4 m_r_aco_am;
@@ -72,22 +102,7 @@ void LitMaterial::write_sets(Shader& shader, TextureProvider const& provider) co
 		.m_r_aco_am = {metallic, roughness, 0.0f, std::bit_cast<float>(alpha_mode)},
 		.emissive = Rgba::to_linear({emissive_factor, 1.0f}),
 	};
-	shader.write(2, 0, mat);
-}
-
-bool UnlitMaterial::serialize(dj::Json& out) const {
-	Material::serialize(out);
-	asset::to_json(out["tint"], tint);
-	out["shader"] = shader.value();
-	out["name"] = name;
-	return true;
-}
-
-bool UnlitMaterial::deserialize(dj::Json const& json) {
-	Material::deserialize(json);
-	asset::from_json(json["tint"], tint);
-	name = json["name"].as<std::string>();
-	return true;
+	shader.write(2, 3, mat);
 }
 
 bool LitMaterial::serialize(dj::Json& out) const {
@@ -98,7 +113,6 @@ bool LitMaterial::serialize(dj::Json& out) const {
 	out["roughness"] = roughness;
 	out["alpha_cutoff"] = alpha_cutoff;
 	out["alpha_mode"] = from(alpha_mode);
-	out["shader"] = shader.value();
 	out["name"] = name;
 	return true;
 }
@@ -112,8 +126,9 @@ bool LitMaterial::deserialize(dj::Json const& json) {
 	roughness = json["roughness"].as<float>(roughness);
 	alpha_cutoff = json["alpha_cutoff"].as<float>(alpha_cutoff);
 	alpha_mode = to_alpha_mode(json["alpha_mode"].as_string());
-	shader = json["shader"].as_string(shader.value());
 	name = json["name"].as_string();
 	return true;
 }
+
+SkinnedMaterial::SkinnedMaterial() { vertex_shader = "shaders/skinned.vert"; }
 } // namespace levk

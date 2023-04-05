@@ -1,8 +1,8 @@
 #pragma once
 #include <glm/gtc/quaternion.hpp>
-#include <levk/camera.hpp>
+#include <levk/graphics/camera.hpp>
+#include <levk/graphics/rgba.hpp>
 #include <levk/imcpp/common.hpp>
-#include <levk/rgba.hpp>
 #include <levk/transform.hpp>
 #include <levk/util/nvec3.hpp>
 

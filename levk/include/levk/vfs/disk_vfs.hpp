@@ -13,6 +13,7 @@ class DiskVfs : public DataSink {
 
 	std::string_view mount_point() const final { return m_mount_point; }
 	ByteArray read(Uri<> const& uri) const final;
+	bool contains(Uri<> const& uri) const final;
 	bool write(std::span<std::byte const> bytes, Uri<> const& uri) const final;
 
   private:

@@ -15,6 +15,7 @@ class DataSource {
 
 	virtual std::string_view mount_point() const = 0;
 	virtual ByteArray read(Uri<> const& uri) const = 0;
+	virtual bool contains(Uri<> const& uri) const = 0;
 
 	std::string read_text(Uri<> const& uri) const;
 	dj::Json read_json(Uri<> const& uri, std::string_view extension = ".json") const;
@@ -24,4 +25,6 @@ class DataSource {
   protected:
 	std::string m_mount_point{};
 };
+
+std::string find_directory(char const* exe_path, std::span<std::string_view const> uri_patterns);
 } // namespace levk

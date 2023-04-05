@@ -11,6 +11,7 @@ struct Input {
 	FlexArray<std::uint32_t, 8> codepoints{};
 	glm::vec2 cursor{};
 	glm::vec2 scroll{};
+	glm::vec2 ui_space{};
 
 	template <typename T>
 	static constexpr Action action(std::span<Action const> actions, T const t) {

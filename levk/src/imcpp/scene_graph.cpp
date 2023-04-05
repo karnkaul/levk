@@ -2,7 +2,8 @@
 #include <levk/imcpp/drag_drop.hpp>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/imcpp/scene_graph.hpp>
-#include <levk/scene.hpp>
+#include <levk/scene/scene.hpp>
+#include <levk/scene/scene_manager.hpp>
 #include <levk/service.hpp>
 #include <levk/util/fixed_string.hpp>
 
@@ -34,6 +35,7 @@ Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 	draw_scene_tree(w);
 	handle_popups();
 	if (auto* payload = ImGui::GetDragDropPayload()) {
+		auto* scene_manager = Service<SceneManager>::find();
 		if (payload->IsDataType("node")) {
 			imcpp::TreeNode::leaf("(Unparent)");
 			if (auto target = imcpp::DragDrop::Target{}) {
@@ -43,9 +45,11 @@ Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 				}
 			}
 		} else if (payload->IsDataType("skinned_mesh")) {
-			imcpp::TreeNode::leaf("(Instantiate skeleton)");
-			if (auto target = imcpp::DragDrop::Target{}) {
-				if (auto uri = imcpp::DragDrop::accept_string("skinned_mesh"); !uri.empty()) { scene.load_into_tree(Uri<SkinnedMesh>{uri}); }
+			if (scene_manager) {
+				imcpp::TreeNode::leaf("(Instantiate skeleton)");
+				if (auto target = imcpp::DragDrop::Target{}) {
+					if (auto uri = imcpp::DragDrop::accept_string("skinned_mesh"); !uri.empty()) { scene_manager->load_into_tree(Uri<SkinnedMesh>{uri}); }
+				}
 			}
 		}
 	}

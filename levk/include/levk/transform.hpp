@@ -86,6 +86,12 @@ class Transform {
 	///
 	Transform& decompose(glm::mat4 const& mat);
 
+	static Transform from(glm::mat4 const& mat) {
+		auto ret = Transform{};
+		ret.decompose(mat);
+		return ret;
+	}
+
 	///
 	/// \brief Obtain the combined 4x4 transformation matrix.
 	/// \returns The transformation matrix
@@ -100,6 +106,13 @@ class Transform {
 	/// \returns true If the matrix needs to be recomputed
 	///
 	bool is_dirty() const { return m_dirty; }
+
+	///
+	/// \brief Obtain a transform that combines this with the passed parent.
+	/// \param parent transformation matrix of the parent
+	/// \returns Composition of parent and self
+	///
+	Transform combined(glm::mat4 const& parent) const;
 
   private:
 	Transform& set_dirty();

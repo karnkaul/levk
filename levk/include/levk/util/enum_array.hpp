@@ -1,14 +1,8 @@
 #pragma once
-#include <concepts>
+#include <levk/util/enum_concept.hpp>
 #include <cstdint>
 
 namespace levk {
-///
-/// \brief Concept wrapping is_enum_v trait.
-///
-template <typename Type>
-concept EnumT = std::is_enum_v<Type>;
-
 ///
 /// \brief Stores an array of Type, of size Size, indexable by enum E.
 ///

@@ -2,9 +2,9 @@
 #include <levk/asset/texture_provider.hpp>
 
 namespace levk {
-MaterialProvider::MaterialProvider(TextureProvider& texture_provider, Serializer const& serializer)
-	: GraphicsAssetProvider<UMaterial>(texture_provider.render_device(), texture_provider.data_source(), texture_provider.uri_monitor()),
-	  m_texture_provider(&texture_provider), m_serializer(&serializer) {}
+MaterialProvider::MaterialProvider(NotNull<TextureProvider*> texture_provider, NotNull<Serializer const*> serializer)
+	: GraphicsAssetProvider<UMaterial>(&texture_provider->render_device(), &texture_provider->data_source(), &texture_provider->uri_monitor()),
+	  m_texture_provider(texture_provider), m_serializer(serializer) {}
 
 MaterialProvider::Payload MaterialProvider::load_payload(Uri<UMaterial> const& uri) const {
 	auto ret = Payload{};
