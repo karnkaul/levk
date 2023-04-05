@@ -7,6 +7,7 @@
 
 namespace levk {
 struct FontLibrary;
+class ThreadPool;
 
 struct EngineCreateInfo {
 	glm::uvec2 window_extent{1280u, 720u};
@@ -30,6 +31,7 @@ class Engine {
 	Window& window() const;
 	RenderDevice& render_device() const;
 	FontLibrary const& font_library() const;
+	ThreadPool& thread_pool() const;
 
 	Frame next_frame();
 	FrameProfile frame_profile() const;
@@ -41,7 +43,7 @@ class Engine {
 	struct Impl;
 
 	struct Deleter {
-		void operator()(Impl const* ptr) const;
+		void operator()(Impl* ptr) const;
 	};
 
 	std::unique_ptr<Impl, Deleter> m_impl{};

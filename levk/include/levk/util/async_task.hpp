@@ -1,6 +1,6 @@
 #pragma once
+#include <levk/util/thread_pool.hpp>
 #include <atomic>
-#include <future>
 #include <utility>
 
 namespace levk {
@@ -16,11 +16,11 @@ class AsyncTask {
 		return m_status;
 	}
 
-	bool valid() const { return get_future().valid() || !m_started; }
+	bool valid() const { return get_future().future.valid() || !m_started; }
 	bool started() const { return m_started; }
-	bool running() const { return get_future().valid() && started(); }
-	bool ready() const { return get_future().valid() && get_future().wait_for(std::chrono::seconds{}) == std::future_status::ready; }
-	void wait() const { get_future().valid() && get_future().wait(); }
+	bool running() const { return get_future().future.valid() && started(); }
+	bool ready() const { return get_future().future.valid() && get_future().future.wait_for(std::chrono::seconds{}) == std::future_status::ready; }
+	void wait() const { get_future().future.valid() && get_future().wait(); }
 
 	ResultT get()
 		requires(!std::is_void_v<ResultT>)
@@ -28,9 +28,9 @@ class AsyncTask {
 		return get_future().get();
 	}
 
-	void run() {
+	void run(ThreadPool& thread_pool) {
 		m_started = true;
-		get_future() = std::async([this] { return execute(); });
+		get_future() = thread_pool.submit([this, &thread_pool] { return execute(thread_pool); });
 	}
 
   protected:
@@ -43,10 +43,10 @@ class AsyncTask {
 
 	void wait() { get_future().wait(); }
 
-	virtual std::future<ResultT> const& get_future() const = 0;
-	virtual ResultT execute() = 0;
+	virtual ScopedFuture<ResultT> const& get_future() const = 0;
+	virtual ResultT execute(ThreadPool& thread_pool) = 0;
 
-	std::future<ResultT>& get_future() { return const_cast<std::future<ResultT>&>(std::as_const(*this).get_future()); }
+	ScopedFuture<ResultT>& get_future() { return const_cast<ScopedFuture<ResultT>&>(std::as_const(*this).get_future()); }
 
   private:
 	mutable std::mutex m_mutex{};

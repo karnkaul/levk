@@ -96,21 +96,21 @@ struct LoadRequest {
 	std::variant<Uri<Mesh>, Uri<Scene>> to_load{};
 	std::unique_ptr<AsyncTask<void>> loader{};
 
-	static LoadRequest make(NotNull<AssetProviders const*> asset_providers, Uri<Mesh> uri) {
+	static LoadRequest make(NotNull<AssetProviders const*> asset_providers, Uri<Mesh> uri, ThreadPool& thread_pool) {
 		auto ret = LoadRequest{};
 		auto list = AssetList{};
 		list.meshes.insert(uri);
 		ret.loader = std::make_unique<AssetListLoader>(asset_providers, std::move(list));
 		ret.to_load = std::move(uri);
-		ret.loader->run();
+		ret.loader->run(thread_pool);
 		return ret;
 	}
 
-	static LoadRequest make(NotNull<AssetProviders const*> asset_providers, Uri<Scene> uri) {
+	static LoadRequest make(NotNull<AssetProviders const*> asset_providers, Uri<Scene> uri, ThreadPool& thread_pool) {
 		auto ret = LoadRequest{};
 		ret.loader = std::make_unique<AssetListLoader>(asset_providers, asset_providers->build_asset_list(uri));
 		ret.to_load = std::move(uri);
-		ret.loader->run();
+		ret.loader->run(thread_pool);
 		return ret;
 	}
 
@@ -192,7 +192,7 @@ struct TestScene : Scene {
 
 			if (test.primitive->clicked) {
 				if (!test.load_request && Service<SceneManager>().locate().data_source().contains(test.to_load)) {
-					test.load_request = LoadRequest::make(&Service<AssetProviders>::locate(), test.to_load);
+					test.load_request = LoadRequest::make(&Service<AssetProviders>::locate(), test.to_load, Service<Engine>::locate().thread_pool());
 				}
 				test.primitive->set_destroyed();
 				test.primitive = {};
@@ -273,9 +273,9 @@ struct Editor : Runtime {
 					if (auto uri = m_context.data_source().trim_to_uri(drop)) {
 						auto const asset_type = m_context.asset_providers.get().asset_type(uri);
 						if (asset_type == "mesh") {
-							load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Mesh>{uri});
+							load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Mesh>{uri}, m_context.engine.get().thread_pool());
 						} else if (asset_type == "scene") {
-							load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Scene>{uri});
+							load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Scene>{uri}, m_context.engine.get().thread_pool());
 						}
 					}
 					break;
@@ -289,9 +289,9 @@ struct Editor : Runtime {
 				gltf_import_wizard.reset();
 			} else if (result && result.should_load) {
 				if (result.scene) {
-					load_request = LoadRequest::make(&context().asset_providers.get(), std::move(result.scene));
+					load_request = LoadRequest::make(&context().asset_providers.get(), std::move(result.scene), m_context.engine.get().thread_pool());
 				} else if (result.mesh) {
-					load_request = LoadRequest::make(&context().asset_providers.get(), std::move(result.mesh));
+					load_request = LoadRequest::make(&context().asset_providers.get(), std::move(result.mesh), m_context.engine.get().thread_pool());
 				}
 				gltf_import_wizard.reset();
 			}
@@ -336,8 +336,8 @@ struct Editor : Runtime {
 
 int main([[maybe_unused]] int argc, char** argv) {
 	assert(argc > 0);
-	static constexpr std::string_view const data_uris[] = {"data", "editor/data"};
 	try {
+		static constexpr std::string_view const data_uris[] = {"data", "editor/data"};
 		auto const data_path = levk::find_directory(argv[0], data_uris);
 		return levk::Editor{data_path}.run();
 	} catch (...) { return EXIT_FAILURE; }

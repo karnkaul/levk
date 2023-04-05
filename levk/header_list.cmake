@@ -15,6 +15,7 @@ set(util_headers
   include/levk/util/error.hpp
   include/levk/util/fixed_string.hpp
   include/levk/util/flex_array.hpp
+  include/levk/util/futopt.hpp
   include/levk/util/hash_combine.hpp
   include/levk/util/id.hpp
   include/levk/util/logger.hpp
