@@ -14,12 +14,12 @@ layout (set = 0, binding = 0) uniform VP {
 	mat4 mat_vp;
 };
 
+layout (location = 0) out vec3 out_rgb;
+layout (location = 1) out vec2 out_uv;
+
 out gl_PerVertex {
 	vec4 gl_Position;
 };
-
-layout (location = 0) out vec3 out_rgb;
-layout (location = 1) out vec2 out_uv;
 
 void main() {
 	mat4 mat_m = mat4(
