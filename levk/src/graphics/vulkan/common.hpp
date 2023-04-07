@@ -144,15 +144,6 @@ struct Vma {
 														glm::ivec2 const offset = {}) const;
 	[[nodiscard]] Unique<Buffer, Deleter> write_images(vk::CommandBuffer cb, Image const& out, std::span<ImageWrite const> writes) const;
 
-	void* map_memory(Buffer& out) const;
-	void unmap_memory(Buffer& out) const;
-
-	template <typename F>
-	void with_mapped(Buffer& out, F func) const {
-		func(map_memory(out));
-		unmap_memory(out);
-	}
-
 	void full_blit(vk::CommandBuffer cb, Blit src, Blit dst, vk::Filter filter = vk::Filter::eLinear) const;
 };
 

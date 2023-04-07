@@ -1,5 +1,6 @@
 #include <graphics/vulkan/ad_hoc_cmd.hpp>
 #include <graphics/vulkan/primitive.hpp>
+#include <levk/util/error.hpp>
 
 namespace levk::vulkan {
 namespace {
@@ -69,14 +70,13 @@ struct GeometryUploader {
 		out_layout.indices = static_cast<std::uint32_t>(indices.size());
 		auto const size = geometry.size_bytes();
 		if (out_buffer.get().size < size) { out_buffer = vma.make_buffer(vi_flags_v, size, true); }
-		vma.with_mapped(out_buffer.get(), [&](void*) {
-			auto writer = BufferWriter{out_buffer};
-			out_layout.offsets.positions = writer(std::span{geometry.positions});
-			out_layout.offsets.rgbs = writer(std::span{geometry.rgbs});
-			out_layout.offsets.normals = writer(std::span{geometry.normals});
-			out_layout.offsets.uvs = writer(std::span{geometry.uvs});
-			if (!indices.empty()) { out_layout.offsets.indices = writer(indices); }
-		});
+		if (!out_buffer.get().buffer || !out_buffer.get().mapped) { throw Error{"Failed to write create Vulkan staging buffer"}; }
+		auto writer = BufferWriter{out_buffer};
+		out_layout.offsets.positions = writer(std::span{geometry.positions});
+		out_layout.offsets.rgbs = writer(std::span{geometry.rgbs});
+		out_layout.offsets.normals = writer(std::span{geometry.normals});
+		out_layout.offsets.uvs = writer(std::span{geometry.uvs});
+		if (!indices.empty()) { out_layout.offsets.indices = writer(indices); }
 		out_layout.vertex_input = instanced_vertex_input();
 		out_layout.instance_binding = Bindings::instance_v;
 	}
@@ -85,11 +85,10 @@ struct GeometryUploader {
 		assert(joints.joints.size() >= joints.weights.size());
 		auto const size = joints.joints.size_bytes() + joints.weights.size_bytes();
 		if (out_buffer.get().size < size) { out_buffer = vma.make_buffer(v_flags_v, size, false); }
-		vma.with_mapped(out_buffer.get(), [&](void*) {
-			auto writer = BufferWriter{out_buffer};
-			out_layout.offsets.joints = writer(joints.joints);
-			out_layout.offsets.weights = writer(joints.weights);
-		});
+		if (!out_buffer.get().buffer || !out_buffer.get().mapped) { throw Error{"Failed to write create Vulkan staging buffer"}; }
+		auto writer = BufferWriter{out_buffer};
+		out_layout.offsets.joints = writer(joints.joints);
+		out_layout.offsets.weights = writer(joints.weights);
 		out_layout.vertex_input = skinned_vertex_input();
 		out_layout.joints_binding = Bindings::joints_v;
 		out_layout.joints_set = Sets::joints_v;

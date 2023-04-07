@@ -13,6 +13,10 @@ Runtime::ReturnCode Runtime::run() {
 		while (m_context.is_running()) {
 			auto frame = m_context.next_frame();
 			FrameProfiler::instance().profile(FrameProfile::Type::eTick);
+			if (frame.state.focus_changed() && frame.state.is_in_focus()) {
+				m_context.uri_monitor.get().dispatch_modified();
+				m_context.asset_providers.get().reload_out_of_date();
+			}
 			tick(frame);
 			m_context.scene_manager.get().tick(frame.state, frame.dt);
 			render();

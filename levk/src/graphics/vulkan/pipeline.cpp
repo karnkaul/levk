@@ -130,8 +130,10 @@ vk::UniquePipeline make_pipeline(vk::Device device, PipelineCreateInfo const& in
 	gpci.pMultisampleState = &pmssci;
 
 	auto prci = vk::PipelineRenderingCreateInfo{};
-	prci.colorAttachmentCount = 1u;
-	prci.pColorAttachmentFormats = &info.format.colour;
+	if (info.format.colour != vk::Format{}) {
+		prci.colorAttachmentCount = 1u;
+		prci.pColorAttachmentFormats = &info.format.colour;
+	}
 	prci.depthAttachmentFormat = info.format.depth;
 	gpci.pNext = &prci;
 

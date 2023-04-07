@@ -526,7 +526,7 @@ struct Shader : levk::Shader {
 		auto& descriptor_set = sets[set];
 		if (!descriptor_set) { descriptor_set = device.set_allocator->allocate(descriptor_set_layouts[set]); }
 		auto& buffer = device.scratch_buffer_allocator->allocate(size, usage);
-		device.vma.with_mapped(buffer, [data, size](void* mapped) { std::memcpy(mapped, data, size); });
+		std::memcpy(buffer.mapped, data, size);
 		auto wds = vk::WriteDescriptorSet{descriptor_set};
 		auto const buffer_info = vk::DescriptorBufferInfo{buffer.buffer, 0u, size};
 		wds.descriptorCount = layout_binding.descriptorCount;
@@ -715,9 +715,7 @@ void Device::Drawer::draw(Drawable const& drawable) {
 	auto* primitive = drawable.primitive.get();
 	auto* material = drawable.material->vulkan_material();
 	if (!primitive || !material) { return; }
-	if (!material->shader_layout.hash && !material->build_layout(pipeline_builder, drawable.material->vertex_shader, drawable.material->fragment_shader)) {
-		return;
-	}
+	if (!material->build_layout(pipeline_builder, drawable.material->vertex_shader, drawable.material->fragment_shader)) { return; }
 	auto rm = combine(drawable.material->render_mode, device.default_render_mode);
 	auto const pipeline_state = PipelineState{
 		.mode = from(rm.type),
@@ -725,7 +723,7 @@ void Device::Drawer::draw(Drawable const& drawable) {
 		.depth_test = rm.depth_test,
 	};
 	auto write_per_mat_sets = [&](Shader& shader) {
-		shader.update(Lights::set_v, DirLight::binding_v, dir_lights_ssbo);
+		if (dir_lights_ssbo.buffer) { shader.update(Lights::set_v, DirLight::binding_v, dir_lights_ssbo); }
 		drawable.material->write_sets(shader, asset_providers.texture());
 	};
 	if (auto pipeline = pipeline_builder.try_build(primitive->layout().vertex_input, pipeline_state, material->shader_layout.hash)) {
