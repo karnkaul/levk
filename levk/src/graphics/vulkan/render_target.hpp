@@ -94,4 +94,49 @@ struct RenderTarget {
 		return device.vma.make_image(ici, create_info.extent);
 	}
 };
+
+struct DepthTarget {
+	struct CreateInfo {
+		vk::Extent2D extent;
+		vk::Format format;
+
+		vk::SampleCountFlagBits samples{vk::SampleCountFlagBits::e1};
+	};
+
+	DeviceView device{};
+	CreateInfo create_info{};
+	UniqueImage depth{};
+
+	static DepthTarget make(DeviceView const& device, CreateInfo const& create_info) {
+		auto ret = DepthTarget{.device = device, .create_info = create_info};
+		assert(create_info.format != vk::Format{});
+		ret.depth = ret.make_target();
+		return ret;
+	}
+
+	UniqueImage make_target() const {
+		auto const ici = ImageCreateInfo{
+			.format = create_info.format,
+			.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
+			.aspect = vk::ImageAspectFlagBits::eDepth,
+			.samples = create_info.samples,
+		};
+		return device.vma.make_image(ici, create_info.extent);
+	}
+
+	Depthbuffer depthbuffer() const {
+		return {
+			.image = depth.get().image_view(),
+			.samples = create_info.samples,
+		};
+	}
+
+	Depthbuffer refresh(vk::Extent2D extent) {
+		if (create_info.extent == extent) { return depthbuffer(); }
+		create_info.extent = extent;
+		device.defer->push(std::move(depth));
+		depth = make_target();
+		return depthbuffer();
+	}
+};
 } // namespace levk::vulkan

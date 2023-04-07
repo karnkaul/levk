@@ -50,7 +50,7 @@ void Framebuffer::set_output(ImageView acquired) {
 	}
 }
 
-void Framebuffer::begin_render(std::optional<vk::ClearColorValue> clear, vk::CommandBuffer cb) {
+void Framebuffer::begin_render(std::optional<glm::vec4> const& clear, vk::CommandBuffer cb) {
 	auto ri = vk::RenderingInfo{};
 	ri.renderArea = vk::Rect2D{{}, output().extent};
 	ri.layerCount = 1u;
@@ -60,7 +60,7 @@ void Framebuffer::begin_render(std::optional<vk::ClearColorValue> clear, vk::Com
 	colour_attachment.storeOp = vk::AttachmentStoreOp::eStore;
 	if (clear) {
 		colour_attachment.loadOp = vk::AttachmentLoadOp::eClear;
-		colour_attachment.clearValue = *clear;
+		colour_attachment.clearValue = vk::ClearColorValue{std::array{clear->x, clear->y, clear->z, clear->w}};
 	}
 	if (resolve.view) {
 		colour_attachment.resolveImageView = resolve.view;
@@ -82,4 +82,30 @@ void Framebuffer::begin_render(std::optional<vk::ClearColorValue> clear, vk::Com
 }
 
 void Framebuffer::end_render(vk::CommandBuffer cb) { cb.endRendering(); }
+
+PipelineFormat Depthbuffer::pipeline_format() const {
+	return PipelineFormat{
+		.depth = image.format,
+		.samples = samples,
+	};
+}
+
+void Depthbuffer::undef_to_optimal(vk::CommandBuffer cb) const { ImageBarrier{image.image}.set_undef_to_optimal(true).transition(cb); }
+void Depthbuffer::optimal_to_read_only(vk::CommandBuffer cb) const { ImageBarrier{image.image}.set_optimal_to_read_only(true).transition(cb); }
+
+void Depthbuffer::begin_render(vk::CommandBuffer cb) {
+	auto ri = vk::RenderingInfo{};
+	ri.renderArea = vk::Rect2D{{}, image.extent};
+	ri.layerCount = 1u;
+
+	auto depth_attachment = vk::RenderingAttachmentInfo{image.view, vk::ImageLayout::eAttachmentOptimal};
+	depth_attachment.loadOp = vk::AttachmentLoadOp::eClear;
+	depth_attachment.storeOp = vk::AttachmentStoreOp::eStore;
+	depth_attachment.clearValue = vk::ClearDepthStencilValue{1.0f, 0};
+	ri.pDepthAttachment = &depth_attachment;
+
+	cb.beginRendering(ri);
+}
+
+void Depthbuffer::end_render(vk::CommandBuffer cb) { cb.endRendering(); }
 } // namespace levk::vulkan

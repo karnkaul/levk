@@ -918,7 +918,7 @@ bool Device::render(RenderDevice::Frame const& frame) {
 
 void Device::render_3d(glm::vec4 clear, RenderDevice::Frame const& frame, Framebuffer& framebuffer, BufferView dir_lights) {
 	auto cb = impl->render_cbs[buffered_index].cb_3d;
-	framebuffer.begin_render(vk::ClearColorValue{std::array{clear.x, clear.y, clear.z, clear.w}}, cb);
+	framebuffer.begin_render(clear, cb);
 
 	auto const format = framebuffer.pipeline_format();
 	auto pipeline_builder = PipelineBuilder{impl->pipeline_storage, frame.asset_providers->shader(), *device, format};
@@ -945,7 +945,7 @@ void Device::render_3d(glm::vec4 clear, RenderDevice::Frame const& frame, Frameb
 
 void Device::render_ui(ImageView const& output_3d, RenderDevice::Frame const& frame, Framebuffer& fb_ui, BufferView dir_lights) {
 	auto cb = impl->render_cbs[buffered_index].cb_ui;
-	fb_ui.begin_render({}, cb);
+	fb_ui.begin_render(glm::vec4{}, cb);
 	auto const format = fb_ui.pipeline_format();
 	auto pipeline_builder = PipelineBuilder{impl->pipeline_storage, frame.asset_providers->shader(), *device, format};
 	draw_3d_to_ui(output_3d, pipeline_builder, fb_ui.output().extent);
