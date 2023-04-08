@@ -3,9 +3,8 @@
 
 namespace levk {
 glm::mat4 Camera::view() const {
-	auto const centre = transform.orientation() * -front_v;
-	auto const up = transform.orientation() * up_v;
-	return glm::lookAt(transform.position(), transform.position() + centre, up);
+	auto const target = transform.position() + transform.orientation() * (face == Face::ePositiveZ ? front_v : -front_v);
+	return glm::lookAt(transform.position(), target, up_v);
 }
 
 glm::mat4 Camera::projection(glm::vec2 extent) const {

@@ -17,6 +17,11 @@ struct ViewPlane {
 /// \brief Models a 3D camera facing its -Z, with either perspective or orthographic projection parameters.
 ///
 struct Camera {
+	enum class Face {
+		eNegativeZ,
+		ePositiveZ,
+	};
+
 	struct Perspective {
 		ViewPlane view_plane{0.1f, 1000.0f};
 		float field_of_view{glm::radians(45.0f)};
@@ -35,5 +40,6 @@ struct Camera {
 	Transform transform{};
 	std::variant<Perspective, Orthographic> type{Perspective{}};
 	float exposure{2.0f};
+	Face face{Face::eNegativeZ};
 };
 } // namespace levk
