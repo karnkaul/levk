@@ -208,6 +208,8 @@ void SceneRenderer::render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer
 }
 
 void SceneRenderer::render_3d(vk::CommandBuffer cb, Framebuffer& framebuffer, ImageView const& shadow_map) {
+	if (frame.opaque.empty() && frame.transparent.empty()) { return; }
+
 	auto const format = framebuffer.pipeline_format();
 	auto pipeline_builder = PipelineBuilder{*device.pipeline_storage, asset_providers->shader(), device.device, format};
 	auto drawer_3d = Drawer{device, *asset_providers, pipeline_builder, framebuffer.colour.extent, cb, dir_lights_ssbo.view(), shadow_map};
@@ -250,7 +252,7 @@ void SceneRenderer::draw_3d_to_ui(vk::CommandBuffer cb, ImageView const& output_
 	assert(layout);
 	auto pipeline = pipeline_builder.try_build({}, {}, layout->hash);
 	assert(pipeline);
-	pipeline.bind(cb, extent);
+	pipeline.bind(cb, extent, {}, false);
 	auto shader = Shader{device, pipeline};
 	shader.update(0, 0, output_3d, {});
 	shader.bind(pipeline.layout, cb);

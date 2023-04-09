@@ -32,7 +32,7 @@ struct Pipeline {
 
 	explicit operator bool() const { return pipeline && layout; }
 
-	void bind(vk::CommandBuffer cb, vk::Extent2D extent, float line_width = 1.0f);
+	void bind(vk::CommandBuffer cb, vk::Extent2D extent, float line_width = 1.0f, bool negative_viewport = true);
 };
 
 struct PipelineInfo {
