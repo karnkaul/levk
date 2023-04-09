@@ -645,7 +645,7 @@ Device::Device(Window const& window, RenderDeviceCreateInfo const& create_info) 
 	for (auto& set_allocator : impl->set_allocators) { set_allocator.device = *device; }
 
 	auto const dtci = DepthTarget::CreateInfo{
-		.extent = {create_info.shadow_map_resolution.x, create_info.shadow_map_resolution.y},
+		.extent = {device_info.shadow_map_resolution.x, device_info.shadow_map_resolution.y},
 		.format = depth_format(impl->gpu.device),
 	};
 	impl->rt_shadow = DepthTarget::make(view_, dtci);
@@ -676,8 +676,6 @@ Device::Device(Window const& window, RenderDeviceCreateInfo const& create_info) 
 	device_info.supported_aa = make_aa(impl->gpu.properties);
 	device_info.current_aa = get_samples(device_info.supported_aa, create_info.anti_aliasing);
 	device_info.name = impl->gpu.properties.deviceName;
-	device_info.shadow_map_resolution = create_info.shadow_map_resolution;
-	device_info.shadow_map_world_size = create_info.shadow_map_world_size;
 
 	impl->waiter.device = view_;
 }

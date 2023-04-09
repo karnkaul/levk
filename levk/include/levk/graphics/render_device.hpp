@@ -20,8 +20,6 @@ struct RenderDeviceCreateInfo {
 	ColourSpace swapchain{ColourSpace::eSrgb};
 	Vsync vsync{Vsync::eAdaptive};
 	AntiAliasing anti_aliasing{AntiAliasing::e2x};
-	Extent2D shadow_map_resolution{2048u, 2048u};
-	glm::vec2 shadow_map_world_size{128.0f, 128.0f};
 };
 
 struct RenderDeviceInfo {
@@ -35,8 +33,8 @@ struct RenderDeviceInfo {
 	AntiAliasing current_aa{};
 	float render_scale{1.0f};
 	Rgba clear_colour{black_v};
-	Extent2D shadow_map_resolution{};
-	glm::vec2 shadow_map_world_size{};
+	Extent2D shadow_map_resolution{2048u, 2048u};
+	glm::vec2 shadow_map_world_size{128.0f, 128.0f};
 };
 
 class RenderDevice {
@@ -51,6 +49,8 @@ class RenderDevice {
 	std::uint64_t draw_calls_last_frame() const;
 	bool set_vsync(Vsync desired);
 	void set_clear(Rgba clear);
+	void set_shadow_resolution(Extent2D extent);
+	void set_shadow_frustum(glm::vec2 size);
 
 	vulkan::Device& vulkan_device() const;
 
@@ -59,6 +59,6 @@ class RenderDevice {
 		void operator()(vulkan::Device const*) const;
 	};
 
-	std::unique_ptr<vulkan::Device, Deleter> m_vulkan_device{};
+	std::unique_ptr<vulkan::Device, Deleter> m_impl{};
 };
 } // namespace levk
