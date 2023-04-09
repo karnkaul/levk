@@ -53,5 +53,5 @@ Uri<> DataSource::trim_to_uri(std::string_view path) const {
 
 std::string levk::find_directory(char const* exe_path, std::span<std::string_view const> uri_patterns) {
 	if (uri_patterns.empty()) { return {}; }
-	return find_dir(exe_path, uri_patterns).generic_string();
+	return find_dir(fs::absolute(exe_path), uri_patterns).generic_string();
 }

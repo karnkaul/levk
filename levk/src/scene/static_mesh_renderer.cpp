@@ -18,7 +18,7 @@ void StaticMeshRenderer::render(RenderList& out) const {
 	auto const& tree = active_scene().nodes();
 	auto const* m = scene_manager->asset_providers().static_mesh().find(mesh);
 	if (!m || m->primitives.empty()) { return; }
-	out.opaque.add(m, tree.global_transform(tree.get(owning_entity()->node_id())), scene_manager->asset_providers().material());
+	out.scene.add(m, tree.global_transform(tree.get(owning_entity()->node_id())), scene_manager->asset_providers().material());
 }
 
 bool StaticMeshRenderer::serialize(dj::Json& out) const {

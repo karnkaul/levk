@@ -16,8 +16,8 @@ class AssetProviders {
 		NotNull<RenderDevice*> render_device;
 		NotNull<FontLibrary const*> font_library;
 		NotNull<DataSource const*> data_source;
-		NotNull<UriMonitor*> uri_monitor;
 		NotNull<Serializer const*> serializer;
+		Ptr<UriMonitor> uri_monitor{};
 	};
 
 	AssetProviders(CreateInfo const& create_info);
@@ -31,9 +31,9 @@ class AssetProviders {
 	}
 
 	DataSource const& data_source() const { return m_providers.shader->data_source(); }
-	UriMonitor& uri_monitor() const { return m_providers.shader->uri_monitor(); }
 	RenderDevice& render_device() const { return m_providers.texture->render_device(); }
 	Serializer const& serializer() const { return m_providers.material->serializer(); }
+	Ptr<UriMonitor> uri_monitor() const { return m_providers.shader->uri_monitor(); }
 
 	ShaderProvider& shader() const { return *m_providers.shader; }
 	SkeletonProvider& skeleton() const { return *m_providers.skeleton; }

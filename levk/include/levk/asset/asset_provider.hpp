@@ -17,7 +17,7 @@ namespace levk {
 template <typename Type>
 class AssetProvider {
   public:
-	AssetProvider(NotNull<DataSource const*> data_source, NotNull<UriMonitor*> uri_monitor) : m_storage(std::make_unique<Storage>(data_source, uri_monitor)) {}
+	AssetProvider(NotNull<DataSource const*> data_source, Ptr<UriMonitor> uri_monitor = {}) : m_storage(std::make_unique<Storage>(data_source, uri_monitor)) {}
 
 	Ptr<Type const> find(Uri<Type> const& uri) const {
 		if (!uri) { return {}; }
@@ -64,7 +64,7 @@ class AssetProvider {
 	}
 
 	DataSource const& data_source() const { return *m_storage->data_source; }
-	UriMonitor& uri_monitor() const { return *m_storage->uri_monitor; }
+	Ptr<UriMonitor> uri_monitor() const { return m_storage->uri_monitor; }
 
 	ByteArray read_bytes(Uri<> const& uri) const { return data_source().read(uri); }
 
@@ -97,8 +97,11 @@ class AssetProvider {
 	Ptr<Type> do_load(Uri<> const& uri) {
 		if (auto payload = load_payload(uri); payload.asset) {
 			auto listeners = std::vector<UriMonitor::OnModified::Listener>{};
-			for (auto const& dependency : payload.dependencies) {
-				listeners.push_back(m_storage->uri_monitor->on_modified(dependency).connect([this, uri](Uri<> const&) { m_storage->out_of_date.insert(uri); }));
+			if (m_storage->uri_monitor) {
+				for (auto const& dependency : payload.dependencies) {
+					listeners.push_back(
+						m_storage->uri_monitor->on_modified(dependency).connect([this, uri](Uri<> const&) { m_storage->out_of_date.insert(uri); }));
+				}
 			}
 			auto lock = std::scoped_lock{m_storage->mutex};
 			auto [it, _] = m_storage->map.insert_or_assign(uri, Entry{std::move(payload.asset), std::move(listeners)});
@@ -112,9 +115,9 @@ class AssetProvider {
 		std::unordered_set<Uri<>, Uri<>::Hasher> out_of_date{};
 		std::mutex mutex{};
 		NotNull<DataSource const*> data_source;
-		NotNull<UriMonitor*> uri_monitor;
+		Ptr<UriMonitor> uri_monitor{};
 
-		Storage(NotNull<DataSource const*> data_source, NotNull<UriMonitor*> uri_monitor) : data_source(data_source), uri_monitor(uri_monitor) {}
+		Storage(NotNull<DataSource const*> data_source, Ptr<UriMonitor> uri_monitor) : data_source(data_source), uri_monitor(uri_monitor) {}
 	};
 
 	std::unique_ptr<Storage> m_storage{};
@@ -125,7 +128,7 @@ class RenderDevice;
 template <typename Type>
 class GraphicsAssetProvider : public AssetProvider<Type> {
   public:
-	GraphicsAssetProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source, NotNull<UriMonitor*> uri_monitor)
+	GraphicsAssetProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source, Ptr<UriMonitor> uri_monitor = {})
 		: AssetProvider<Type>(data_source, uri_monitor), m_render_device(render_device) {}
 
 	RenderDevice& render_device() const { return *m_render_device; }

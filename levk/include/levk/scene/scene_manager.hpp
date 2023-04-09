@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/graphics/render_device.hpp>
 #include <levk/scene/scene.hpp>
+#include <levk/scene/scene_renderer.hpp>
 #include <levk/util/not_null.hpp>
 #include <levk/vfs/data_source.hpp>
 #include <levk/vfs/uri_monitor.hpp>
@@ -32,9 +33,11 @@ class SceneManager {
 	Uri<Scene> const& uri() const { return m_uri; }
 
 	void tick(WindowState const& window_state, Time dt);
+	void render(RenderList render_list = {}) const;
 
   private:
 	NotNull<AssetProviders*> m_asset_providers;
+	SceneRenderer m_renderer;
 	std::unique_ptr<Scene> m_active_scene{};
 	std::unique_ptr<Scene> m_next_scene{};
 	TypeId m_scene_type{};

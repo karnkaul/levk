@@ -3,17 +3,16 @@
 
 namespace levk {
 struct RenderList {
-	DrawList opaque{};
-	DrawList transparent{};
+	DrawList scene{};
 	DrawList ui{};
 
-	bool empty() const { return opaque.drawables().empty() && transparent.drawables().empty() && ui.drawables().empty(); }
-	std::size_t size() const { return opaque.drawables().size() + transparent.drawables().size() + ui.drawables().size(); }
+	bool empty() const { return scene.drawables().empty() && ui.drawables().empty(); }
+	std::size_t size() const { return scene.drawables().size() + ui.drawables().size(); }
 
-	void merge(RenderList const& rhs) {
-		opaque.merge(rhs.opaque);
-		transparent.merge(rhs.transparent);
+	RenderList& merge(RenderList const& rhs) {
+		scene.merge(rhs.scene);
 		ui.merge(rhs.ui);
+		return *this;
 	}
 };
 } // namespace levk

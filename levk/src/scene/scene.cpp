@@ -132,11 +132,16 @@ bool Scene::serialize(dj::Json& out) const {
 	out_camera["exposure"] = camera.exposure;
 	// TODO: camera type
 	auto& out_lights = out["lights"];
-	auto& out_dir_lights = out_lights["dir_lights"];
-	for (auto const& in_dir_light : lights.dir_lights) {
-		auto& out_dir_light = out_dir_lights.push_back({});
-		asset::to_json(out_dir_light["direction"], in_dir_light.direction);
-		asset::to_json(out_dir_light["rgb"], in_dir_light.rgb);
+	auto& out_primary_light = out_lights["primary"];
+	asset::to_json(out_primary_light["direction"], lights.primary.direction);
+	asset::to_json(out_primary_light["rgb"], lights.primary.rgb);
+	if (!lights.dir_lights.empty()) {
+		auto& out_dir_lights = out_lights["dir_lights"];
+		for (auto const& in_dir_light : lights.dir_lights) {
+			auto& out_dir_light = out_dir_lights.push_back({});
+			asset::to_json(out_dir_light["direction"], in_dir_light.direction);
+			asset::to_json(out_dir_light["rgb"], in_dir_light.rgb);
+		}
 	}
 	return true;
 }
@@ -194,6 +199,10 @@ bool Scene::deserialize(dj::Json const& json) {
 	camera.exposure = in_camera["exposure"].as<float>(camera.exposure);
 	// TODO: camera type
 	auto const& in_lights = json["lights"];
+	if (auto const& in_primary_light = in_lights["primary"]) {
+		asset::from_json(in_primary_light["direction"], lights.primary.direction);
+		asset::from_json(in_primary_light["rgb"], lights.primary.rgb);
+	}
 	auto const& in_dir_lights = in_lights["dir_lights"];
 	if (!in_dir_lights.array_view().empty()) { lights.dir_lights.clear(); }
 	for (auto const& in_dir_light : in_dir_lights.array_view()) {

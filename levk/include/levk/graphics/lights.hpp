@@ -20,12 +20,13 @@ struct DirLight {
 	///
 	/// Alpha is ignored.
 	///
-	HdrRgba rgb{5.0f};
+	HdrRgba rgb{white_v, 5.0f};
 };
 
 struct Lights {
 	static constexpr std::uint32_t set_v{1u};
 
-	std::vector<DirLight> dir_lights{DirLight{}};
+	DirLight primary{};
+	std::vector<DirLight> dir_lights{};
 };
 } // namespace levk

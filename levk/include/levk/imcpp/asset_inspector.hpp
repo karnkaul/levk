@@ -1,9 +1,15 @@
 #pragma once
-#include <levk/asset/asset_providers.hpp>
 #include <levk/imcpp/common.hpp>
+#include <levk/uri.hpp>
 #include <levk/util/path_tree.hpp>
+#include <levk/util/type_id.hpp>
 
-namespace levk::imcpp {
+namespace levk {
+template <typename Type>
+class AssetProvider;
+class AssetProviders;
+
+namespace imcpp {
 class AssetInspector {
   public:
 	struct Inspect {
@@ -41,4 +47,5 @@ class AssetInspector {
 	Interact m_interact{};
 	std::uint64_t m_signature{};
 };
-} // namespace levk::imcpp
+} // namespace imcpp
+} // namespace levk

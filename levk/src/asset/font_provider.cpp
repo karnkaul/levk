@@ -8,7 +8,7 @@ namespace levk {
 namespace fs = std::filesystem;
 
 AsciiFontProvider::AsciiFontProvider(NotNull<TextureProvider*> texture_provider, NotNull<FontLibrary const*> font_library)
-	: GraphicsAssetProvider<AsciiFont>(&texture_provider->render_device(), &texture_provider->data_source(), &texture_provider->uri_monitor()),
+	: GraphicsAssetProvider<AsciiFont>(&texture_provider->render_device(), &texture_provider->data_source(), texture_provider->uri_monitor()),
 	  m_texture_provider(texture_provider), m_font_library(font_library) {}
 
 auto AsciiFontProvider::load_payload(Uri<AsciiFont> const& uri) const -> Payload {

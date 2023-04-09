@@ -90,8 +90,6 @@ struct PipelineMap {
 struct PipelineStorage {
 	std::unordered_map<ShaderHash, PipelineMap, ShaderHash::Hasher> maps{};
 	bool sample_rate_shading{};
-
-	std::mutex mutex{};
 };
 
 struct PipelineBuilder {

@@ -3,6 +3,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   entity.cpp
   primitive_renderer.cpp
   scene_manager.cpp
+  scene_renderer.cpp
   scene.cpp
   skeleton_controller.cpp
   skinned_mesh_renderer.cpp

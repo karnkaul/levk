@@ -9,7 +9,7 @@ namespace levk {
 namespace fs = std::filesystem;
 
 SceneManager::SceneManager(NotNull<AssetProviders*> asset_providers)
-	: m_asset_providers(asset_providers), m_active_scene(std::make_unique<Scene>()), m_scene_type(TypeId::make<Scene>()) {}
+	: m_asset_providers(asset_providers), m_renderer(asset_providers), m_active_scene(std::make_unique<Scene>()), m_scene_type(TypeId::make<Scene>()) {}
 
 bool SceneManager::load_into_tree(Uri<StaticMesh> const& uri) {
 	auto* mesh = asset_providers().static_mesh().load(uri);
@@ -67,9 +67,11 @@ bool SceneManager::load(Uri<Scene> uri) {
 	m_next_scene = std::move(scene.value);
 	m_scene_type = scene.type_id;
 	m_uri = std::move(uri);
-	m_on_modified = asset_providers().uri_monitor().on_modified(m_uri).connect([this](Uri<Scene> const& uri) {
-		if (asset_providers().data_source().read_text(uri) != m_json_cache) { load(uri); }
-	});
+	if (auto* monitor = asset_providers().uri_monitor()) {
+		m_on_modified = monitor->on_modified(m_uri).connect([this](Uri<Scene> const& uri) {
+			if (asset_providers().data_source().read_text(uri) != m_json_cache) { load(uri); }
+		});
+	}
 	m_json_cache = std::move(text);
 	return true;
 }
@@ -86,10 +88,15 @@ bool SceneManager::set_next(std::unique_ptr<Scene> scene, TypeId scene_type) {
 void SceneManager::tick(WindowState const& window_state, Time dt) {
 	if (m_next_scene) {
 		m_active_scene = std::move(m_next_scene);
-		logger::info("[SceneManager] Scene loaded: [{}]", m_uri.value());
+		if (m_uri) { logger::info("[SceneManager] Scene loaded: [{}]", m_uri.value()); }
 		m_active_scene->setup();
 	}
 	assert(m_active_scene);
 	m_active_scene->tick(window_state, dt);
+}
+
+void SceneManager::render(RenderList render_list) const {
+	assert(m_active_scene);
+	m_renderer.render(*m_active_scene, std::move(render_list));
 }
 } // namespace levk

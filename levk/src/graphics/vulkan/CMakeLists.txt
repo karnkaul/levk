@@ -14,9 +14,11 @@ target_sources(${PROJECT_NAME} PRIVATE
   pipeline.hpp
   primitive.cpp
   primitive.hpp
-  render_camera.cpp
-  render_camera.hpp
-  render_scene.cpp
-  render_scene.hpp
+  render_object.cpp
+  render_object.hpp
+  scene_renderer.cpp
+  scene_renderer.hpp
+  shader.cpp
+  shader.hpp
   texture.hpp
 )

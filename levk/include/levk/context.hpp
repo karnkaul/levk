@@ -6,19 +6,18 @@
 #include <levk/service.hpp>
 
 namespace levk {
-struct Reader;
 class Scene;
 
 class Context {
   public:
-	Context(NotNull<DataSource const*> data_source, Engine::CreateInfo const& create_info = {});
+	Context(NotNull<DataSource const*> data_source, Engine::CreateInfo const& create_info = {}, Ptr<UriMonitor> uri_monitor = {});
 
 	void show() { return engine.get().window().show(); }
 	void hide() { return engine.get().window().hide(); }
 	void shutdown() { return engine.get().window().close(); }
 	bool is_running() const { return engine.get().window().is_open(); }
 	Frame next_frame() { return engine.get().next_frame(); }
-	void render() const;
+	void render(RenderList render_list = {}) const;
 
 	DataSource const& data_source() const { return asset_providers.get().data_source(); }
 	RenderDevice& render_device() const { return engine.get().render_device(); }
@@ -28,7 +27,6 @@ class Context {
 
 	Service<Serializer>::Instance serializer{};
 	Service<ComponentFactory>::Instance component_factory{};
-	Service<UriMonitor>::Instance uri_monitor;
 	Service<Engine>::Instance engine;
 	Service<AssetProviders>::Instance asset_providers;
 	Service<SceneManager>::Instance scene_manager;

@@ -6,7 +6,7 @@
 namespace levk {
 namespace fs = std::filesystem;
 
-TextureProvider::TextureProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source, NotNull<UriMonitor*> uri_monitor)
+TextureProvider::TextureProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source, Ptr<UriMonitor> uri_monitor)
 	: GraphicsAssetProvider<Texture>(render_device, data_source, uri_monitor) {
 	static constexpr auto white_image_v = FixedPixelMap<1, 1>{{white_v}};
 	add("white", Texture{render_device->vulkan_device(), white_image_v.view(), TextureCreateInfo{.name = "white", .mip_mapped = false}});

@@ -20,6 +20,8 @@ struct RenderDeviceCreateInfo {
 	ColourSpace swapchain{ColourSpace::eSrgb};
 	Vsync vsync{Vsync::eAdaptive};
 	AntiAliasing anti_aliasing{AntiAliasing::e2x};
+	Extent2D shadow_map_resolution{2048u, 2048u};
+	glm::vec2 shadow_map_world_size{128.0f, 128.0f};
 };
 
 struct RenderDeviceInfo {
@@ -33,19 +35,14 @@ struct RenderDeviceInfo {
 	AntiAliasing current_aa{};
 	float render_scale{1.0f};
 	Rgba clear_colour{black_v};
+	Extent2D shadow_map_resolution{};
+	glm::vec2 shadow_map_world_size{};
 };
 
 class RenderDevice {
   public:
 	using Info = RenderDeviceInfo;
 	using CreateInfo = RenderDeviceCreateInfo;
-
-	struct Frame {
-		NotNull<RenderList const*> render_list;
-		NotNull<AssetProviders const*> asset_providers;
-		NotNull<Lights const*> lights;
-		NotNull<Camera const*> camera_3d;
-	};
 
 	RenderDevice(Window const& window, CreateInfo const& create_info = {});
 
@@ -54,8 +51,6 @@ class RenderDevice {
 	std::uint64_t draw_calls_last_frame() const;
 	bool set_vsync(Vsync desired);
 	void set_clear(Rgba clear);
-
-	bool render(Frame const& t);
 
 	vulkan::Device& vulkan_device() const;
 

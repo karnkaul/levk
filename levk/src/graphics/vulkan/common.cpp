@@ -342,6 +342,55 @@ std::size_t VertexInput::make_hash() const {
 	return hash;
 }
 
+VertexInput VertexInput::for_shadow() {
+	auto ret = VertexInput{};
+
+	// position
+	ret.bindings.insert(vk::VertexInputBindingDescription{0, sizeof(glm::vec3)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{0, 0, vk::Format::eR32G32B32Sfloat});
+
+	// instance matrix
+	ret.bindings.insert(vk::VertexInputBindingDescription{4, sizeof(glm::mat4), vk::VertexInputRate::eInstance});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{4, 4, vk::Format::eR32G32B32A32Sfloat, 0 * sizeof(glm::vec4)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{5, 4, vk::Format::eR32G32B32A32Sfloat, 1 * sizeof(glm::vec4)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{6, 4, vk::Format::eR32G32B32A32Sfloat, 2 * sizeof(glm::vec4)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{7, 4, vk::Format::eR32G32B32A32Sfloat, 3 * sizeof(glm::vec4)});
+
+	return ret;
+}
+
+VertexInput VertexInput::for_static() {
+	auto ret = for_shadow();
+
+	// rgb
+	ret.bindings.insert(vk::VertexInputBindingDescription{1, sizeof(glm::vec3)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{1, 1, vk::Format::eR32G32B32Sfloat});
+
+	// normal
+	ret.bindings.insert(vk::VertexInputBindingDescription{2, sizeof(glm::vec3)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{2, 2, vk::Format::eR32G32B32Sfloat});
+
+	// uv
+	ret.bindings.insert(vk::VertexInputBindingDescription{3, sizeof(glm::vec2)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{3, 3, vk::Format::eR32G32Sfloat});
+
+	return ret;
+}
+
+VertexInput VertexInput::for_skinned() {
+	auto ret = for_static();
+
+	// joints
+	ret.bindings.insert(vk::VertexInputBindingDescription{8, sizeof(glm::uvec4)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{8, 8, vk::Format::eR32G32B32A32Uint});
+
+	// weights
+	ret.bindings.insert(vk::VertexInputBindingDescription{9, sizeof(glm::vec4)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{9, 9, vk::Format::eR32G32B32A32Sfloat});
+
+	return ret;
+}
+
 std::size_t SamplerStorage::Hasher::operator()(TextureSampler const& sampler) const {
 	return make_combined_hash(sampler.min, sampler.mag, sampler.wrap_s, sampler.wrap_t, sampler.border);
 }

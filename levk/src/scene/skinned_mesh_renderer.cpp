@@ -60,7 +60,7 @@ void SkinnedMeshRenderer::render(RenderList& out) const {
 	if (!m || m->primitives.empty()) { return; }
 	assert(m_joint_matrices.size() == m_skeleton.joints.size());
 	for (auto const [id, index] : enumerate(m_skeleton.joints)) { m_joint_matrices[index] = tree.global_transform(tree.get(id)); }
-	out.opaque.add(m, m_joint_matrices.span(), scene_manager->asset_providers().material());
+	out.scene.add(m, m_joint_matrices.span(), scene_manager->asset_providers().material());
 }
 
 bool SkinnedMeshRenderer::serialize(dj::Json& out) const {

@@ -11,6 +11,7 @@
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/runtime.hpp>
 #include <levk/ui/text.hpp>
+#include <levk/util/error.hpp>
 #include <levk/util/fixed_string.hpp>
 #include <levk/util/visitor.hpp>
 #include <levk/vfs/disk_vfs.hpp>
@@ -161,6 +162,8 @@ struct TestScene : Scene {
 	void setup() override {
 		logger::debug("TestScene::setup()");
 		camera.transform.set_position({0.0f, 0.0f, 5.0f});
+		lights.primary.direction = Transform::look_at({-1.0f, -1.0f, -1.0f}, {});
+		// Service<SceneManager>::locate().load_into_tree(Uri<StaticMesh>{"Suzanne/Suzanne.mesh_0.json"});
 
 		auto* font = Service<AssetProviders>::locate().ascii_font().load("fonts/Vera.ttf");
 		auto ui_primitive = std::make_unique<TestUiPrimitive>();
@@ -335,10 +338,21 @@ struct Editor : Runtime {
 } // namespace levk
 
 int main([[maybe_unused]] int argc, char** argv) {
+	using namespace levk;
 	assert(argc > 0);
 	try {
 		static constexpr std::string_view const data_uris[] = {"data", "editor/data"};
 		auto const data_path = levk::find_directory(argv[0], data_uris);
-		return levk::Editor{data_path}.run();
-	} catch (...) { return EXIT_FAILURE; }
+		Editor{data_path}.run();
+	} catch (Error const& e) {
+		logger::error("Runtime error: {}", e.what());
+		return EXIT_FAILURE;
+	} catch (std::exception const& e) {
+		logger::error("Fatal error: {}", e.what());
+		return EXIT_FAILURE;
+	} catch (...) {
+		logger::error("Unknown error");
+		return EXIT_FAILURE;
+	}
+	logger::debug("Editor exited successfully");
 }

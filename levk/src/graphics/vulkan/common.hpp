@@ -1,5 +1,6 @@
 #pragma once
 #include <vk_mem_alloc.h>
+#include <levk/graphics/common.hpp>
 #include <levk/graphics/image.hpp>
 #include <levk/graphics/shader_code.hpp>
 #include <levk/graphics/texture_sampler.hpp>
@@ -290,8 +291,6 @@ struct MappedPool {
 struct SetAllocator {
 	static vk::UniqueDescriptorPool make_descriptor_pool(vk::Device device, std::uint32_t max_sets = 32);
 
-	static SetAllocator make(vk::Device device) { return {.device = device}; }
-
 	vk::Device device{};
 	MappedPool<vk::DescriptorSetLayout, vk::UniqueDescriptorPool> pools{};
 
@@ -323,6 +322,10 @@ struct VertexInput {
 		if (hash == 0) { make_hash(); }
 		return {attributes.span(), bindings.span(), hash};
 	}
+
+	static VertexInput for_shadow();
+	static VertexInput for_static();
+	static VertexInput for_skinned();
 
 	operator View() const { return view(); }
 };
@@ -363,24 +366,14 @@ struct SamplerStorage {
 	vk::Sampler get(vk::Device device, TextureSampler const& sampler);
 };
 
-struct GlobalLayout {
-	struct Storage {
-		vk::UniqueDescriptorSetLayout global_set_layout{};
-		vk::UniquePipelineLayout global_pipeline_layout{};
-	};
-
-	vk::DescriptorSetLayout global_set_layout{};
-	vk::PipelineLayout global_pipeline_layout{};
-};
-
 struct DeviceView {
 	vk::Instance instance{};
 	vk::SurfaceKHR surface{};
 	vk::Device device{};
-	Gpu gpu{};
+	Ptr<Gpu const> gpu{};
 
 	Vma vma{};
-	GlobalLayout global_layout{};
+	RenderMode default_render_mode{};
 	Ptr<Queue> queue{};
 	Ptr<DeferQueue> defer{};
 	Ptr<SetAllocator> set_allocator{};
@@ -388,16 +381,17 @@ struct DeviceView {
 	Ptr<PipelineStorage> pipeline_storage{};
 	Ptr<SamplerStorage> sampler_storage{};
 	Ptr<Index const> buffered_index{};
+	Ptr<std::uint64_t> draw_calls{};
 
 	CommandAllocator make_command_allocator(vk::CommandPoolCreateFlags flags = CommandAllocator::flags_v) const {
-		return CommandAllocator::make(device, gpu.queue_family, flags);
+		return CommandAllocator::make(device, gpu->queue_family, flags);
 	}
 
 	vk::Result wait(vk::ArrayProxy<vk::Fence> const& fences) const { return device.waitForFences(fences, true, std::numeric_limits<std::uint64_t>::max()); }
 
 	bool can_mip(vk::Format const format) const {
 		static constexpr vk::FormatFeatureFlags flags_v{vk::FormatFeatureFlagBits::eBlitDst | vk::FormatFeatureFlagBits::eBlitSrc};
-		auto const fsrc = gpu.device.getFormatProperties(format);
+		auto const fsrc = gpu->device.getFormatProperties(format);
 		return (fsrc.optimalTilingFeatures & flags_v) != vk::FormatFeatureFlags{};
 	}
 
@@ -417,9 +411,8 @@ struct GeometryOffsets {
 struct GeometryLayout {
 	VertexInput vertex_input{};
 	GeometryOffsets offsets{};
-	std::optional<std::uint32_t> instance_binding{};
+	std::optional<std::uint32_t> instances_binding{};
 	std::optional<std::uint32_t> joints_binding{};
-	std::optional<std::uint32_t> joints_set{};
 	std::uint32_t vertices{};
 	std::uint32_t indices{};
 	std::uint32_t joints{};
@@ -470,6 +463,18 @@ struct HostBuffer::Pool {
 	}
 
 	void reset_all() { pages.reset_all(); }
+};
+
+struct ScopedDeviceBlocker {
+	vk::Device device{};
+
+	ScopedDeviceBlocker& operator=(ScopedDeviceBlocker&&) = delete;
+
+	ScopedDeviceBlocker(vk::Device device = {}) : device(device) {}
+
+	~ScopedDeviceBlocker() {
+		if (device) { device.waitIdle(); }
+	}
 };
 
 template <typename Type, typename BufferT, typename Func>

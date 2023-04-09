@@ -18,11 +18,7 @@ void PrimitiveRenderer::render(RenderList& out) const {
 			.parent = locator.global_transform(locator.get(entity->node_id())),
 			.instances = instances,
 		};
-		if (material.is_opaque()) {
-			out.opaque.add(drawable);
-		} else {
-			out.transparent.add(drawable);
-		}
+		out.scene.add(drawable);
 	};
 	std::visit(visitor, *primitive);
 }

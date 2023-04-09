@@ -1,62 +1,11 @@
 #include <graphics/vulkan/ad_hoc_cmd.hpp>
 #include <graphics/vulkan/primitive.hpp>
+#include <graphics/vulkan/render_object.hpp>
 #include <levk/util/error.hpp>
 
 namespace levk::vulkan {
 namespace {
-VertexInput common_vertex_input() {
-	auto ret = VertexInput{};
-	// position
-	ret.bindings.insert(vk::VertexInputBindingDescription{0, sizeof(glm::vec3)});
-	ret.attributes.insert(vk::VertexInputAttributeDescription{0, 0, vk::Format::eR32G32B32Sfloat});
-	// rgb
-	ret.bindings.insert(vk::VertexInputBindingDescription{1, sizeof(glm::vec3)});
-	ret.attributes.insert(vk::VertexInputAttributeDescription{1, 1, vk::Format::eR32G32B32Sfloat});
-	// normal
-	ret.bindings.insert(vk::VertexInputBindingDescription{2, sizeof(glm::vec3)});
-	ret.attributes.insert(vk::VertexInputAttributeDescription{2, 2, vk::Format::eR32G32B32Sfloat});
-	// uv
-	ret.bindings.insert(vk::VertexInputBindingDescription{3, sizeof(glm::vec2)});
-	ret.attributes.insert(vk::VertexInputAttributeDescription{3, 3, vk::Format::eR32G32Sfloat});
-	return ret;
-}
-
-VertexInput instanced_vertex_input() {
-	auto ret = common_vertex_input();
-
-	// instance matrix
-	ret.bindings.insert(vk::VertexInputBindingDescription{4, sizeof(glm::mat4), vk::VertexInputRate::eInstance});
-	ret.attributes.insert(vk::VertexInputAttributeDescription{4, 4, vk::Format::eR32G32B32A32Sfloat, 0 * sizeof(glm::vec4)});
-	ret.attributes.insert(vk::VertexInputAttributeDescription{5, 4, vk::Format::eR32G32B32A32Sfloat, 1 * sizeof(glm::vec4)});
-	ret.attributes.insert(vk::VertexInputAttributeDescription{6, 4, vk::Format::eR32G32B32A32Sfloat, 2 * sizeof(glm::vec4)});
-	ret.attributes.insert(vk::VertexInputAttributeDescription{7, 4, vk::Format::eR32G32B32A32Sfloat, 3 * sizeof(glm::vec4)});
-
-	return ret;
-}
-
-VertexInput skinned_vertex_input() {
-	auto ret = instanced_vertex_input();
-
-	// joints
-	ret.bindings.insert(vk::VertexInputBindingDescription{8, sizeof(glm::uvec4)});
-	ret.attributes.insert(vk::VertexInputAttributeDescription{8, 8, vk::Format::eR32G32B32A32Uint});
-	// weights
-	ret.bindings.insert(vk::VertexInputBindingDescription{9, sizeof(glm::vec4)});
-	ret.attributes.insert(vk::VertexInputAttributeDescription{9, 9, vk::Format::eR32G32B32A32Sfloat});
-
-	return ret;
-}
-
 struct GeometryUploader {
-	struct Bindings {
-		static constexpr auto instance_v{4u};
-		static constexpr auto joints_v{8u};
-	};
-
-	struct Sets {
-		static constexpr auto joints_v{3u};
-	};
-
 	static constexpr auto v_flags_v = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst;
 	static constexpr auto vi_flags_v = v_flags_v | vk::BufferUsageFlagBits::eIndexBuffer;
 
@@ -77,8 +26,8 @@ struct GeometryUploader {
 		out_layout.offsets.normals = writer(std::span{geometry.normals});
 		out_layout.offsets.uvs = writer(std::span{geometry.uvs});
 		if (!indices.empty()) { out_layout.offsets.indices = writer(indices); }
-		out_layout.vertex_input = instanced_vertex_input();
-		out_layout.instance_binding = Bindings::instance_v;
+		out_layout.vertex_input = VertexInput::for_static();
+		out_layout.instances_binding = RenderObject::Instances::vertex_binding_v;
 	}
 
 	void write_to(GeometryLayout& out_layout, UniqueBuffer& out_buffer, MeshJoints const& joints) const {
@@ -89,9 +38,8 @@ struct GeometryUploader {
 		auto writer = BufferWriter{out_buffer};
 		out_layout.offsets.joints = writer(joints.joints);
 		out_layout.offsets.weights = writer(joints.weights);
-		out_layout.vertex_input = skinned_vertex_input();
-		out_layout.joints_binding = Bindings::joints_v;
-		out_layout.joints_set = Sets::joints_v;
+		out_layout.vertex_input = VertexInput::for_skinned();
+		out_layout.joints_binding = RenderObject::Joints::vertex_binding_v;
 		out_layout.joints = static_cast<std::uint32_t>(joints.joints.size());
 	}
 
@@ -140,8 +88,8 @@ auto UploadedPrimitive::make_skinned(DeviceView const& device, Geometry::Packed 
 
 HostPrimitive::HostPrimitive(DeviceView const& device)
 	: m_vibo(HostBuffer::make(device, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eIndexBuffer)), m_device(device) {
-	m_layout.vertex_input = instanced_vertex_input();
-	m_layout.instance_binding = GeometryUploader::Bindings::instance_v;
+	m_layout.vertex_input = VertexInput::for_static();
+	m_layout.instances_binding = RenderObject::Instances::vertex_binding_v;
 }
 
 Vma::Buffer const& HostPrimitive::refresh() {

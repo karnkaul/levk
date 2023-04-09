@@ -10,7 +10,7 @@ template <typename Type>
 class MeshProviderCommon : public GraphicsAssetProvider<Type> {
   public:
 	MeshProviderCommon(NotNull<MaterialProvider*> material_provider)
-		: GraphicsAssetProvider<Type>(&material_provider->render_device(), &material_provider->data_source(), &material_provider->uri_monitor()),
+		: GraphicsAssetProvider<Type>(&material_provider->render_device(), &material_provider->data_source(), material_provider->uri_monitor()),
 		  m_material_provider(material_provider) {}
 
 	MaterialProvider& material_provider() const { return *m_material_provider; }

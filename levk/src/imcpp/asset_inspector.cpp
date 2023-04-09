@@ -1,4 +1,5 @@
 #include <imgui.h>
+#include <levk/asset/asset_providers.hpp>
 #include <levk/imcpp/asset_inspector.hpp>
 #include <levk/imcpp/drag_drop.hpp>
 #include <levk/util/enumerate.hpp>

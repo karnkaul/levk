@@ -21,7 +21,7 @@ float RenderDevice::set_render_scale(float desired) {
 
 std::uint64_t RenderDevice::draw_calls_last_frame() const {
 	assert(m_vulkan_device);
-	return m_vulkan_device->draw_calls;
+	return m_vulkan_device->draw_calls();
 }
 
 bool RenderDevice::set_vsync(Vsync desired) {
@@ -32,11 +32,6 @@ bool RenderDevice::set_vsync(Vsync desired) {
 void RenderDevice::set_clear(Rgba clear) {
 	assert(m_vulkan_device);
 	m_vulkan_device->device_info.clear_colour = clear;
-}
-
-bool RenderDevice::render(Frame const& frame) {
-	assert(m_vulkan_device);
-	return m_vulkan_device->render(frame);
 }
 
 vulkan::Device& RenderDevice::vulkan_device() const {
