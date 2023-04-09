@@ -4,9 +4,6 @@
 #include <levk/graphics/render_device.hpp>
 #include <levk/util/flex_array.hpp>
 #include <vulkan/vulkan.hpp>
-#include <functional>
-#include <mutex>
-#include <optional>
 
 namespace levk::vulkan {
 struct CopyImage {

@@ -24,6 +24,8 @@ inline constexpr vk::Format linear_formats_v[] = {vk::Format::eR8G8B8A8Unorm, vk
 template <std::integral Type = std::size_t>
 constexpr auto buffering_v = Type{1};
 
+using DeferQueue = levk::DeferQueue<buffering_v<>>;
+
 struct Index {
 	std::size_t value{};
 	constexpr operator std::size_t() const { return value; }

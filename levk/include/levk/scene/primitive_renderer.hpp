@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/graphics/material.hpp>
 #include <levk/scene/render_component.hpp>
+#include <optional>
 
 namespace levk {
 struct PrimitiveRenderer : RenderComponent {
