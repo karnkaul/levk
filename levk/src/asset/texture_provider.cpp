@@ -6,12 +6,9 @@
 namespace levk {
 namespace fs = std::filesystem;
 
-TextureProvider::TextureProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source, Ptr<UriMonitor> uri_monitor)
-	: GraphicsAssetProvider<Texture>(render_device, data_source, uri_monitor) {
-	static constexpr auto white_image_v = FixedPixelMap<1, 1>{{white_v}};
-	add("white", Texture{render_device->vulkan_device(), white_image_v.view(), TextureCreateInfo{.name = "white", .mip_mapped = false}});
-	static constexpr auto black_image_v = FixedPixelMap<1, 1>{{black_v}};
-	add("black", Texture{render_device->vulkan_device(), black_image_v.view(), TextureCreateInfo{.name = "black", .mip_mapped = false}});
+TextureProvider::TextureProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source)
+	: GraphicsAssetProvider<Texture>(render_device, data_source) {
+	add_default_textures();
 }
 
 Texture const& TextureProvider::get(Uri<Texture> const& uri, Uri<Texture> const& fallback) const {
@@ -22,7 +19,12 @@ Texture const& TextureProvider::get(Uri<Texture> const& uri, Uri<Texture> const&
 	return *ret;
 }
 
-TextureProvider::Payload TextureProvider::load_payload(Uri<Texture> const& uri) const {
+void TextureProvider::clear() {
+	GraphicsAssetProvider<Texture>::clear();
+	add_default_textures();
+}
+
+TextureProvider::Payload TextureProvider::load_payload(Uri<Texture> const& uri, Stopwatch const& stopwatch) const {
 	auto ret = Payload{};
 	auto image_uri = std::string{};
 	auto colour_space = ColourSpace::eSrgb;
@@ -49,7 +51,14 @@ TextureProvider::Payload TextureProvider::load_payload(Uri<Texture> const& uri) 
 	}
 	ret.asset.emplace(render_device().vulkan_device(), image, TextureCreateInfo{.colour_space = colour_space});
 	ret.dependencies = {uri, image_uri};
-	logger::info("[TextureProvider] Texture loaded [{}]", uri.value());
+	logger::info("[{:.3f}s] [TextureProvider] Texture loaded [{}]", stopwatch().count(), uri.value());
 	return ret;
+}
+
+void TextureProvider::add_default_textures() {
+	static constexpr auto white_image_v = FixedPixelMap<1, 1>{{white_v}};
+	add("white", Texture{render_device().vulkan_device(), white_image_v.view(), TextureCreateInfo{.name = "white", .mip_mapped = false}});
+	static constexpr auto black_image_v = FixedPixelMap<1, 1>{{black_v}};
+	add("black", Texture{render_device().vulkan_device(), black_image_v.view(), TextureCreateInfo{.name = "black", .mip_mapped = false}});
 }
 } // namespace levk

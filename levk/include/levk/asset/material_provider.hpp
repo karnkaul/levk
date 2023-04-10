@@ -14,7 +14,7 @@ class MaterialProvider : public GraphicsAssetProvider<UMaterial> {
 	Serializer const& serializer() const { return *m_serializer; }
 
   private:
-	Payload load_payload(Uri<UMaterial> const& uri) const override;
+	Payload load_payload(Uri<UMaterial> const& uri, Stopwatch const& stopwatch) const override;
 
 	NotNull<TextureProvider*> m_texture_provider;
 	NotNull<Serializer const*> m_serializer;

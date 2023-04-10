@@ -8,6 +8,6 @@ class ShaderProvider : public AssetProvider<ShaderCode> {
 	using AssetProvider<ShaderCode>::AssetProvider;
 
   private:
-	Payload load_payload(Uri<ShaderCode> const& uri) const override;
+	Payload load_payload(Uri<ShaderCode> const& uri, Stopwatch const& stopwatch) const override;
 };
 } // namespace levk

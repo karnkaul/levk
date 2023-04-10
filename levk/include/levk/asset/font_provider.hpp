@@ -14,7 +14,7 @@ class AsciiFontProvider : public GraphicsAssetProvider<AsciiFont> {
 	FontLibrary const& font_library() const { return *m_font_library; }
 
   private:
-	Payload load_payload(Uri<AsciiFont> const& uri) const override;
+	Payload load_payload(Uri<AsciiFont> const& uri, Stopwatch const& stopwatch) const override;
 
 	NotNull<TextureProvider*> m_texture_provider;
 	NotNull<FontLibrary const*> m_font_library;

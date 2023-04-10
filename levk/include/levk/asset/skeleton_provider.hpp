@@ -8,6 +8,6 @@ class SkeletonProvider : public AssetProvider<Skeleton> {
 	using AssetProvider<Skeleton>::AssetProvider;
 
   private:
-	Payload load_payload(Uri<Skeleton> const& uri) const override;
+	Payload load_payload(Uri<Skeleton> const& uri, Stopwatch const& stopwatch) const override;
 };
 } // namespace levk

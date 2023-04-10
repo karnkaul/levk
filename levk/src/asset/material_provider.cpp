@@ -3,10 +3,10 @@
 
 namespace levk {
 MaterialProvider::MaterialProvider(NotNull<TextureProvider*> texture_provider, NotNull<Serializer const*> serializer)
-	: GraphicsAssetProvider<UMaterial>(&texture_provider->render_device(), &texture_provider->data_source(), texture_provider->uri_monitor()),
-	  m_texture_provider(texture_provider), m_serializer(serializer) {}
+	: GraphicsAssetProvider<UMaterial>(&texture_provider->render_device(), &texture_provider->data_source()), m_texture_provider(texture_provider),
+	  m_serializer(serializer) {}
 
-MaterialProvider::Payload MaterialProvider::load_payload(Uri<UMaterial> const& uri) const {
+MaterialProvider::Payload MaterialProvider::load_payload(Uri<UMaterial> const& uri, Stopwatch const& stopwatch) const {
 	auto ret = Payload{};
 	auto json = data_source().read_json(uri);
 	if (!json) {
@@ -23,7 +23,7 @@ MaterialProvider::Payload MaterialProvider::load_payload(Uri<UMaterial> const& u
 	}
 	ret.asset.emplace(std::move(mat.value));
 	ret.dependencies.push_back(uri);
-	logger::info("[MaterialProvider] Material loaded [{}]", uri.value());
+	logger::info("[{:.3f}s] [MaterialProvider] Material loaded [{}]", stopwatch().count(), uri.value());
 	return ret;
 }
 } // namespace levk

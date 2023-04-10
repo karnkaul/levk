@@ -3,16 +3,8 @@
 #include <levk/util/error.hpp>
 
 namespace levk {
-namespace {
-std::optional<UriMonitor> make_uri_monitor(DataSource const& data_source) {
-	if (auto mount_point = data_source.mount_point(); !mount_point.empty()) { return std::optional<UriMonitor>{std::string{mount_point}}; }
-	return std::nullopt;
-}
-} // namespace
-
 Runtime::Runtime(NotNull<std::unique_ptr<DataSource>> data_source, Engine::CreateInfo const& create_info)
-	: m_data_source(std::move(data_source)), m_uri_monitor(make_uri_monitor(*m_data_source)),
-	  m_context(m_data_source.get().get(), create_info, m_uri_monitor ? &*m_uri_monitor : nullptr) {}
+	: m_data_source(std::move(data_source)), m_context(m_data_source.get().get(), create_info) {}
 
 void Runtime::run() {
 	setup();

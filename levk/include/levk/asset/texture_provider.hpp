@@ -10,14 +10,17 @@ class TextureProvider : public GraphicsAssetProvider<Texture> {
 		return ColourSpace::eSrgb;
 	}
 
-	TextureProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source, Ptr<UriMonitor> uri_monitor = {});
+	TextureProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source);
 
 	Texture const& get(Uri<Texture> const& uri, Uri<Texture> const& fallback = "white") const;
+	void clear() override;
 
 	Ptr<Texture const> white() const { return find("white"); }
 	Ptr<Texture const> black() const { return find("black"); }
 
   private:
-	Payload load_payload(Uri<Texture> const& uri) const override;
+	void add_default_textures();
+
+	Payload load_payload(Uri<Texture> const& uri, Stopwatch const& stopwatch) const override;
 };
 } // namespace levk

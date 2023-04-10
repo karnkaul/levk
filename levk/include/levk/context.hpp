@@ -10,7 +10,7 @@ class Scene;
 
 class Context {
   public:
-	Context(NotNull<DataSource const*> data_source, Engine::CreateInfo const& create_info = {}, Ptr<UriMonitor> uri_monitor = {});
+	Context(NotNull<DataSource const*> data_source, Engine::CreateInfo const& create_info = {});
 
 	void show() { return engine.get().window().show(); }
 	void hide() { return engine.get().window().hide(); }

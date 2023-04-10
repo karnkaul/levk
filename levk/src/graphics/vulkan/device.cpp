@@ -14,6 +14,7 @@
 #include <impl/frame_profiler.hpp>
 #include <levk/asset/asset_providers.hpp>
 #include <levk/asset/shader_provider.hpp>
+#include <levk/build_version.hpp>
 #include <levk/graphics/material.hpp>
 #include <levk/graphics/shader.hpp>
 #include <levk/graphics/shader_buffer.hpp>
@@ -29,8 +30,6 @@
 
 namespace levk::vulkan {
 namespace {
-constexpr std::string_view validation_layer_v = "VK_LAYER_KHRONOS_validation";
-
 constexpr Vsync from(vk::PresentModeKHR const mode) {
 	switch (mode) {
 	case vk::PresentModeKHR::eMailbox: return Vsync::eMailbox;
@@ -135,6 +134,7 @@ vk::Format depth_format(vk::PhysicalDevice const gpu) {
 }
 
 vk::UniqueInstance make_instance(std::vector<char const*> extensions, RenderDeviceCreateInfo const& gdci, RenderDeviceInfo& out) {
+	static constexpr std::string_view validation_layer_v = "VK_LAYER_KHRONOS_validation";
 	auto dl = vk::DynamicLoader{};
 	VULKAN_HPP_DEFAULT_DISPATCHER.init(dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr"));
 	if (gdci.validation) {
@@ -149,7 +149,7 @@ vk::UniqueInstance make_instance(std::vector<char const*> extensions, RenderDevi
 		}
 	}
 
-	auto const version = VK_MAKE_VERSION(0, 1, 0);
+	auto const version = VK_MAKE_VERSION(version_v.major, version_v.minor, version_v.patch);
 	auto const ai = vk::ApplicationInfo{"levk", version, "levk", version, VK_API_VERSION_1_3};
 	auto ici = vk::InstanceCreateInfo{};
 	ici.pApplicationInfo = &ai;
@@ -196,7 +196,12 @@ vk::UniqueDebugUtilsMessengerEXT make_debug_messenger(vk::Instance instance) {
 	using vktype = vk::DebugUtilsMessageTypeFlagBitsEXT;
 	dumci.messageType = vktype::eGeneral | vktype::ePerformance | vktype::eValidation;
 	dumci.pfnUserCallback = validationCallback;
-	return instance.createDebugUtilsMessengerEXTUnique(dumci, nullptr);
+	try {
+		return instance.createDebugUtilsMessengerEXTUnique(dumci, nullptr);
+	} catch (std::exception const& e) {
+		logger::error("[RenderDevice] {}", e.what());
+		return {};
+	}
 }
 
 Gpu select_gpu(vk::Instance const instance, vk::SurfaceKHR const surface) {
@@ -231,7 +236,7 @@ Gpu select_gpu(vk::Instance const instance, vk::SurfaceKHR const surface) {
 	return std::move(entries.front().gpu);
 }
 
-vk::UniqueDevice make_device(std::span<char const* const> layers, Gpu const& gpu) {
+vk::UniqueDevice make_device(Gpu const& gpu) {
 	static constexpr float priority_v = 1.0f;
 	static constexpr std::array required_extensions_v = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -273,8 +278,6 @@ vk::UniqueDevice make_device(std::span<char const* const> layers, Gpu const& gpu
 
 	dci.queueCreateInfoCount = 1;
 	dci.pQueueCreateInfos = &qci;
-	dci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-	dci.ppEnabledLayerNames = layers.data();
 	dci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
 	dci.ppEnabledExtensionNames = extensions.span().data();
 	dci.pEnabledFeatures = &enabled;
@@ -624,9 +627,7 @@ Device::Device(Window const& window, RenderDeviceCreateInfo const& create_info) 
 	impl = std::unique_ptr<Impl, Deleter>(new Impl{.window = glfw_window});
 	impl->gpu = select_gpu(*instance, *surface);
 
-	auto layers = FlexArray<char const*, 2>{};
-	if (create_info.validation) { layers.insert(validation_layer_v.data()); }
-	device = make_device(layers.span(), impl->gpu);
+	device = make_device(impl->gpu);
 	Queue::make(queue, *device, impl->gpu.queue_family);
 
 	vma = Vma::make(*instance, impl->gpu.device, *device);

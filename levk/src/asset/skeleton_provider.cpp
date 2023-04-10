@@ -2,7 +2,7 @@
 #include <levk/asset/skeleton_provider.hpp>
 
 namespace levk {
-SkeletonProvider::Payload SkeletonProvider::load_payload(Uri<Skeleton> const& uri) const {
+SkeletonProvider::Payload SkeletonProvider::load_payload(Uri<Skeleton> const& uri, Stopwatch const& stopwatch) const {
 	auto ret = Payload{};
 	auto json = data_source().read_json(uri);
 	if (!json) {
@@ -36,7 +36,7 @@ SkeletonProvider::Payload SkeletonProvider::load_payload(Uri<Skeleton> const& ur
 	}
 	ret.asset->self = uri;
 	ret.dependencies.push_back(uri);
-	logger::info("[SkeletonProvider] Skeleton loaded [{}]", uri.value());
+	logger::info("[{:.3f}s] [SkeletonProvider] Skeleton loaded [{}]", stopwatch().count(), uri.value());
 	return ret;
 }
 } // namespace levk

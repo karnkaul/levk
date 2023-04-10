@@ -12,9 +12,26 @@
 #include <levk/util/enumerate.hpp>
 #include <levk/util/fixed_string.hpp>
 #include <levk/util/logger.hpp>
+#include <levk/util/visitor.hpp>
 #include <levk/window/window_state.hpp>
 
 namespace levk {
+namespace {
+dj::Json make_json(ViewPlane const& view_plane) {
+	auto ret = dj::Json{};
+	ret["near"] = view_plane.near;
+	ret["far"] = view_plane.far;
+	return ret;
+}
+
+ViewPlane make_view_plane(dj::Json const& json, ViewPlane fallback) {
+	auto ret = ViewPlane{};
+	ret.near = json["near"].as<float>(fallback.near);
+	ret.far = json["far"].as<float>(fallback.far);
+	return ret;
+}
+} // namespace
+
 AssetList Scene::peek_assets(Serializer const& serializer, dj::Json const& json) {
 	auto ret = AssetList{};
 	for (auto const& in_entity : json["entities"].array_view()) {
@@ -130,7 +147,18 @@ bool Scene::serialize(dj::Json& out) const {
 	out_camera["name"] = camera.name;
 	asset::to_json(out_camera["transform"], camera.transform);
 	out_camera["exposure"] = camera.exposure;
-	// TODO: camera type
+	auto const camera_visitor = Visitor{
+		[&out_camera](Camera::Perspective const& perspective) {
+			out_camera["type"] = "perspective";
+			out_camera["field_of_view"] = perspective.field_of_view;
+			out_camera["view_plane"] = make_json(perspective.view_plane);
+		},
+		[&out_camera](Camera::Orthographic const& orthographic) {
+			out_camera["type"] = "orthographic";
+			out_camera["view_plane"] = make_json(orthographic.view_plane);
+		},
+	};
+	std::visit(camera_visitor, camera.type);
 	auto& out_lights = out["lights"];
 	auto& out_primary_light = out_lights["primary"];
 	asset::to_json(out_primary_light["direction"], lights.primary.direction);
@@ -197,7 +225,16 @@ bool Scene::deserialize(dj::Json const& json) {
 	asset::from_json(in_camera["transform"], camera.transform);
 	camera.transform.recompute();
 	camera.exposure = in_camera["exposure"].as<float>(camera.exposure);
-	// TODO: camera type
+	if (in_camera["type"].as_string() == "orthographic") {
+		auto type = Camera::Orthographic{};
+		type.view_plane = make_view_plane(in_camera["view_plane"], type.view_plane);
+		camera.type = type;
+	} else {
+		auto type = Camera::Perspective{};
+		type.view_plane = make_view_plane(in_camera["view_plane"], type.view_plane);
+		type.field_of_view = in_camera["field_of_view"].as<float>(type.field_of_view);
+		camera.type = type;
+	}
 	auto const& in_lights = json["lights"];
 	if (auto const& in_primary_light = in_lights["primary"]) {
 		asset::from_json(in_primary_light["direction"], lights.primary.direction);

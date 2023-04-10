@@ -31,6 +31,7 @@ class SceneManager {
 
 	Scene& active_scene() const;
 	Uri<Scene> const& uri() const { return m_uri; }
+	void set_uri(Uri<Scene> uri) { m_uri = std::move(uri); }
 
 	void tick(WindowState const& window_state, Time dt);
 	void render(RenderList render_list = {}) const;

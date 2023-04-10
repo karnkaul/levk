@@ -13,35 +13,31 @@ void AssetListLoader::execute(ThreadPool& thread_pool) {
 		++done;
 		set_progress(static_cast<float>(done) / static_cast<float>(total));
 	};
-	set_status("Loading Shaders");
+	set_status("Loading Assets");
 	for (auto const& uri : m_list.shaders) {
 		tasks.push_back(thread_pool.submit([&] {
 			m_asset_providers->shader().load(uri);
 			increment_done();
 		}));
 	}
-	set_status("Loading Textures");
 	for (auto const& uri : m_list.textures) {
 		tasks.push_back(thread_pool.submit([&] {
 			m_asset_providers->texture().load(uri);
 			increment_done();
 		}));
 	}
-	set_status("Loading Materials");
 	for (auto const& uri : m_list.materials) {
 		tasks.push_back(thread_pool.submit([&] {
 			m_asset_providers->material().load(uri);
 			increment_done();
 		}));
 	}
-	set_status("Loading Skeletons");
 	for (auto const& uri : m_list.skeletons) {
 		tasks.push_back(thread_pool.submit([&] {
 			m_asset_providers->skeleton().load(uri);
 			increment_done();
 		}));
 	}
-	set_status("Loading Meshes");
 	for (auto const& uri : m_list.meshes) {
 		tasks.push_back(thread_pool.submit([&] {
 			switch (m_asset_providers->mesh_type(uri)) {

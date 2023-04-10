@@ -87,7 +87,7 @@ struct Data {
 } // namespace compiler
 } // namespace
 
-ShaderProvider::Payload ShaderProvider::load_payload(Uri<ShaderCode> const& uri) const {
+ShaderProvider::Payload ShaderProvider::load_payload(Uri<ShaderCode> const& uri, Stopwatch const& stopwatch) const {
 	auto data = compiler::Data::make(uri);
 	auto ret = Payload{};
 	if (data.glsl && compiler::is_available()) {
@@ -109,7 +109,7 @@ ShaderProvider::Payload ShaderProvider::load_payload(Uri<ShaderCode> const& uri)
 	ret.asset->spir_v = DynArray<std::uint32_t>{bytes.size() / sizeof(std::uint32_t)};
 	std::memcpy(ret.asset->spir_v.data(), bytes.data(), bytes.size());
 	ret.asset->hash = hash_code(ret.asset->spir_v.span());
-	logger::info("[ShaderProvider] Shader loaded [{}]", uri.value());
+	logger::info("[{:.3f}s] [ShaderProvider] Shader loaded [{}]", stopwatch().count(), uri.value());
 	return ret;
 }
 } // namespace levk

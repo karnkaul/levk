@@ -8,10 +8,10 @@ namespace levk {
 namespace fs = std::filesystem;
 
 AsciiFontProvider::AsciiFontProvider(NotNull<TextureProvider*> texture_provider, NotNull<FontLibrary const*> font_library)
-	: GraphicsAssetProvider<AsciiFont>(&texture_provider->render_device(), &texture_provider->data_source(), texture_provider->uri_monitor()),
-	  m_texture_provider(texture_provider), m_font_library(font_library) {}
+	: GraphicsAssetProvider<AsciiFont>(&texture_provider->render_device(), &texture_provider->data_source()), m_texture_provider(texture_provider),
+	  m_font_library(font_library) {}
 
-auto AsciiFontProvider::load_payload(Uri<AsciiFont> const& uri) const -> Payload {
+auto AsciiFontProvider::load_payload(Uri<AsciiFont> const& uri, Stopwatch const& stopwatch) const -> Payload {
 	auto ret = Payload{};
 	if (fs::path{uri.value()}.extension() == ".json") {
 		logger::warn("[FontProvider] JSON deserialization not implemented (URI: [{}])", uri.value());
@@ -33,7 +33,7 @@ auto AsciiFontProvider::load_payload(Uri<AsciiFont> const& uri) const -> Payload
 		logger::warn("[FontProvider] Failed to load font [{}]", uri.value());
 		return {};
 	}
-	logger::info("[FontProvider] AsciiFont Loaded [{}]", uri.value());
+	logger::info("[{:.3f}s] [FontProvider] AsciiFont Loaded [{}]", stopwatch().count(), uri.value());
 	ret.dependencies.push_back(uri);
 	return ret;
 }
