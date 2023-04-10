@@ -200,7 +200,7 @@ Resource make_resource(std::string_view in, std::string_view type, std::size_t i
 
 struct Exporter {
 	ImportMap& out_imported;
-	LogDispatch const& import_logger;
+	Logger const& import_logger;
 	gltf2cpp::Root const& in_root;
 	fs::path in_dir;
 	fs::path uri_prefix;
@@ -519,12 +519,6 @@ struct SceneWalker {
 };
 } // namespace
 
-void LogDispatch::print(logger::Level level, std::string message) const {
-	if (silenced[static_cast<std::size_t>(level)]) { return; }
-	auto const pipe = level == logger::Level::eError ? logger::Pipe::eStdErr : logger::Pipe::eStdOut;
-	log_to(pipe, {std::move(message), level});
-}
-
 std::string AssetList::make_default_scene_uri(std::size_t scene_index) const {
 	auto uri = fs::path{gltf_path}.stem();
 	if (scene_index < scenes.size() && !scenes[scene_index].name.empty()) {
@@ -535,7 +529,7 @@ std::string AssetList::make_default_scene_uri(std::size_t scene_index) const {
 	return fmt::format("{}.scene_{}.json", uri.generic_string(), scene_index);
 }
 
-MeshImporter AssetList::mesh_importer(std::string root_path, std::string dir_uri, LogDispatch import_logger, bool overwrite) const {
+MeshImporter AssetList::mesh_importer(std::string root_path, std::string dir_uri, Logger import_logger, bool overwrite) const {
 	auto ret = MeshImporter{.import_logger = std::move(import_logger), .serializer = serializer, .overwrite_existing = overwrite};
 	if (gltf_path.empty()) {
 		ret.import_logger.error("[legsmi] Empty GLTF file path");
@@ -556,7 +550,7 @@ MeshImporter AssetList::mesh_importer(std::string root_path, std::string dir_uri
 	return ret;
 }
 
-SceneImporter AssetList::scene_importer(std::string root_path, std::string dir_uri, std::string scene_uri, LogDispatch import_logger, bool overwrite) const {
+SceneImporter AssetList::scene_importer(std::string root_path, std::string dir_uri, std::string scene_uri, Logger import_logger, bool overwrite) const {
 	auto ret = SceneImporter{};
 	ret.mesh_importer = mesh_importer(root_path, dir_uri, std::move(import_logger), overwrite);
 	if (!ret.mesh_importer) { return {}; }
@@ -616,7 +610,7 @@ levk::Transform legsmi::from(gltf2cpp::Transform const& transform) {
 	return ret;
 }
 
-auto legsmi::peek_assets(std::string gltf_path, levk::NotNull<levk::Serializer const*> serializer, LogDispatch const& import_logger) -> AssetList {
+auto legsmi::peek_assets(std::string gltf_path, levk::NotNull<levk::Serializer const*> serializer, Logger const& import_logger) -> AssetList {
 	auto ret = AssetList{.serializer = serializer};
 	if (!fs::is_regular_file(gltf_path)) {
 		import_logger.error("[legsmi] Invalid GLTF file path [{}]", gltf_path);

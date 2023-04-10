@@ -18,8 +18,6 @@ namespace levk {
 template <typename Type>
 class AssetProvider {
   public:
-	AssetProvider(NotNull<DataSource const*> data_source) : m_storage(std::make_unique<Storage>(data_source)) {}
-
 	Ptr<Type const> find(Uri<Type> const& uri) const {
 		if (!uri) { return {}; }
 		auto lock = std::scoped_lock{m_storage->mutex};
@@ -98,7 +96,12 @@ class AssetProvider {
 		std::vector<Uri<>> dependencies{};
 	};
 
+	AssetProvider(NotNull<DataSource const*> data_source, std::string_view log_context)
+		: m_logger(log_context), m_storage(std::make_unique<Storage>(data_source)) {}
+
 	virtual Payload load_payload(Uri<Type> const& uri, Stopwatch const& stopwatch) const = 0;
+
+	Logger m_logger{};
 
   private:
 	struct Entry {
@@ -139,10 +142,11 @@ class RenderDevice;
 template <typename Type>
 class GraphicsAssetProvider : public AssetProvider<Type> {
   public:
-	GraphicsAssetProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source)
-		: AssetProvider<Type>(data_source), m_render_device(render_device) {}
-
 	RenderDevice& render_device() const { return *m_render_device; }
+
+  protected:
+	GraphicsAssetProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source, std::string_view log_context)
+		: AssetProvider<Type>(data_source, log_context), m_render_device(render_device) {}
 
   private:
 	NotNull<RenderDevice*> m_render_device;

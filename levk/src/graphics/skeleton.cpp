@@ -16,6 +16,8 @@ void add_to(Node::Tree& out_tree, JointToNode& out_map, std::span<Joint const> j
 	out_map.insert_or_assign(joint.self, self.id());
 	for (auto const& child : joint.children) { add_to(out_tree, out_map, joints, child, self.id()); }
 }
+
+auto const g_log{Logger{"Skeleton"}};
 } // namespace
 
 void Skeleton::Animation::update_nodes(Node::Locator node_locator, Time time, Source const& source) const {
@@ -28,11 +30,11 @@ void Skeleton::Animation::update_nodes(Node::Locator node_locator, Time time, So
 
 Skeleton::Instance Skeleton::instantiate(Node::Tree& out, Id<Node> root) const {
 	if (!root) {
-		logger::warn("[SkeletonInstance] [{}] No root node provided, creating one instead", name);
+		g_log.warn("[{}] No root node provided, creating one instead", name);
 		root = out.add({.name = name}).id();
 	}
 	if (!out.find(root)) {
-		logger::warn("[SkeletonInstance] [{}] Invalid root node provided, creating one instead", name);
+		g_log.warn("[{}] Invalid root node provided, creating one instead", name);
 		root = out.add({.name = name}).id();
 	}
 	auto ret = Instance{.root = root, .source = self};

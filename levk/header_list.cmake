@@ -25,6 +25,7 @@ set(util_headers
   include/levk/util/path_tree.hpp
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
+  include/levk/util/reversed.hpp
   include/levk/util/signal.hpp
   include/levk/util/thread_pool.hpp
   include/levk/util/time.hpp
@@ -78,7 +79,6 @@ set(imcpp_headers
   include/levk/imcpp/inspector.hpp
   include/levk/imcpp/log_display.hpp
   include/levk/imcpp/reflector.hpp
-  include/levk/imcpp/ring_buffer.hpp
   include/levk/imcpp/scene_graph.hpp
 )
 

@@ -9,6 +9,10 @@
 #include <levk/util/fixed_string.hpp>
 
 namespace levk {
+namespace {
+auto const g_log{Logger{"StaticMeshRenderer"}};
+}
+
 void StaticMeshRenderer::render(RenderList& out) const {
 	auto* entity = owning_entity();
 	if (!entity) { return; }
@@ -35,7 +39,7 @@ bool StaticMeshRenderer::deserialize(dj::Json const& json) {
 	if (!scene_manager) { return false; }
 	auto uri = Uri{json["mesh"].as<std::string>()};
 	if (!scene_manager->asset_providers().static_mesh().load(uri)) {
-		logger::warn("[StaticMeshRenderer] Failed to load StaticMesh [{}]", uri.value());
+		g_log.warn("Failed to load StaticMesh [{}]", uri.value());
 		return false;
 	}
 	mesh = std::move(uri);

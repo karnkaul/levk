@@ -5,6 +5,10 @@
 #include <utility>
 
 namespace levk {
+namespace {
+auto const g_log{Logger{"Node::Tree"}};
+}
+
 Node& Node::Tree::add(CreateInfo const& create_info) {
 	auto node = Node{};
 	node.m_id = ++m_prev_id;
@@ -18,7 +22,7 @@ Node& Node::Tree::add(CreateInfo const& create_info) {
 			it->second.m_children.push_back(node.m_id);
 			node.m_parent = create_info.parent;
 		} else {
-			logger::warn("[Tree] Invalid parent Id<Node>: {}", create_info.parent.value());
+			g_log.warn("Invalid parent Id<Node>: {}", create_info.parent.value());
 		}
 	}
 	if (!node.m_parent) { m_roots.push_back(node.m_id); }

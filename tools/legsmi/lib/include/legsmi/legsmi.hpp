@@ -14,17 +14,12 @@ class Serializer;
 } // namespace levk
 
 namespace legsmi {
-namespace logger = levk::logger;
 namespace asset = levk::asset;
+
+using Logger = levk::Logger;
 
 template <typename Type>
 using Ptr = levk::Ptr<Type>;
-
-struct LogDispatch : logger::CrtpDispatch<LogDispatch> {
-	bool silenced[static_cast<std::size_t>(logger::Level::eCOUNT_)]{};
-
-	void print(logger::Level level, std::string message) const;
-};
 
 struct Mesh {
 	std::string name{};
@@ -65,14 +60,14 @@ struct AssetList {
 
 	std::string make_default_scene_uri(std::size_t scene_index) const;
 
-	MeshImporter mesh_importer(std::string root_path, std::string dir_uri, LogDispatch import_logger = {}, bool overwrite = {}) const;
-	SceneImporter scene_importer(std::string root_path, std::string dir_uri, std::string scene_uri, LogDispatch import_logger = {}, bool overwrite = {}) const;
+	MeshImporter mesh_importer(std::string root_path, std::string dir_uri, Logger import_logger = {}, bool overwrite = {}) const;
+	SceneImporter scene_importer(std::string root_path, std::string dir_uri, std::string scene_uri, Logger import_logger = {}, bool overwrite = {}) const;
 
 	explicit operator bool() const { return !gltf_path.empty() && serializer != nullptr; }
 };
 
 struct MeshImporter {
-	LogDispatch import_logger{};
+	Logger import_logger{};
 	Ptr<levk::Serializer const> serializer{};
 	gltf2cpp::Root root{};
 	std::string src_dir{};
@@ -95,6 +90,6 @@ struct SceneImporter {
 	explicit operator bool() const { return !!mesh_importer; }
 };
 
-AssetList peek_assets(std::string gltf_path, levk::NotNull<levk::Serializer const*> serializer, LogDispatch const& import_logger = {});
+AssetList peek_assets(std::string gltf_path, levk::NotNull<levk::Serializer const*> serializer, Logger const& import_logger = {});
 levk::Transform from(gltf2cpp::Transform const& in);
 } // namespace legsmi

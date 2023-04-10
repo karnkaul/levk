@@ -159,8 +159,10 @@ struct TestScene : Scene {
 		Uri<Scene> to_load{"Lantern/Lantern.scene_0.json"};
 	} test{};
 
+	Logger log{"TestScene"};
+
 	void setup() override {
-		logger::debug("TestScene::setup()");
+		log.debug("TestScene::setup()");
 		camera.transform.set_position({0.0f, 0.0f, 5.0f});
 		lights.primary.direction = Transform::look_at({-1.0f, -1.0f, -1.0f}, {});
 		// Service<SceneManager>::locate().load_into_tree(Uri<StaticMesh>{"Suzanne/Suzanne.mesh_0.json"});
@@ -203,9 +205,9 @@ struct TestScene : Scene {
 		}
 		auto on_ready = [this] {
 			if (Service<SceneManager>::locate().load(test.to_load)) {
-				logger::debug("[TestScene] loading [{}]", test.to_load.value());
+				log.debug("loading [{}]", test.to_load.value());
 			} else {
-				logger::debug("[TestScene] Could not load [{}]", test.to_load.value());
+				log.debug("Could not load [{}]", test.to_load.value());
 			}
 		};
 		update_and_draw(test.load_request, on_ready);
@@ -233,6 +235,8 @@ struct Editor : Runtime {
 	imcpp::EngineStatus engine_status{};
 	imcpp::LogDisplay log_display{};
 	std::optional<imcpp::GltfImportWizard> gltf_import_wizard{};
+
+	Logger log{"Editor"};
 
 	Editor(std::string_view data_path) : Runtime(std::make_unique<DiskVfs>(data_path), make_eci()) {}
 
@@ -326,7 +330,8 @@ struct Editor : Runtime {
 		auto json = context().serializer.get().serialize(context().active_scene());
 		auto* disk_vfs = dynamic_cast<DiskVfs const*>(&context().data_source());
 		if (!disk_vfs || !disk_vfs->write_json(json, uri)) { return; }
-		logger::debug("Scene saved {}", uri.value());
+		log.debug("Scene saved {}", uri.value());
+		set_window_title();
 	}
 
 	void set_window_title() const {
@@ -340,19 +345,20 @@ struct Editor : Runtime {
 int main([[maybe_unused]] int argc, char** argv) {
 	using namespace levk;
 	assert(argc > 0);
+	auto const log{Logger{"Editor"}};
 	try {
 		static constexpr std::string_view const data_uris[] = {"data", "editor/data"};
 		auto const data_path = levk::find_directory(argv[0], data_uris);
 		Editor{data_path}.run();
 	} catch (Error const& e) {
-		logger::error("Runtime error: {}", e.what());
+		log.error("Runtime error: {}", e.what());
 		return EXIT_FAILURE;
 	} catch (std::exception const& e) {
-		logger::error("Fatal error: {}", e.what());
+		log.error("Fatal error: {}", e.what());
 		return EXIT_FAILURE;
 	} catch (...) {
-		logger::error("Unknown error");
+		log.error("Unknown error");
 		return EXIT_FAILURE;
 	}
-	logger::debug("Editor exited successfully");
+	log.debug("exited successfully");
 }

@@ -5,7 +5,7 @@
 namespace levk {
 class ShaderProvider : public AssetProvider<ShaderCode> {
   public:
-	using AssetProvider<ShaderCode>::AssetProvider;
+	ShaderProvider(NotNull<DataSource const*> data_source) : AssetProvider<ShaderCode>(data_source, "ShaderProvider") {}
 
   private:
 	Payload load_payload(Uri<ShaderCode> const& uri, Stopwatch const& stopwatch) const override;

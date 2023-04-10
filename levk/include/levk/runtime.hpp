@@ -23,7 +23,7 @@ class Runtime {
 
 	virtual void setup() {}
 
-	logger::Instance m_logger{};
+	Logger::Instance m_logger{};
 	NotNull<std::unique_ptr<DataSource>> m_data_source;
 	Context m_context;
 };

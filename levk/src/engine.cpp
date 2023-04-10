@@ -24,6 +24,8 @@ struct Fps {
 		}
 	}
 };
+
+auto const g_log{Logger{"Engine"}};
 } // namespace
 
 struct Engine::Impl {
@@ -46,7 +48,7 @@ void Engine::Deleter::operator()(Impl* ptr) const {
 }
 
 Engine::Engine(CreateInfo const& create_info) noexcept(false) : m_impl(new Impl{create_info}) {
-	if (!m_impl->font_library->init()) { logger::error("[Engine] Failed to initialize FontLibrary!"); }
+	if (!m_impl->font_library->init()) { g_log.error("Failed to initialize FontLibrary!"); }
 	if (create_info.autoshow) { m_impl->window.get().show(); }
 }
 

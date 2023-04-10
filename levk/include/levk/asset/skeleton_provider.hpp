@@ -5,7 +5,7 @@
 namespace levk {
 class SkeletonProvider : public AssetProvider<Skeleton> {
   public:
-	using AssetProvider<Skeleton>::AssetProvider;
+	SkeletonProvider(NotNull<DataSource const*> data_source) : AssetProvider<Skeleton>(data_source, "SkeletonProvider") {}
 
   private:
 	Payload load_payload(Uri<Skeleton> const& uri, Stopwatch const& stopwatch) const override;

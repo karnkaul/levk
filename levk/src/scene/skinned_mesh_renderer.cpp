@@ -42,6 +42,8 @@ Skeleton::Instance to_skeleton_instance(dj::Json const& json) {
 	}
 	return ret;
 }
+
+auto const g_log{Logger{"SkinnedMeshRenderer"}};
 } // namespace
 
 void SkinnedMeshRenderer::set_mesh(Uri<SkinnedMesh> uri, Skeleton::Instance skeleton) {
@@ -74,7 +76,7 @@ bool SkinnedMeshRenderer::deserialize(dj::Json const& json) {
 	if (!scene_manager) { return false; }
 	auto uri = Uri{json["mesh"].as<std::string>()};
 	if (!scene_manager->asset_providers().skinned_mesh().load(uri)) {
-		logger::warn("[SkinnedMeshRenderer] Failed to load SkinnedMesh [{}]", uri.value());
+		g_log.warn("Failed to load SkinnedMesh [{}]", uri.value());
 		return false;
 	}
 	set_mesh(std::move(uri), to_skeleton_instance(json["skeleton"]));

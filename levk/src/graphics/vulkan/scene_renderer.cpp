@@ -10,6 +10,8 @@
 
 namespace levk::vulkan {
 namespace {
+auto const g_log{Logger{"SceneRenderer"}};
+
 SceneRenderer::Frame build_render_frame(SceneRenderer& scene_renderer, Scene const& scene, RenderList const& render_list) {
 	auto ret = SceneRenderer::Frame{
 		.primary_light_direction = scene.lights.primary.direction,
@@ -167,9 +169,7 @@ void SceneRenderer::build_frame(Scene const& scene, RenderList const& render_lis
 	if constexpr (debug_v) {
 		static constexpr auto warn_size_v{2048};
 		auto const list_size = render_list.size();
-		if (list_size > warn_size_v) {
-			logger::warn("[SceneRenderer] RenderList contains [{}] drawables / draw calls, consider reducing the count.", list_size);
-		}
+		if (list_size > warn_size_v) { g_log.warn("RenderList contains [{}] drawables / draw calls, consider reducing the count.", list_size); }
 	}
 
 	frame = build_render_frame(*this, scene, render_list);

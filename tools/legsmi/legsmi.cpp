@@ -159,7 +159,7 @@ struct App {
 	ImportMap imported{};
 
 	bool can_import_scene() const { return !import_list.asset_list.has_skinned_mesh; }
-	LogDispatch import_logger{};
+	Logger import_logger{};
 
 	bool run(std::span<char const* const> in) {
 		if (in.empty()) {
@@ -228,7 +228,7 @@ struct App {
 		}
 
 		if (!args.verbose) {
-			for (auto& level : import_logger.silenced) { level = true; }
+			for (auto& silenced : import_logger.silent.t) { silenced = true; }
 		}
 		src_dir = args.gltf.parent_path();
 		if (args.data_root.empty()) { args.data_root = fs::current_path(); }
@@ -295,6 +295,6 @@ struct App {
 } // namespace legsmi
 
 int main(int argc, char** argv) {
-	levk::logger::g_format = "[{level}] {message}";
+	levk::Logger::s_format = "[{level}] [{context}] {message}";
 	if (!legsmi::App{}.run({argv + 1, static_cast<std::size_t>(argc - 1)})) { return EXIT_FAILURE; }
 }

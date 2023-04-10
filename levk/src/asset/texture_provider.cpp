@@ -7,7 +7,7 @@ namespace levk {
 namespace fs = std::filesystem;
 
 TextureProvider::TextureProvider(NotNull<RenderDevice*> render_device, NotNull<DataSource const*> data_source)
-	: GraphicsAssetProvider<Texture>(render_device, data_source) {
+	: GraphicsAssetProvider<Texture>(render_device, data_source, "TextureProvider") {
 	add_default_textures();
 }
 
@@ -31,7 +31,7 @@ TextureProvider::Payload TextureProvider::load_payload(Uri<Texture> const& uri, 
 	if (fs::path{uri.value()}.extension() == ".json") {
 		auto json = data_source().read_json(uri);
 		if (!json) {
-			logger::error("[TextureProvider] Failed to load JSON [{}]", uri.value());
+			m_logger.error("Failed to load JSON [{}]", uri.value());
 			return {};
 		}
 		image_uri = json["image"].as_string();
@@ -41,17 +41,17 @@ TextureProvider::Payload TextureProvider::load_payload(Uri<Texture> const& uri, 
 	}
 	auto const bytes = read_bytes(image_uri);
 	if (!bytes) {
-		logger::error("[TextureProvider] Failed to load Image [{}]", image_uri);
+		m_logger.error("Failed to load Image [{}]", image_uri);
 		return {};
 	}
 	auto image = Image{bytes.span(), std::string{image_uri}};
 	if (!image) {
-		logger::error("[TextureProvider] Failed to create Image [{}]", image_uri);
+		m_logger.error("Failed to create Image [{}]", image_uri);
 		return {};
 	}
 	ret.asset.emplace(render_device().vulkan_device(), image, TextureCreateInfo{.colour_space = colour_space});
 	ret.dependencies = {uri, image_uri};
-	logger::info("[{:.3f}s] [TextureProvider] Texture loaded [{}]", stopwatch().count(), uri.value());
+	m_logger.info("[{:.3f}s] Texture loaded [{}]", stopwatch().count(), uri.value());
 	return ret;
 }
 

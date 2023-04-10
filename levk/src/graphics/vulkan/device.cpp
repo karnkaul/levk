@@ -126,6 +126,8 @@ constexpr AntiAliasingFlags make_aa(vk::PhysicalDeviceProperties const& props) {
 	return ret;
 }
 
+auto const g_log{Logger{"RenderDevice"}};
+
 vk::Format depth_format(vk::PhysicalDevice const gpu) {
 	static constexpr auto target{vk::Format::eD32Sfloat};
 	auto const props = gpu.getFormatProperties(target);
@@ -144,7 +146,7 @@ vk::UniqueInstance make_instance(std::vector<char const*> extensions, RenderDevi
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 			out.validation = true;
 		} else {
-			logger::warn("[RenderDevice] Validation layer requested but not found");
+			g_log.warn("Validation layer requested but not found");
 			out.validation = false;
 		}
 	}
@@ -169,7 +171,7 @@ vk::UniqueInstance make_instance(std::vector<char const*> extensions, RenderDevi
 	try {
 		ret = vk::createInstanceUnique(ici);
 	} catch (vk::LayerNotPresentError const& e) {
-		logger::error("[RenderDevice] {}", e.what());
+		g_log.error("{}", e.what());
 		ici.enabledLayerCount = 0;
 		ret = vk::createInstanceUnique(ici);
 	}
@@ -178,13 +180,14 @@ vk::UniqueInstance make_instance(std::vector<char const*> extensions, RenderDevi
 }
 
 vk::UniqueDebugUtilsMessengerEXT make_debug_messenger(vk::Instance instance) {
+	static auto const s_log{Logger{"vk"}};
 	auto validationCallback = [](VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT,
 								 VkDebugUtilsMessengerCallbackDataEXT const* pCallbackData, void*) -> vk::Bool32 {
-		auto const msg = fmt::format("[vk] {}", pCallbackData && pCallbackData->pMessage ? pCallbackData->pMessage : "UNKNOWN");
+		auto const msg = pCallbackData && pCallbackData->pMessage ? pCallbackData->pMessage : "UNKNOWN";
 		switch (messageSeverity) {
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT: logger::error("{}", msg); break;
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: logger::warn("{}", msg); break;
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT: logger::info("{}", msg); break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT: s_log.error("{}", msg); break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: s_log.warn("{}", msg); break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT: s_log.info("{}", msg); break;
 		default: break;
 		}
 		return false;
@@ -199,7 +202,7 @@ vk::UniqueDebugUtilsMessengerEXT make_debug_messenger(vk::Instance instance) {
 	try {
 		return instance.createDebugUtilsMessengerEXTUnique(dumci, nullptr);
 	} catch (std::exception const& e) {
-		logger::error("[RenderDevice] {}", e.what());
+		s_log.error("{}", e.what());
 		return {};
 	}
 }
@@ -404,8 +407,8 @@ struct Swapchain {
 			});
 		}
 
-		logger::info("[RenderDevice] Swapchain extent: [{}x{}] | images: [{}] | colour space: [{}] | vsync: [{}]", create_info.imageExtent.width,
-					 create_info.imageExtent.height, storage.images.size(), is_srgb(info.imageFormat) ? "sRGB" : "linear", vsync_status(info.presentMode));
+		g_log.info("Swapchain extent: [{}x{}] | images: [{}] | colour space: [{}] | vsync: [{}]", create_info.imageExtent.width, create_info.imageExtent.height,
+				   storage.images.size(), is_srgb(info.imageFormat) ? "sRGB" : "linear", vsync_status(info.presentMode));
 	}
 
 	std::optional<ImageView> acquire(glm::uvec2 extent, vk::Semaphore semaphore, vk::Fence fence = {}) {

@@ -23,6 +23,8 @@ fs::path find_dir(fs::path exe, std::span<std::string_view const> patterns) {
 	}
 	return {};
 }
+
+auto const g_log{Logger{"DataSource"}};
 } // namespace
 
 std::string DataSource::read_text(Uri<> const& uri) const {
@@ -33,7 +35,7 @@ std::string DataSource::read_text(Uri<> const& uri) const {
 
 dj::Json DataSource::read_json(Uri<> const& uri, std::string_view const extension) const {
 	if (auto const ext = fs::path{uri.value()}.extension(); ext != extension) {
-		logger::error("[DataSource] Invalid JSON URI [{}]", uri.value());
+		g_log.error("Invalid JSON URI [{}]", uri.value());
 		return {};
 	}
 	auto const bytes = read(uri);

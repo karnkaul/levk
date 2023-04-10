@@ -9,7 +9,7 @@ StaticMeshProvider::Payload StaticMeshProvider::load_payload(Uri<StaticMesh> con
 	auto ret = Payload{};
 	auto json = data_source().read_json(uri);
 	if (!json) {
-		logger::error("[StaticMeshProvider] Failed to load JSON [{}]", uri.value());
+		m_logger.error("Failed to load JSON [{}]", uri.value());
 		return {};
 	}
 	ret.asset.emplace();
@@ -20,7 +20,7 @@ StaticMeshProvider::Payload StaticMeshProvider::load_payload(Uri<StaticMesh> con
 		assert(!in_primitive.geometry.is_empty());
 		auto bin_geometry = asset::BinGeometry{};
 		if (!bin_geometry.read(read_bytes(in_primitive.geometry.value()).span())) {
-			logger::error("[StaticMeshProvider] Failed to read bin geometry [{}]", in_primitive.geometry.value());
+			m_logger.error("Failed to read bin geometry [{}]", in_primitive.geometry.value());
 			continue;
 		}
 		ret.dependencies.push_back(in_primitive.geometry);
@@ -29,18 +29,18 @@ StaticMeshProvider::Payload StaticMeshProvider::load_payload(Uri<StaticMesh> con
 		ret.asset->primitives.push_back({std::move(primitive), in_primitive.material});
 	}
 	ret.dependencies.push_back(uri);
-	logger::info("[{:.3f}s] [StaticMeshProvider] StaticMesh loaded [{}]", stopwatch().count(), uri.value());
+	m_logger.info("[{:.3f}s] StaticMesh loaded [{}]", stopwatch().count(), uri.value());
 	return ret;
 }
 
 SkinnedMeshProvider::SkinnedMeshProvider(NotNull<SkeletonProvider*> skeleton_provider, NotNull<MaterialProvider*> material_provider)
-	: MeshProviderCommon<SkinnedMesh>(material_provider), m_skeleton_provider(skeleton_provider) {}
+	: MeshProviderCommon<SkinnedMesh>(material_provider, "SkinnedMeshProvider"), m_skeleton_provider(skeleton_provider) {}
 
 SkinnedMeshProvider::Payload SkinnedMeshProvider::load_payload(Uri<SkinnedMesh> const& uri, Stopwatch const& stopwatch) const {
 	auto ret = Payload{};
 	auto json = data_source().read_json(uri);
 	if (!json) {
-		logger::error("[SkinnedMeshProvider] Failed to load JSON [{}]", uri.value());
+		m_logger.error("Failed to load JSON [{}]", uri.value());
 		return {};
 	}
 	ret.asset.emplace();
@@ -51,7 +51,7 @@ SkinnedMeshProvider::Payload SkinnedMeshProvider::load_payload(Uri<SkinnedMesh> 
 		assert(!in_primitive.geometry.is_empty());
 		auto bin_geometry = asset::BinGeometry{};
 		if (!bin_geometry.read(read_bytes(in_primitive.geometry.value()).span())) {
-			logger::error("[SkinnedMeshProvider] Failed to read bin geometry [{}]", in_primitive.geometry.value());
+			m_logger.error("Failed to read bin geometry [{}]", in_primitive.geometry.value());
 			continue;
 		}
 		ret.dependencies.push_back(in_primitive.geometry);
@@ -65,7 +65,7 @@ SkinnedMeshProvider::Payload SkinnedMeshProvider::load_payload(Uri<SkinnedMesh> 
 		if (skeleton_provider().load(skeleton_uri)) { ret.asset->skeleton = std::move(skeleton_uri); }
 	}
 	ret.dependencies.push_back(uri);
-	logger::info("[{:.3f}s] [SkinnedMeshProvider] SkinnedMesh loaded [{}]", stopwatch().count(), uri.value());
+	m_logger.info("[{:.3f}s] SkinnedMesh loaded [{}]", stopwatch().count(), uri.value());
 	return ret;
 }
 } // namespace levk

@@ -9,8 +9,9 @@ class SkeletonProvider;
 template <typename Type>
 class MeshProviderCommon : public GraphicsAssetProvider<Type> {
   public:
-	MeshProviderCommon(NotNull<MaterialProvider*> material_provider)
-		: GraphicsAssetProvider<Type>(&material_provider->render_device(), &material_provider->data_source()), m_material_provider(material_provider) {}
+	MeshProviderCommon(NotNull<MaterialProvider*> material_provider, std::string_view log_context)
+		: GraphicsAssetProvider<Type>(&material_provider->render_device(), &material_provider->data_source(), log_context),
+		  m_material_provider(material_provider) {}
 
 	MaterialProvider& material_provider() const { return *m_material_provider; }
 
@@ -20,7 +21,7 @@ class MeshProviderCommon : public GraphicsAssetProvider<Type> {
 
 class StaticMeshProvider : public MeshProviderCommon<StaticMesh> {
   public:
-	using MeshProviderCommon<StaticMesh>::MeshProviderCommon;
+	StaticMeshProvider(NotNull<MaterialProvider*> material_provider) : MeshProviderCommon<StaticMesh>(material_provider, "StaticMeshProvider") {}
 
   private:
 	Payload load_payload(Uri<StaticMesh> const& uri, Stopwatch const& stopwatch) const override;

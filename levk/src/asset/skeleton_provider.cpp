@@ -6,11 +6,11 @@ SkeletonProvider::Payload SkeletonProvider::load_payload(Uri<Skeleton> const& ur
 	auto ret = Payload{};
 	auto json = data_source().read_json(uri);
 	if (!json) {
-		logger::error("[SkeletonProvider] Failed to load JSON [{}]", uri.value());
+		m_logger.error("Failed to load JSON [{}]", uri.value());
 		return {};
 	}
 	if (json["asset_type"].as_string() != "skeleton") {
-		logger::error("[SkeletonProvider] JSON is not a Skeleton [{}]", uri.value());
+		m_logger.error("JSON is not a Skeleton [{}]", uri.value());
 		return {};
 	}
 	auto asset = asset::Skeleton{};
@@ -23,7 +23,7 @@ SkeletonProvider::Payload SkeletonProvider::load_payload(Uri<Skeleton> const& ur
 		if (!in_animation_asset) { continue; }
 		auto out_animation_asset = asset::BinSkeletalAnimation{};
 		if (!out_animation_asset.read(read_bytes(in_animation.value()).span())) {
-			logger::warn("[SkeletonProvider] Failed to load SkeletalAnimation at: [{}]", in_animation.value());
+			m_logger.warn("Failed to load SkeletalAnimation at: [{}]", in_animation.value());
 			continue;
 		}
 		ret.dependencies.push_back(in_animation);
@@ -36,7 +36,7 @@ SkeletonProvider::Payload SkeletonProvider::load_payload(Uri<Skeleton> const& ur
 	}
 	ret.asset->self = uri;
 	ret.dependencies.push_back(uri);
-	logger::info("[{:.3f}s] [SkeletonProvider] Skeleton loaded [{}]", stopwatch().count(), uri.value());
+	m_logger.info("[{:.3f}s] Skeleton loaded [{}]", stopwatch().count(), uri.value());
 	return ret;
 }
 } // namespace levk

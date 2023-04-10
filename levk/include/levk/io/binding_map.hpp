@@ -70,15 +70,15 @@ class BindingMap {
 
 	virtual bool bind_to(std::string type_name, TypeId type_id, Factory<Base> factory) {
 		if (type_name.empty()) {
-			logger::warn("[Binding] Ignoring attempt to bind empty type_name");
+			m_logger.warn("Ignoring attempt to bind empty type_name");
 			return false;
 		}
 		if (!factory) {
-			logger::warn("[Binding] Ignoring attempt to bind null Factory to type_name [{}]", type_name);
+			m_logger.warn("Ignoring attempt to bind null Factory to type_name [{}]", type_name);
 			return false;
 		}
 		if (type_id == TypeId{}) {
-			logger::warn("[Binding] Ignoring attempt to bind null TypeId to type_name [{}]", type_name);
+			m_logger.warn("Ignoring attempt to bind null TypeId to type_name [{}]", type_name);
 			return false;
 		}
 		m_entries.insert_or_assign(std::move(type_name), Entry{std::move(factory), type_id});
@@ -87,5 +87,6 @@ class BindingMap {
 
   protected:
 	Map m_entries{};
+	Logger m_logger{"BindingMap"};
 };
 } // namespace levk

@@ -6,6 +6,10 @@
 #include <filesystem>
 
 namespace levk {
+namespace {
+auto const g_log{Logger{"SceneManager"}};
+}
+
 namespace fs = std::filesystem;
 
 SceneManager::SceneManager(NotNull<AssetProviders*> asset_providers)
@@ -88,7 +92,7 @@ bool SceneManager::set_next(std::unique_ptr<Scene> scene, TypeId scene_type) {
 void SceneManager::tick(WindowState const& window_state, Time dt) {
 	if (m_next_scene) {
 		m_active_scene = std::move(m_next_scene);
-		if (m_uri) { logger::info("[SceneManager] Scene loaded: [{}]", m_uri.value()); }
+		if (m_uri) { g_log.info("Scene loaded: [{}]", m_uri.value()); }
 		m_active_scene->setup();
 	}
 	assert(m_active_scene);

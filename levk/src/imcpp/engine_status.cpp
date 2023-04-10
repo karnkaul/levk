@@ -36,7 +36,9 @@ void EngineStatus::draw_to(NotClosed<Window>, Engine& engine) {
 	auto const ms = engine.delta_time().count() * 1000.0f;
 	auto& device = engine.render_device();
 	auto const& device_info = device.info();
-	m_dts.push(ms);
+	m_dts.resize(static_cast<std::size_t>(m_capacity));
+	m_dts[m_offset] = ms;
+	m_offset = (m_offset + 1) % static_cast<std::size_t>(m_capacity);
 	ImGui::Text("%s", FixedString{"Device: {}{}", device_info.name, device_info.validation ? " [v]" : ""}.c_str());
 	ImGui::Text("%s", FixedString{"MSAA: {}x", static_cast<int>(device_info.current_aa)}.c_str());
 	ImGui::SameLine();
@@ -50,10 +52,9 @@ void EngineStatus::draw_to(NotClosed<Window>, Engine& engine) {
 	ImGui::Separator();
 	ImGui::Text("%s", FixedString{"FPS: {}", engine.framerate()}.c_str());
 	if (auto tn = TreeNode{"DeltaTime"}) {
-		auto capacity = static_cast<int>(m_dts.capacity());
-		if (ImGui::SliderInt("Samples", &capacity, 50, 500)) { m_dts.set_capacity(static_cast<std::size_t>(capacity)); }
-		auto const dts = m_dts.span();
-		ImGui::PlotLines("dt", dts.data(), static_cast<int>(dts.size()), 0, FixedString{"{:.2f}ms", ms}.c_str(), FLT_MAX, FLT_MAX, {0.0f, 50.0f});
+		ImGui::SliderInt("Samples", &m_capacity, 50, 500);
+		ImGui::PlotLines("dt", m_dts.data(), static_cast<int>(m_dts.size()), static_cast<int>(m_offset), FixedString{"{:.2f}ms", ms}.c_str(), FLT_MAX, FLT_MAX,
+						 {0.0f, 50.0f});
 	}
 	ImGui::Separator();
 	ImGui::Text("%s", FixedString{"Draw calls: {}", device.draw_calls_last_frame()}.c_str());

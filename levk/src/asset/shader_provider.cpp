@@ -60,12 +60,13 @@ bool try_compile(std::string& out_error, char const* glsl_path, char const* spir
 }
 
 bool compile(Uri<> const& glsl, Uri<> const& spir_v, std::string_view prefix, bool debug) {
+	static auto const s_logger{Logger{"ShaderCompiler"}};
 	auto error = std::string{};
 	if (!try_compile(error, glsl.absolute_path(prefix).c_str(), spir_v.absolute_path(prefix).c_str(), debug)) {
-		logger::error("[ShaderCompiler] {}", error);
+		s_logger.error("{}", error);
 		return false;
 	}
-	logger::info("[ShaderCompiler] Compiled GLSL [{}] to SPIR-V [{}] successfully", glsl.value(), spir_v.value());
+	s_logger.info("Compiled GLSL [{}] to SPIR-V [{}] successfully", glsl.value(), spir_v.value());
 	return true;
 }
 
@@ -96,7 +97,7 @@ ShaderProvider::Payload ShaderProvider::load_payload(Uri<ShaderCode> const& uri,
 	}
 	auto bytes = data_source().read(data.spir_v);
 	if (bytes.empty()) {
-		logger::error("[ShaderProvider] Failed to load SPIR-V [{}]", data.spir_v.value());
+		m_logger.error("Failed to load SPIR-V [{}]", data.spir_v.value());
 		return {};
 	}
 	auto const hash_code = [](std::span<std::uint32_t const> code) {
@@ -109,7 +110,7 @@ ShaderProvider::Payload ShaderProvider::load_payload(Uri<ShaderCode> const& uri,
 	ret.asset->spir_v = DynArray<std::uint32_t>{bytes.size() / sizeof(std::uint32_t)};
 	std::memcpy(ret.asset->spir_v.data(), bytes.data(), bytes.size());
 	ret.asset->hash = hash_code(ret.asset->spir_v.span());
-	logger::info("[{:.3f}s] [ShaderProvider] Shader loaded [{}]", stopwatch().count(), uri.value());
+	m_logger.info("[{:.3f}s] Shader loaded [{}]", stopwatch().count(), uri.value());
 	return ret;
 }
 } // namespace levk

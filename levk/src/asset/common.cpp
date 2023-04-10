@@ -154,6 +154,8 @@ bool read_from(BinarySourceT&& source, asset::BinGeometry& out) {
 
 template <typename BinarySourceT>
 bool read_from(BinarySourceT&& source, asset::BinSkeletalAnimation& out) {
+	static auto const s_log{Logger{"BinSkeletonAnimation"}};
+
 	auto bin = BinaryIn<BinarySourceT>{std::move(source)};
 	if (!bin) { return false; }
 
@@ -169,7 +171,7 @@ bool read_from(BinarySourceT&& source, asset::BinSkeletalAnimation& out) {
 		case asset::BinSkeletalAnimation::Type::eTranslate: out_sampler = get_sampler<TransformAnimation::Translate>(sampler_header, bin); break;
 		case asset::BinSkeletalAnimation::Type::eRotate: out_sampler = get_sampler<TransformAnimation::Rotate>(sampler_header, bin); break;
 		case asset::BinSkeletalAnimation::Type::eScale: out_sampler = get_sampler<TransformAnimation::Scale>(sampler_header, bin); break;
-		default: logger::error("[BinSkeletonAnimation] Unrecognized type: [{}]", static_cast<int>(sampler_header.type)); break;
+		default: s_log.error("Unrecognized type: [{}]", static_cast<int>(sampler_header.type)); break;
 		}
 	}
 
