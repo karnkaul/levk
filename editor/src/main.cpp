@@ -161,6 +161,8 @@ struct TestScene : Scene {
 
 	Logger log{"TestScene"};
 
+	std::string_view type_name() const final { return "TestScene"; }
+
 	void setup() override {
 		log.debug("TestScene::setup()");
 		camera.transform.set_position({0.0f, 0.0f, 5.0f});

@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace levk {
 template <typename Base>
@@ -21,13 +22,6 @@ class BindingMap {
 
 		explicit operator bool() const { return type_id != TypeId{} && value != nullptr; }
 	};
-
-	struct Entry {
-		Factory<Base> factory{};
-		TypeId type_id{};
-	};
-
-	using Map = std::unordered_map<std::string, Entry>;
 
 	template <std::derived_from<Base> To>
 	static std::unique_ptr<To> dynamic_pointer_cast(std::unique_ptr<Base>&& in) {
@@ -55,7 +49,7 @@ class BindingMap {
 		return {};
 	}
 
-	Map const& entries() const { return m_entries; }
+	std::unordered_set<std::string> const& type_names() const { return m_type_names; }
 
 	template <typename Type>
 	std::unique_ptr<Type> try_make(std::string const& type_name) const {
@@ -81,12 +75,19 @@ class BindingMap {
 			m_logger.warn("Ignoring attempt to bind null TypeId to type_name [{}]", type_name);
 			return false;
 		}
-		m_entries.insert_or_assign(std::move(type_name), Entry{std::move(factory), type_id});
+		m_entries.insert_or_assign(type_name, Entry{std::move(factory), type_id});
+		m_type_names.insert(type_name);
 		return true;
 	}
 
   protected:
-	Map m_entries{};
+	struct Entry {
+		Factory<Base> factory{};
+		TypeId type_id{};
+	};
+
+	std::unordered_map<std::string, Entry> m_entries{};
+	std::unordered_set<std::string> m_type_names{};
 	Logger m_logger{"BindingMap"};
 };
 } // namespace levk

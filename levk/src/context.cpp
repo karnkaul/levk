@@ -22,6 +22,7 @@ Context::Context(NotNull<DataSource const*> data_source, Engine::CreateInfo cons
 	component_factory.get().bind<SkeletonController>();
 	component_factory.get().bind<StaticMeshRenderer>();
 	component_factory.get().bind<SkinnedMeshRenderer>();
+	component_factory.get().bind<SkeletonController>();
 
 	serializer.get().bind<UnlitMaterial>();
 	serializer.get().bind<LitMaterial>();

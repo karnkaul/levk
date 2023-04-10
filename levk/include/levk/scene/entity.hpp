@@ -70,5 +70,6 @@ class Entity final {
 	Ptr<Scene> m_scene{};
 
 	friend class Scene;
+	friend class ComponentFactory;
 };
 } // namespace levk

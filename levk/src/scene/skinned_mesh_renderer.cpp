@@ -1,6 +1,7 @@
 #include <levk/asset/asset_providers.hpp>
 #include <levk/asset/mesh_provider.hpp>
 #include <levk/asset/skeleton_provider.hpp>
+#include <levk/imcpp/drag_drop.hpp>
 #include <levk/scene/scene_manager.hpp>
 #include <levk/scene/skinned_mesh_renderer.hpp>
 #include <levk/service.hpp>
@@ -95,6 +96,16 @@ void SkinnedMeshRenderer::inspect(imcpp::OpenWindow) {
 		imcpp::TreeNode::leaf(FixedString{"Skeleton: {}", skeleton->name}.c_str());
 	} else {
 		imcpp::TreeNode::leaf(FixedString{"Mesh: [None]"}.c_str());
+	}
+
+	if (auto drop = imcpp::DragDrop::Target{}) {
+		if (auto const in_mesh = imcpp::DragDrop::accept_string("skinned_mesh"); !in_mesh.empty()) {
+			auto const* skinned_mesh = scene_manager->asset_providers().skinned_mesh().find(in_mesh);
+			if (!skinned_mesh) { return; }
+			auto const* skeleton = scene_manager->asset_providers().skeleton().find(skinned_mesh->skeleton);
+			if (!skeleton) { return; }
+			set_mesh(in_mesh, scene_manager->active_scene().instantiate_skeleton(*skeleton, owning_entity()->node_id()));
+		}
 	}
 }
 

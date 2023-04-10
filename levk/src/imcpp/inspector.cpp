@@ -66,11 +66,10 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 		assert(target.type == Type::eEntity);
 		auto* entity = scene.find(target.entity);
 		assert(entity);
-		ImGui::Text("TODO...");
 		auto const& component_factory = Service<ComponentFactory>::locate();
-		auto const& map = component_factory.entries();
-		for (auto const& [type_name, entry] : map) {
-			if (ImGui::Selectable(type_name.c_str())) { entity->attach(entry.factory()); }
+		auto const& type_names = component_factory.type_names();
+		for (auto const& type_name : type_names) {
+			if (ImGui::Selectable(type_name.c_str())) { component_factory.attach(*entity, type_name); }
 		}
 	}
 }
