@@ -1,8 +1,35 @@
 #include <impl/frame_profiler.hpp>
 #include <levk/runtime.hpp>
 #include <levk/util/error.hpp>
+#include <filesystem>
 
 namespace levk {
+namespace {
+namespace fs = std::filesystem;
+
+fs::path find_dir(fs::path exe, std::span<std::string_view const> patterns) {
+	auto check = [patterns](fs::path const& prefix) {
+		for (auto const pattern : patterns) {
+			auto path = prefix / pattern;
+			if (fs::is_directory(path)) { return path; }
+		}
+		return fs::path{};
+	};
+	while (!exe.empty()) {
+		if (auto ret = check(exe); !ret.empty()) { return ret; }
+		auto parent = exe.parent_path();
+		if (exe == parent) { break; }
+		exe = std::move(parent);
+	}
+	return {};
+}
+} // namespace
+
+std::string Runtime::find_directory(char const* exe_path, std::span<std::string_view const> uri_patterns) {
+	if (uri_patterns.empty()) { return {}; }
+	return find_dir(fs::absolute(exe_path), uri_patterns).generic_string();
+}
+
 Runtime::Runtime(NotNull<std::unique_ptr<DataSource>> data_source, Engine::CreateInfo const& create_info)
 	: m_data_source(std::move(data_source)), m_context(m_data_source.get().get(), create_info) {}
 

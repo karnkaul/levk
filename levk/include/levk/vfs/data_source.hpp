@@ -30,6 +30,4 @@ class DataSource {
   protected:
 	std::string m_mount_point{};
 };
-
-std::string find_directory(char const* exe_path, std::span<std::string_view const> uri_patterns);
 } // namespace levk

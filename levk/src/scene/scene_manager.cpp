@@ -92,7 +92,9 @@ bool SceneManager::set_next(std::unique_ptr<Scene> scene, TypeId scene_type) {
 void SceneManager::tick(WindowState const& window_state, Time dt) {
 	if (m_next_scene) {
 		m_active_scene = std::move(m_next_scene);
-		if (m_uri) { g_log.info("Scene loaded: [{}]", m_uri.value()); }
+		auto log_text = fmt::format("Loaded {}", m_active_scene->type_name());
+		if (m_uri) { fmt::format_to(std::back_inserter(log_text), " [{}]", m_uri.value()); }
+		g_log.info("{}", log_text);
 		m_active_scene->setup();
 	}
 	assert(m_active_scene);

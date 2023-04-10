@@ -348,7 +348,7 @@ int main([[maybe_unused]] int argc, char** argv) {
 	auto const log{Logger{"Editor"}};
 	try {
 		static constexpr std::string_view const data_uris[] = {"data", "editor/data"};
-		auto const data_path = levk::find_directory(argv[0], data_uris);
+		auto const data_path = levk::Runtime::find_directory(argv[0], data_uris);
 		Editor{data_path}.run();
 	} catch (Error const& e) {
 		log.error("Runtime error: {}", e.what());

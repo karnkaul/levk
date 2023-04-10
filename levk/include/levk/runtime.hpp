@@ -10,6 +10,8 @@ class Runtime {
   public:
 	virtual ~Runtime() = default;
 
+	static std::string find_directory(char const* exe_path, std::span<std::string_view const> uri_patterns);
+
 	void run() noexcept(false);
 
 	Context const& context() const { return m_context; }
