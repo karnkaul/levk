@@ -154,7 +154,7 @@ void Logger::print_to(Pipe pipe, Entry entry) {
 	std::fprintf(fd, "%s\n", entry.formatted_message.c_str());
 	auto lock = std::scoped_lock{g_storage.mutex};
 #if defined(_WIN32)
-	OutputDebugStringA(entry.message.c_str());
+	OutputDebugStringA(entry.formatted_message.c_str());
 	OutputDebugStringA("\n");
 #endif
 	for (auto const& sink : g_storage.sinks) { sink->on_log(entry); }
