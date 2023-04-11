@@ -20,7 +20,8 @@ struct SceneRenderer : Device::Renderer {
 		struct Std140View {
 			glm::mat4 mat_vp;
 			glm::vec4 vpos_exposure;
-			glm::mat4 mat_light;
+			glm::mat4 mat_shadow;
+			glm::vec4 shadow_dir;
 		};
 
 		struct Std430DirLight {

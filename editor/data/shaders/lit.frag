@@ -35,7 +35,8 @@ layout (location = 1) in vec2 in_uv;
 layout (location = 2) in vec3 in_normal;
 layout (location = 3) in vec4 in_fpos;
 layout (location = 4) in vec4 in_vpos_exposure;
-layout (location = 5) in vec4 in_fpos_light;
+layout (location = 5) in vec4 in_fpos_shadow;
+layout (location = 6) in vec3 in_shadow_dir;
 
 layout (location = 0) out vec4 out_rgba;
 
@@ -119,8 +120,9 @@ vec3 cook_torrance() {
 }
 
 float compute_visibility() {
-	vec3 projected = in_fpos_light.xyz / in_fpos_light.w;
-	float current_depth = projected.z - 0.01;
+	vec3 projected = in_fpos_shadow.xyz / in_fpos_shadow.w;
+	float bias = max(0.05 * (1.0 - dot(in_normal, -in_shadow_dir)), 0.01);
+	float current_depth = projected.z - bias;
 	projected = projected * 0.5 + 0.5;
 	projected.y = 1.0 - projected.y;
 	float ret = 1.0;
@@ -132,7 +134,7 @@ float compute_visibility() {
 			ret -= shadow;
 		}
 	}
-	return ret;
+	return max(ret, 0.1);
 }
 
 void main() {
@@ -145,6 +147,7 @@ void main() {
 		if (diffuse.w < alpha_cutoff) { discard; }
 		diffuse.w = 1.0;
 	}
+
 	float visibility = compute_visibility();
 	out_rgba = (visibility * vec4(cook_torrance(), 1.0)) * diffuse + material.emissive * texture(emissive, in_uv);
 }

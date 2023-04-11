@@ -234,7 +234,8 @@ void SceneRenderer::bind_view_set(vk::CommandBuffer cb, HostBuffer& out_ubo, Cam
 	auto const view = Frame::Std140View{
 		.mat_vp = camera.projection(extent) * camera.view(),
 		.vpos_exposure = {camera.transform.position(), camera.exposure},
-		.mat_light = frame.primary_light_mat,
+		.mat_shadow = frame.primary_light_mat,
+		.shadow_dir = glm::vec4{frame.primary_light_direction * front_v, 1.0f},
 	};
 	out_ubo.write(&view, sizeof(view));
 	auto const buffer_view = out_ubo.view();
