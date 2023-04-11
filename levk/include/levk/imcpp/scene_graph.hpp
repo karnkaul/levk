@@ -13,7 +13,7 @@ class SceneGraph {
 
   private:
 	bool check_stale();
-	void camera_node();
+	void standalone_node(char const* label, Inspector::Type type);
 	bool walk_node(Node& node);
 	void draw_scene_tree(NotClosed<Window> w);
 	void handle_popups();

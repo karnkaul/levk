@@ -4,6 +4,7 @@
 #include <levk/io/component_factory.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/service.hpp>
+#include <levk/util/enumerate.hpp>
 #include <levk/util/fixed_string.hpp>
 #include <levk/util/visitor.hpp>
 
@@ -48,6 +49,24 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 		break;
 	}
 	case Type::eLights: {
+		imcpp::TreeNode::leaf("Lights", ImGuiTreeNodeFlags_SpanFullWidth);
+		auto const inspect_dir_light = [w](DirLight& dir_light) {
+			imcpp::Reflector{w}(dir_light.rgb, {false});
+			imcpp::Reflector{w}("Direction", dir_light.direction);
+		};
+		if (auto tn = imcpp::TreeNode{"Primary", ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen}) { inspect_dir_light(scene.lights.primary); }
+		if (auto tn = imcpp::TreeNode{"Directional", ImGuiTreeNodeFlags_Framed}) {
+			auto to_remove = std::optional<std::size_t>{};
+			for (auto [dir_light, index] : enumerate(scene.lights.dir_lights)) {
+				if (auto tn = TreeNode{FixedString{"[{}]", index}.c_str()}) {
+					inspect_dir_light(dir_light);
+					if (small_button_red("X")) { to_remove = index; }
+				}
+			}
+			if (to_remove) { scene.lights.dir_lights.erase(scene.lights.dir_lights.begin() + static_cast<std::ptrdiff_t>(*to_remove)); }
+			ImGui::Separator();
+			if (ImGui::Button("Add")) { scene.lights.dir_lights.push_back({}); }
+		}
 		break;
 	}
 	default: {

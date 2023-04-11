@@ -4,8 +4,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   editor_window.cpp
   engine_status.cpp
 
-  # gltf_import_wizard.cpp
-  imcpp_common.cpp
+  common.cpp
   inspector.cpp
   log_display.cpp
   reflector.cpp

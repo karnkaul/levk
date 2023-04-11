@@ -31,7 +31,8 @@ Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 	if (ImGui::Button("Spawn")) { Popup::open("scene_graph.spawn_entity"); }
 
 	ImGui::Separator();
-	camera_node();
+	standalone_node("Camera", Inspector::Type::eCamera);
+	standalone_node("Lights", Inspector::Type::eLights);
 	draw_scene_tree(w);
 	handle_popups();
 	if (auto* payload = ImGui::GetDragDropPayload()) {
@@ -59,13 +60,13 @@ Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 	return m_inspector.target;
 }
 
-void SceneGraph::camera_node() {
+void SceneGraph::standalone_node(char const* label, Inspector::Type type) {
 	auto flags = int{};
-	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
-	if (m_inspector.target.type == Inspector::Type::eCamera) { flags |= ImGuiTreeNodeFlags_Selected; }
-	if (imcpp::TreeNode::leaf("Camera", flags)) { m_inspector.target.type = Inspector::Type::eCamera; }
+	flags |= ImGuiTreeNodeFlags_SpanFullWidth;
+	if (m_inspector.target.type == type) { flags |= ImGuiTreeNodeFlags_Selected; }
+	if (imcpp::TreeNode::leaf(label, flags)) { m_inspector.target.type = type; }
 	if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
-		m_right_clicked_target = {.type = Inspector::Type::eCamera};
+		m_right_clicked_target = {.type = type};
 		Popup::open("scene_graph.right_click");
 	}
 }
