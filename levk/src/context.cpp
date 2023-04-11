@@ -1,5 +1,7 @@
 #include <levk/context.hpp>
+#include <levk/graphics/shapes.hpp>
 #include <levk/scene/scene.hpp>
+#include <levk/scene/shape_renderer.hpp>
 #include <levk/scene/skeleton_controller.hpp>
 #include <levk/scene/skinned_mesh_renderer.hpp>
 #include <levk/scene/static_mesh_renderer.hpp>
@@ -23,11 +25,16 @@ Context::Context(NotNull<DataSource const*> data_source, Engine::CreateInfo cons
 	serializer.get().bind<StaticMeshRenderer>();
 	serializer.get().bind<SkinnedMeshRenderer>();
 	serializer.get().bind<SkeletonController>();
+	serializer.get().bind<ShapeRenderer>();
 
 	serializer.get().bind<UnlitMaterial>();
 	serializer.get().bind<LitMaterial>();
 	serializer.get().bind<SkinnedMaterial>();
 	serializer.get().bind<Scene>();
+
+	serializer.get().bind<QuadShape>();
+	serializer.get().bind<CubeShape>();
+	serializer.get().bind<SphereShape>();
 }
 
 void Context::render(RenderList render_list) const { scene_manager.get().render(std::move(render_list)); }

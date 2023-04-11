@@ -109,7 +109,7 @@ auto levk::make_cube(glm::vec3 size, glm::vec3 rgb, glm::vec3 const origin) -> G
 	return ret.append_cube(size, rgb, origin);
 }
 
-auto levk::make_cubed_sphere(float diam, std::uint32_t quads_per_side, glm::vec3 rgb) -> Geometry {
+auto levk::make_cubed_sphere(float diam, std::uint32_t quads_per_side, glm::vec3 rgb, glm::vec3 origin) -> Geometry {
 	Geometry ret;
 	auto quad_count = static_cast<std::uint32_t>(quads_per_side * quads_per_side);
 	ret.vertices.reserve(quad_count * 4 * 6);
@@ -156,6 +156,8 @@ auto levk::make_cubed_sphere(float diam, std::uint32_t quads_per_side, glm::vec3
 	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(-90.0f), up_v)); });
 	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(90.0f), right_v)); });
 	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(-90.0f), right_v)); });
+
+	for (auto& vertex : ret.vertices) { vertex.position = origin + vertex.position; }
 	return ret;
 }
 

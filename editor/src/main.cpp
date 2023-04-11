@@ -2,6 +2,7 @@
 #include <gltf_import_wizard.hpp>
 #include <levk/asset/asset_list_loader.hpp>
 #include <levk/graphics/shader.hpp>
+#include <levk/graphics/shapes.hpp>
 #include <levk/graphics/texture.hpp>
 #include <levk/imcpp/asset_inspector.hpp>
 #include <levk/imcpp/common.hpp>
@@ -10,6 +11,7 @@
 #include <levk/imcpp/reflector.hpp>
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/runtime.hpp>
+#include <levk/scene/shape_renderer.hpp>
 #include <levk/ui/text.hpp>
 #include <levk/util/error.hpp>
 #include <levk/util/fixed_string.hpp>
@@ -157,6 +159,7 @@ struct TestScene : Scene {
 		Ptr<TestUiPrimitive> primitive{};
 		LoadRequest load_request{};
 		Uri<Scene> to_load{"Lantern/Lantern.scene_0.json"};
+		Id<Entity> entity{};
 	} test{};
 
 	Logger log{"TestScene"};
@@ -180,6 +183,13 @@ struct TestScene : Scene {
 			text->tint() = black_v;
 			test.primitive->add_sub_view(std::move(text));
 		}
+
+		test.entity = spawn({.name = "shape"}).entity;
+		auto& entity = get(test.entity);
+		auto& shape_renderer = entity.attach(std::make_unique<ShapeRenderer>());
+		auto quad_shape = std::make_unique<CubeShape>();
+		shape_renderer.shape = std::move(quad_shape);
+		shape_renderer.material = std::make_unique<LitMaterial>();
 	}
 
 	void tick(Time dt) override {
@@ -243,6 +253,8 @@ struct Editor : Runtime {
 	Editor(std::string_view data_path) : Runtime(std::make_unique<DiskVfs>(data_path), make_eci()) {}
 
 	void setup() override {
+		context().serializer.get().bind<TestScene>();
+
 		set_window_title();
 		context().render_device().set_clear(Rgba::from({0.05f, 0.05f, 0.05f, 1.0f}));
 		context().scene_manager.get().set_active<TestScene>();
@@ -268,6 +280,7 @@ struct Editor : Runtime {
 			main_menu.menus.window.push_back(MainMenu::Separator{});
 			main_menu.menus.window.push_back(MainMenu::Custom{.label = "Dear ImGui Demo", .draw = [](bool& show) { ImGui::ShowDemoWindow(&show); }});
 		}
+		Logger::attach(log_display);
 	}
 
 	void tick(Frame const& frame) final {
