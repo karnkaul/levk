@@ -10,6 +10,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   render_device.cpp
   rgba.cpp
   shader_buffer.cpp
+  shape.cpp
   skeleton.cpp
   texture_atlas.cpp
   texture.cpp

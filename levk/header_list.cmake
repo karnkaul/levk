@@ -63,6 +63,7 @@ set(graphics_headers
   include/levk/graphics/shader_buffer.hpp
   include/levk/graphics/shader_code.hpp
   include/levk/graphics/shader.hpp
+  include/levk/graphics/shape.hpp
   include/levk/graphics/skeleton.hpp
   include/levk/graphics/texture_atlas.hpp
   include/levk/graphics/texture_sampler.hpp
@@ -101,6 +102,7 @@ set(vfs_headers
   include/levk/vfs/data_sink.hpp
   include/levk/vfs/data_source.hpp
   include/levk/vfs/disk_vfs.hpp
+  include/levk/vfs/file_probe.hpp
   include/levk/vfs/uri_monitor.hpp
 )
 
@@ -125,6 +127,7 @@ set(scene_headers
   include/levk/scene/scene_manager.hpp
   include/levk/scene/scene_renderer.hpp
   include/levk/scene/scene.hpp
+  include/levk/scene/shape_renderer.hpp
   include/levk/scene/skeleton_controller.hpp
   include/levk/scene/skinned_mesh_renderer.hpp
   include/levk/scene/static_mesh_renderer.hpp

@@ -1,4 +1,5 @@
 #pragma once
+#include <levk/graphics/shape.hpp>
 #include <levk/scene/component.hpp>
 #include <levk/util/bit_flags.hpp>
 #include <levk/util/type_id.hpp>
@@ -8,6 +9,7 @@ class Serializer {
   public:
 	enum class Tag : std::uint8_t {
 		eComponent = 1 << 0,
+		eShape = 1 << 1,
 	};
 	using Tags = BitFlags<Tag>;
 
@@ -37,6 +39,7 @@ class Serializer {
 	static constexpr Tags build_tags() {
 		auto ret = Tags{};
 		if constexpr (std::derived_from<To, Component>) { ret.set(Tag::eComponent); }
+		if constexpr (std::derived_from<To, Shape>) { ret.set(Tag::eShape); }
 		return ret;
 	}
 
