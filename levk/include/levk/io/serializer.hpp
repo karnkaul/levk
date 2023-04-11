@@ -11,7 +11,7 @@ class Serializer : public BindingMap<Serializable> {
 	template <std::derived_from<Serializable> To>
 	Result<To> deserialize_as(dj::Json const& json) const {
 		auto result = deserialize(json);
-		return {dynamic_pointer_cast<To>(std::move(result.value)), result.type_id};
+		return {dynamic_pointer_cast<To>(std::move(result.value)), result.type_name, result.type_id};
 	}
 };
 } // namespace levk

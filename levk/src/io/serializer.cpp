@@ -18,12 +18,14 @@ Serializer::Result<Serializable> Serializer::deserialize(dj::Json const& json) c
 	}
 	auto const& entry = it->second;
 	assert(entry.type_id != TypeId{});
-	auto ret = entry.factory();
-	if (!ret->deserialize(json)) {
+	auto ret = Result<Serializable>{.type_name = it->first, .type_id = entry.type_id};
+	auto value = entry.factory();
+	if (!value || !value->deserialize(json)) {
 		g_log.warn("Failed to deserialize [{}]", type_name);
-		return {};
+		return ret;
 	}
-	return {std::move(ret), entry.type_id};
+	ret.value = std::move(value);
+	return ret;
 }
 
 dj::Json Serializer::serialize(Serializable const& serializable) const {

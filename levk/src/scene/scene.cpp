@@ -214,7 +214,7 @@ bool Scene::deserialize(dj::Json const& json) {
 		for (auto const& in_component : in_entity["components"].array_view()) {
 			auto result = serializer->deserialize_as<Component>(in_component);
 			if (!result) {
-				g_log.warn("Failed to deserialize Component");
+				g_log.warn("Failed to deserialize [{}] Component", result.type_name);
 				continue;
 			}
 			out_entity.attach(result.type_id.value(), std::move(result.value));

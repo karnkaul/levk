@@ -18,6 +18,7 @@ class BindingMap {
 	template <typename Type>
 	struct Result {
 		std::unique_ptr<Type> value{};
+		std::string_view type_name{};
 		TypeId type_id{};
 
 		explicit operator bool() const { return type_id != TypeId{} && value != nullptr; }
