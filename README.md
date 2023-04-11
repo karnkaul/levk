@@ -71,6 +71,7 @@ Link to `levk` via CMake: `target_link_libraries(foo PRIVATE levk::lib)`.
 - [Vulkan Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)
 - [SPIR-V Cross](https://github.com/KhronosGroup/SPIRV-Cross)
 - [Freetype](https://github.com/freetype/freetype)
+- [Portable File Dialogs](https://github.com/samhocevar/portable-file-dialogs)
 
 [Original repository](https://github.com/karnkaul/levk)
 

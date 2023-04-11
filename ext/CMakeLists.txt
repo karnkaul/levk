@@ -59,6 +59,8 @@ if(LEVK_USE_FREETYPE)
   add_subdirectory(src/freetype)
 endif()
 
+add_subdirectory(src/portable-file-dialogs)
+
 add_library(levk-ext INTERFACE)
 add_library(levk::ext ALIAS levk-ext)
 
