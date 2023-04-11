@@ -24,7 +24,7 @@ class Serializer {
 	};
 
 	template <std::derived_from<Serializable> To>
-	static std::unique_ptr<To> dynamic_pointer_cast(std::unique_ptr<Serializable>&& in) {
+	static std::unique_ptr<To> dynamic_unique_cast(std::unique_ptr<Serializable>&& in) {
 		if (auto* p = dynamic_cast<To*>(in.get())) {
 			auto ret = std::unique_ptr<To>{p};
 			static_cast<void>(in.release());
@@ -65,7 +65,7 @@ class Serializer {
 
 	template <typename Type>
 	std::unique_ptr<Type> try_make(std::string const& type_name) const {
-		if (auto it = m_entries.find(type_name); it != m_entries.end()) { return dynamic_pointer_cast<Type>(it->second.factory()); }
+		if (auto it = m_entries.find(type_name); it != m_entries.end()) { return dynamic_unique_cast<Type>(it->second.factory()); }
 		return {};
 	}
 
@@ -79,7 +79,7 @@ class Serializer {
 	template <std::derived_from<Serializable> To>
 	Result<To> deserialize_as(dj::Json const& json) const {
 		auto result = deserialize(json);
-		return {dynamic_pointer_cast<To>(std::move(result.value)), result.type_name, result.type_id};
+		return {dynamic_unique_cast<To>(std::move(result.value)), result.type_name, result.type_id};
 	}
 
 	bool attach(Entity& out, std::string const& type_name) const;

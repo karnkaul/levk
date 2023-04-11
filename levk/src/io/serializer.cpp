@@ -76,7 +76,7 @@ bool Serializer::attach(Entity& out, std::string const& type_name) const {
 	auto it = m_entries.find(type_name);
 	if (it == m_entries.end()) { return false; }
 	auto const& entry = it->second;
-	auto component = dynamic_pointer_cast<Component>(entry.factory());
+	auto component = dynamic_unique_cast<Component>(entry.factory());
 	if (!component) { return false; }
 	out.attach(entry.type_id.value(), std::move(component));
 	return true;
