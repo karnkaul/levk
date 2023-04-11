@@ -6,7 +6,7 @@
 #include <levk/util/visitor.hpp>
 
 namespace levk {
-void PrimitiveRenderer::render(RenderList& out) const {
+void PrimitiveRenderer::render(DrawList& out) const {
 	if (!primitive) { return; }
 	auto* entity = owning_entity();
 	if (!entity) { return; }
@@ -18,7 +18,7 @@ void PrimitiveRenderer::render(RenderList& out) const {
 			.parent = locator.global_transform(locator.get(entity->node_id())),
 			.instances = instances,
 		};
-		out.scene.add(drawable);
+		out.add(drawable);
 	};
 	std::visit(visitor, *primitive);
 }

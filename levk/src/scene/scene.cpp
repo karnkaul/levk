@@ -92,7 +92,7 @@ void Scene::render(RenderList& out) const {
 	fill_to_if(m_entities, to_render, [](Id<Entity>, Entity const& e) { return e.active && !e.m_render_components.empty(); });
 	std::sort(to_render.begin(), to_render.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
 	for (Entity const& entity : to_render) {
-		for (auto const* rc : entity.m_render_components) { rc->render(out); }
+		for (auto const* rc : entity.m_render_components) { rc->render(out.scene); }
 	}
 
 	ui_root.render(out.ui);

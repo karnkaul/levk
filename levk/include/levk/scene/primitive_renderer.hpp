@@ -15,6 +15,6 @@ struct PrimitiveRenderer : RenderComponent {
 	bool serialize(dj::Json&) const override { return false; }
 	bool deserialize(dj::Json const&) override { return false; }
 	void inspect(imcpp::OpenWindow) override;
-	void render(RenderList& out) const final;
+	void render(DrawList& out) const final;
 };
 } // namespace levk

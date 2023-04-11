@@ -53,7 +53,7 @@ void SkinnedMeshRenderer::set_mesh(Uri<SkinnedMesh> uri, Skeleton::Instance skel
 	m_joint_matrices = DynArray<glm::mat4>{m_skeleton.joints.size()};
 }
 
-void SkinnedMeshRenderer::render(RenderList& out) const {
+void SkinnedMeshRenderer::render(DrawList& out) const {
 	auto* entity = owning_entity();
 	if (!entity) { return; }
 	auto* scene_manager = Service<SceneManager>::find();
@@ -63,7 +63,7 @@ void SkinnedMeshRenderer::render(RenderList& out) const {
 	if (!m || m->primitives.empty()) { return; }
 	assert(m_joint_matrices.size() == m_skeleton.joints.size());
 	for (auto const [id, index] : enumerate(m_skeleton.joints)) { m_joint_matrices[index] = tree.global_transform(tree.get(id)); }
-	out.scene.add(m, m_joint_matrices.span(), scene_manager->asset_providers().material());
+	out.add(m, m_joint_matrices.span(), scene_manager->asset_providers().material());
 }
 
 bool SkinnedMeshRenderer::serialize(dj::Json& out) const {

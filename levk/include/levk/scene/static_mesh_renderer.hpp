@@ -8,7 +8,7 @@ class StaticMeshRenderer : public RenderComponent {
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
 	void inspect(imcpp::OpenWindow) override;
-	void render(RenderList& out) const final;
+	void render(DrawList& out) const final;
 	void add_assets(AssetList& out, dj::Json const& json) const override;
 
 	std::vector<Transform> instances{};

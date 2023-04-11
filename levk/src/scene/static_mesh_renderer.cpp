@@ -13,7 +13,7 @@ namespace {
 auto const g_log{Logger{"StaticMeshRenderer"}};
 }
 
-void StaticMeshRenderer::render(RenderList& out) const {
+void StaticMeshRenderer::render(DrawList& out) const {
 	auto* entity = owning_entity();
 	if (!entity) { return; }
 
@@ -22,7 +22,7 @@ void StaticMeshRenderer::render(RenderList& out) const {
 	auto const& tree = active_scene().nodes();
 	auto const* m = scene_manager->asset_providers().static_mesh().find(mesh);
 	if (!m || m->primitives.empty()) { return; }
-	out.scene.add(m, tree.global_transform(tree.get(owning_entity()->node_id())), scene_manager->asset_providers().material());
+	out.add(m, tree.global_transform(tree.get(owning_entity()->node_id())), scene_manager->asset_providers().material());
 }
 
 bool StaticMeshRenderer::serialize(dj::Json& out) const {
