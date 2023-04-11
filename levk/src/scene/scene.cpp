@@ -152,7 +152,7 @@ bool Scene::serialize(dj::Json& out) const {
 	auto const camera_visitor = Visitor{
 		[&out_camera](Camera::Perspective const& perspective) {
 			out_camera["type"] = "perspective";
-			out_camera["field_of_view"] = perspective.field_of_view;
+			out_camera["field_of_view"] = perspective.field_of_view.to_degrees().value;
 			out_camera["view_plane"] = make_json(perspective.view_plane);
 		},
 		[&out_camera](Camera::Orthographic const& orthographic) {
@@ -234,7 +234,7 @@ bool Scene::deserialize(dj::Json const& json) {
 	} else {
 		auto type = Camera::Perspective{};
 		type.view_plane = make_view_plane(in_camera["view_plane"], type.view_plane);
-		type.field_of_view = in_camera["field_of_view"].as<float>(type.field_of_view);
+		type.field_of_view = Degrees{in_camera["field_of_view"].as<float>(type.field_of_view)};
 		camera.type = type;
 	}
 	auto const& in_lights = json["lights"];

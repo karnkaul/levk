@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/transform.hpp>
 #include <levk/util/nvec3.hpp>
+#include <levk/util/radians.hpp>
 #include <string>
 #include <variant>
 
@@ -24,7 +25,7 @@ struct Camera {
 
 	struct Perspective {
 		ViewPlane view_plane{0.1f, 1000.0f};
-		float field_of_view{glm::radians(45.0f)};
+		Radians field_of_view{Degrees{45.0f}};
 	};
 
 	struct Orthographic {

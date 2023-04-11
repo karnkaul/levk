@@ -25,6 +25,7 @@ set(util_headers
   include/levk/util/path_tree.hpp
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
+  include/levk/util/radians.hpp
   include/levk/util/reversed.hpp
   include/levk/util/signal.hpp
   include/levk/util/thread_pool.hpp

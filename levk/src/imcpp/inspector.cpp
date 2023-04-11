@@ -5,6 +5,7 @@
 #include <levk/scene/scene.hpp>
 #include <levk/service.hpp>
 #include <levk/util/fixed_string.hpp>
+#include <levk/util/visitor.hpp>
 
 namespace levk::imcpp {
 void Inspector::display(Scene& scene) {
@@ -25,6 +26,25 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 			Bool unified_scaling{true};
 			imcpp::Reflector{w}(scene.camera.transform, unified_scaling, {});
 		}
+		ImGui::DragFloat("Exposure", &scene.camera.exposure, 0.25f, 1.0f, 100.0f);
+		std::string_view const type = std::holds_alternative<Camera::Orthographic>(scene.camera.type) ? "Orthographic" : "Perspective";
+		if (auto combo = imcpp::Combo{"Type", type.data()}) {
+			if (combo.item("Perspective", {type == "Perspective"})) { scene.camera.type = Camera::Perspective{}; }
+			if (combo.item("Orthographic", {type == "Orthographic"})) { scene.camera.type = Camera::Orthographic{}; }
+		}
+		auto const visitor = Visitor{
+			[](Camera::Perspective& perspective) {
+				auto degrees = perspective.field_of_view.to_degrees();
+				if (ImGui::DragFloat("Field of View", &degrees.value, 0.25f, 10.0f, 75.0f)) { perspective.field_of_view = degrees; }
+				ImGui::DragFloat("Near plane", &perspective.view_plane.near, 0.1f, 0.1f, 10.0f);
+				ImGui::DragFloat("Far plane", &perspective.view_plane.far, 1.0f, 20.0f, 1000.0f);
+			},
+			[](Camera::Orthographic& orthographic) {
+				ImGui::DragFloat("Near plane", &orthographic.view_plane.near, 0.1f, 0.1f, 10.0f);
+				ImGui::DragFloat("Far plane", &orthographic.view_plane.far, 1.0f, 20.0f, 1000.0f);
+			},
+		};
+		std::visit(visitor, scene.camera.type);
 		break;
 	}
 	case Type::eLights: {
