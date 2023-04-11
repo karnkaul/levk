@@ -3,6 +3,7 @@
 #include <levk/graphics/camera.hpp>
 #include <levk/graphics/rgba.hpp>
 #include <levk/imcpp/common.hpp>
+#include <levk/rect.hpp>
 #include <levk/transform.hpp>
 #include <levk/util/nvec3.hpp>
 
@@ -37,5 +38,6 @@ class Reflector {
 	bool operator()(HdrRgba& out_rgba, Bool show_alpha, Bool show_intensity = {true}) const;
 	bool operator()(Transform& out_transform, Bool& out_unified_scaling, Bool scaling_toggle) const;
 	bool operator()(Camera& out_camera) const;
+	bool operator()(UvRect& out_uv) const;
 };
 } // namespace levk::imcpp

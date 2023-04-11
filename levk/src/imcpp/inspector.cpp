@@ -1,7 +1,7 @@
 #include <imgui.h>
 #include <levk/imcpp/inspector.hpp>
 #include <levk/imcpp/reflector.hpp>
-#include <levk/io/component_factory.hpp>
+#include <levk/io/serializer.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/service.hpp>
 #include <levk/util/enumerate.hpp>
@@ -105,10 +105,10 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 		assert(target.type == Type::eEntity);
 		auto* entity = scene.find(target.entity);
 		assert(entity);
-		auto const& component_factory = Service<ComponentFactory>::locate();
-		auto const& type_names = component_factory.type_names();
+		auto const& serializer = Service<Serializer>::locate();
+		auto const type_names = serializer.type_names_by_tag(Serializer::Tag::eComponent);
 		for (auto const& type_name : type_names) {
-			if (ImGui::Selectable(type_name.c_str())) { component_factory.attach(*entity, type_name); }
+			if (ImGui::Selectable(type_name.data())) { serializer.attach(*entity, std::string{type_name}); }
 		}
 	}
 }

@@ -1,10 +1,10 @@
 #include <font/lib_wrapper.hpp>
 #include <impl/frame_profiler.hpp>
 #include <levk/engine.hpp>
-#include <levk/io/component_factory.hpp>
 #include <levk/io/serializer.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/service.hpp>
+#include <levk/util/logger.hpp>
 #include <levk/util/thread_pool.hpp>
 
 namespace levk {

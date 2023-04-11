@@ -105,8 +105,6 @@ set(vfs_headers
 )
 
 set(io_headers
-  include/levk/io/binding_map.hpp
-  include/levk/io/component_factory.hpp
   include/levk/io/serializable.hpp
   include/levk/io/serializer.hpp
 )

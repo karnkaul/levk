@@ -19,10 +19,10 @@ AssetProviders::CreateInfo make_apci(Engine const& engine, NotNull<DataSource co
 Context::Context(NotNull<DataSource const*> data_source, Engine::CreateInfo const& create_info)
 	: engine(create_info), asset_providers(make_apci(engine.get(), data_source, &serializer.get())), scene_manager(&asset_providers.get()) {
 
-	component_factory.get().bind<SkeletonController>();
-	component_factory.get().bind<StaticMeshRenderer>();
-	component_factory.get().bind<SkinnedMeshRenderer>();
-	component_factory.get().bind<SkeletonController>();
+	serializer.get().bind<SkeletonController>();
+	serializer.get().bind<StaticMeshRenderer>();
+	serializer.get().bind<SkinnedMeshRenderer>();
+	serializer.get().bind<SkeletonController>();
 
 	serializer.get().bind<UnlitMaterial>();
 	serializer.get().bind<LitMaterial>();

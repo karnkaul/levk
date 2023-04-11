@@ -130,4 +130,13 @@ bool Reflector::operator()(Transform& out_transform, Bool& out_unified_scaling, 
 }
 
 bool Reflector::operator()(Camera& out_camera) const { return ImGui::DragFloat("Exposure", &out_camera.exposure, 0.1f, 0.0f, 10.0f); }
+
+bool Reflector::operator()(UvRect& out_uv) const {
+	auto ret = Modified{};
+	if (auto tn = TreeNode{"UV Rect"}) {
+		ret((*this)("Left-top", out_uv.lt));
+		ret((*this)("Right-bottom", out_uv.rb));
+	}
+	return ret.value;
+}
 } // namespace levk::imcpp

@@ -5,6 +5,7 @@
 #include <levk/graphics/material.hpp>
 #include <levk/graphics/skeleton.hpp>
 #include <levk/graphics/texture.hpp>
+#include <levk/rect.hpp>
 #include <levk/transform.hpp>
 #include <levk/uri.hpp>
 #include <variant>
@@ -31,6 +32,18 @@ void to_json(dj::Json& out, glm::vec<Dim, T> const& vec) {
 	if constexpr (Dim > 1) { out.push_back(vec.y); }
 	if constexpr (Dim > 2) { out.push_back(vec.z); }
 	if constexpr (Dim > 3) { out.push_back(vec.w); }
+}
+
+template <typename T = float>
+void from_json(dj::Json const& json, Rect2D<T>& out, Rect2D<T> const& fallback = {}) {
+	from_json(json["left_top"], out.lt, fallback.lt);
+	from_json(json["right_bottom"], out.rb, fallback.rb);
+}
+
+template <typename T = float>
+void to_json(dj::Json& out, Rect2D<T> const& rect) {
+	to_json(out["left_top"], rect.lt);
+	to_json(out["right_bottom"], rect.rb);
 }
 
 void from_json(dj::Json const& json, glm::quat& out, glm::quat const& fallback = glm::identity<glm::quat>());

@@ -1,6 +1,5 @@
 #pragma once
 #include <levk/context.hpp>
-#include <levk/io/component_factory.hpp>
 #include <levk/util/logger.hpp>
 
 namespace levk {

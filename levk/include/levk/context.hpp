@@ -1,7 +1,7 @@
 #pragma once
 #include <levk/asset/asset_providers.hpp>
 #include <levk/engine.hpp>
-#include <levk/io/component_factory.hpp>
+#include <levk/io/serializer.hpp>
 #include <levk/scene/scene_manager.hpp>
 #include <levk/service.hpp>
 
@@ -26,7 +26,6 @@ class Context {
 	Scene const& active_scene() const { return scene_manager.get().active_scene(); }
 
 	Service<Serializer>::Instance serializer{};
-	Service<ComponentFactory>::Instance component_factory{};
 	Service<Engine>::Instance engine;
 	Service<AssetProviders>::Instance asset_providers;
 	Service<SceneManager>::Instance scene_manager;
