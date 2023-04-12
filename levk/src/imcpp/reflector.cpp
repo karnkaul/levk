@@ -92,7 +92,11 @@ bool Reflector::operator()(char const* label, AsRgb out_rgb) const {
 
 bool Reflector::operator()(Rgba& out_rgba, Bool show_alpha) const {
 	auto hdr = HdrRgba{out_rgba, 1.0f};
-	return (*this)(hdr, show_alpha, {false});
+	if ((*this)(hdr, show_alpha, {false})) {
+		out_rgba = hdr;
+		return true;
+	}
+	return false;
 }
 
 bool Reflector::operator()(HdrRgba& out_rgba, Bool show_alpha, Bool show_intensity) const {

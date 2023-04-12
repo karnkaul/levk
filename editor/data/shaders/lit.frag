@@ -149,5 +149,5 @@ void main() {
 	}
 
 	float visibility = compute_visibility();
-	out_rgba = (visibility * vec4(cook_torrance(), 1.0)) * diffuse + material.emissive * texture(emissive, in_uv);
+	out_rgba = (visibility * vec4(cook_torrance(), 1.0)) * vec4(in_rgb, 1.0) * diffuse + material.emissive * texture(emissive, in_uv);
 }
