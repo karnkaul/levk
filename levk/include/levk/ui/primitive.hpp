@@ -17,7 +17,7 @@ class Primitive : public View {
 	Uri<Texture>& texture_uri() { return m_material.textures.uris[0]; }
 	Rgba& tint() { return m_material.tint; }
 
-	void set_quad(QuadCreateInfo const& create_info = {}) { m_primitive.set_geometry(make_quad(create_info)); }
+	void set_quad(Quad const& quad = {}) { m_primitive.set_geometry(Geometry::from(quad)); }
 
 	UnlitMaterial const& material() const { return m_material; }
 

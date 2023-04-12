@@ -336,6 +336,46 @@ void asset::to_json(dj::Json& out, RenderMode const& render_mode) {
 	out["depth_test"] = dj::Boolean{render_mode.depth_test};
 }
 
+void asset::from_json(dj::Json const& json, Quad& out) {
+	from_json(json["size"], out.size, out.size);
+	from_json(json["uv_rect"], out.uv, out.uv);
+	from_json(json["rgb"], out.rgb);
+	from_json(json["origin"], out.origin, out.origin);
+}
+
+void asset::to_json(dj::Json& out, Quad const& quad) {
+	to_json(out["size"], quad.size);
+	to_json(out["uv_rect"], quad.uv);
+	to_json(out["rgb"], quad.rgb);
+	to_json(out["origin"], quad.origin);
+}
+
+void asset::from_json(dj::Json const& json, Cube& out) {
+	from_json(json["size"], out.size, out.size);
+	from_json(json["rgb"], out.rgb);
+	from_json(json["origin"], out.origin, out.origin);
+}
+
+void asset::to_json(dj::Json& out, Cube const& cube) {
+	to_json(out["size"], cube.size);
+	to_json(out["rgb"], cube.rgb);
+	to_json(out["origin"], cube.origin);
+}
+
+void asset::from_json(dj::Json const& json, Sphere& out) {
+	out.diameter = json["diameter"].as<float>(out.diameter);
+	out.resolution = json["resolution"].as<std::uint32_t>(out.resolution);
+	from_json(json["rgb"], out.rgb);
+	from_json(json["origin"], out.origin);
+}
+
+void asset::to_json(dj::Json& out, Sphere const& sphere) {
+	out["size"] = sphere.diameter;
+	out["resolution"] = sphere.resolution;
+	to_json(out["rgb"], sphere.rgb);
+	to_json(out["origin"], sphere.origin);
+}
+
 void asset::from_json(dj::Json const& json, asset::Material& out) {
 	assert(json["asset_type"].as_string() == "material");
 	out.textures.deserialize(json["textures"]);

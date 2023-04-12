@@ -63,8 +63,6 @@ set(graphics_headers
   include/levk/graphics/shader_buffer.hpp
   include/levk/graphics/shader_code.hpp
   include/levk/graphics/shader.hpp
-  include/levk/graphics/shape.hpp
-  include/levk/graphics/shapes.hpp
   include/levk/graphics/skeleton.hpp
   include/levk/graphics/texture_atlas.hpp
   include/levk/graphics/texture_sampler.hpp

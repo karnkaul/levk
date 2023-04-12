@@ -2,7 +2,6 @@
 #include <gltf_import_wizard.hpp>
 #include <levk/asset/asset_list_loader.hpp>
 #include <levk/graphics/shader.hpp>
-#include <levk/graphics/shapes.hpp>
 #include <levk/graphics/texture.hpp>
 #include <levk/imcpp/asset_inspector.hpp>
 #include <levk/imcpp/common.hpp>
@@ -91,7 +90,7 @@ struct TestUiPrimitive : ui::Primitive {
 		} else {
 			tint() = white_v;
 		}
-		set_quad(QuadCreateInfo{.size = frame().extent()});
+		set_quad(Quad{.size = frame().extent()});
 	}
 };
 
@@ -186,10 +185,8 @@ struct TestScene : Scene {
 
 		test.entity = spawn({.name = "shape"}).entity;
 		auto& entity = get(test.entity);
-		auto& shape_renderer = entity.attach(std::make_unique<ShapeRenderer>());
-		auto quad_shape = std::make_unique<CubeShape>();
-		shape_renderer.shape = std::move(quad_shape);
-		shape_renderer.material = std::make_unique<LitMaterial>();
+		auto& cube_renderer = entity.attach(std::make_unique<CubeRenderer>());
+		cube_renderer.material = std::make_unique<LitMaterial>();
 	}
 
 	void tick(Time dt) override {

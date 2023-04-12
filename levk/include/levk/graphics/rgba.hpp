@@ -55,6 +55,8 @@ struct Rgba {
 	/// \returns 4 normalized floats
 	///
 	constexpr glm::vec4 to_vec4(float intensity = 1.0f) const { return glm::vec4{intensity * glm::vec3{to_tint()}, to_f32(channels.w)}; }
+
+	bool operator==(Rgba const&) const = default;
 };
 
 struct HdrRgba : Rgba {

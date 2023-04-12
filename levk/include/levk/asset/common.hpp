@@ -64,6 +64,15 @@ void to_json(dj::Json& out, Transform const& transform);
 void from_json(dj::Json const& json, RenderMode& out);
 void to_json(dj::Json& out, RenderMode const& render_mode);
 
+void from_json(dj::Json const& json, Quad& out);
+void to_json(dj::Json& out, Quad const& quad);
+
+void from_json(dj::Json const& json, Cube& out);
+void to_json(dj::Json& out, Cube const& cube);
+
+void from_json(dj::Json const& json, Sphere& out);
+void to_json(dj::Json& out, Sphere const& sphere);
+
 struct Material {
 	MaterialTextures textures{};
 	Rgba albedo{white_v};

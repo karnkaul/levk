@@ -13,6 +13,7 @@ class Component : public Serializable {
   public:
 	virtual ~Component() = default;
 
+	virtual void setup() {}
 	virtual void tick(Time dt) = 0;
 	virtual void inspect(imcpp::OpenWindow);
 	virtual void add_assets(AssetList& /*out*/, dj::Json const&) const {}
