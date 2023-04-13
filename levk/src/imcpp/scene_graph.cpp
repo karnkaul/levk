@@ -31,7 +31,7 @@ Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 	if (ImGui::Button("Spawn")) { Popup::open("scene_graph.spawn_entity"); }
 
 	ImGui::Separator();
-	standalone_node("Camera", Inspector::Type::eCamera);
+	standalone_node("SceneCamera", Inspector::Type::eSceneCamera);
 	standalone_node("Lights", Inspector::Type::eLights);
 	draw_scene_tree(w);
 	handle_popups();

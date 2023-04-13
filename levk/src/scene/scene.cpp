@@ -17,20 +17,6 @@
 
 namespace levk {
 namespace {
-dj::Json make_json(ViewPlane const& view_plane) {
-	auto ret = dj::Json{};
-	ret["near"] = view_plane.near;
-	ret["far"] = view_plane.far;
-	return ret;
-}
-
-ViewPlane make_view_plane(dj::Json const& json, ViewPlane fallback) {
-	auto ret = ViewPlane{};
-	ret.near = json["near"].as<float>(fallback.near);
-	ret.far = json["far"].as<float>(fallback.far);
-	return ret;
-}
-
 auto const g_log{Logger{"Scene"}};
 } // namespace
 
@@ -76,6 +62,8 @@ void Scene::tick(WindowState const& window_state, Time dt) {
 
 	ui_root.set_extent(window_state.framebuffer);
 	ui_root.tick(window_state.input, dt);
+
+	if (auto* entity = find(camera.target)) { camera.transform = m_nodes.get(entity->node_id()).transform; }
 }
 
 bool Scene::destroy(Id<Entity> entity) {
@@ -146,21 +134,8 @@ bool Scene::serialize(dj::Json& out) const {
 	for_each(m_entities, func);
 	out["entities"] = std::move(out_entities);
 	auto& out_camera = out["camera"];
-	out_camera["name"] = camera.name;
-	asset::to_json(out_camera["transform"], camera.transform);
-	out_camera["exposure"] = camera.exposure;
-	auto const camera_visitor = Visitor{
-		[&out_camera](Camera::Perspective const& perspective) {
-			out_camera["type"] = "perspective";
-			out_camera["field_of_view"] = perspective.field_of_view.to_degrees().value;
-			out_camera["view_plane"] = make_json(perspective.view_plane);
-		},
-		[&out_camera](Camera::Orthographic const& orthographic) {
-			out_camera["type"] = "orthographic";
-			out_camera["view_plane"] = make_json(orthographic.view_plane);
-		},
-	};
-	std::visit(camera_visitor, camera.type);
+	if (camera.target) { out_camera["target"] = camera.target.value(); }
+	asset::to_json(out_camera, camera);
 	auto& out_lights = out["lights"];
 	auto& out_primary_light = out_lights["primary"];
 	asset::to_json(out_primary_light["direction"], lights.primary.direction);
@@ -223,20 +198,8 @@ bool Scene::deserialize(dj::Json const& json) {
 	}
 	m_entities.import_map(std::move(out_entities));
 	auto const& in_camera = json["camera"];
-	camera.name = in_camera["name"].as<std::string>();
-	asset::from_json(in_camera["transform"], camera.transform);
-	camera.transform.recompute();
-	camera.exposure = in_camera["exposure"].as<float>(camera.exposure);
-	if (in_camera["type"].as_string() == "orthographic") {
-		auto type = Camera::Orthographic{};
-		type.view_plane = make_view_plane(in_camera["view_plane"], type.view_plane);
-		camera.type = type;
-	} else {
-		auto type = Camera::Perspective{};
-		type.view_plane = make_view_plane(in_camera["view_plane"], type.view_plane);
-		type.field_of_view = Degrees{in_camera["field_of_view"].as<float>(type.field_of_view)};
-		camera.type = type;
-	}
+	camera.target = in_camera["target"].as<Id<Entity>::id_type>(camera.target);
+	asset::from_json(in_camera, camera);
 	auto const& in_lights = json["lights"];
 	if (auto const& in_primary_light = in_lights["primary"]) {
 		asset::from_json(in_primary_light["direction"], lights.primary.direction);

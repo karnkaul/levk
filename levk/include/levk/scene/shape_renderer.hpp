@@ -7,7 +7,7 @@
 namespace levk {
 class ShapeRenderer : public RenderComponent {
   public:
-	ShapeRenderer() : material(std::make_unique<LitMaterial>()) {}
+	ShapeRenderer(std::unique_ptr<Material> material = std::make_unique<LitMaterial>()) : material(std::move(material)) {}
 
 	void setup() override;
 	bool serialize(dj::Json& out) const override;
@@ -22,6 +22,8 @@ class ShapeRenderer : public RenderComponent {
 
 class QuadRenderer : public ShapeRenderer {
   public:
+	QuadRenderer() : ShapeRenderer(std::make_unique<UnlitMaterial>()) {}
+
 	void set_shape(Quad shape);
 	Quad const& get_shape() const { return m_shape; }
 

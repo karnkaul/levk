@@ -1,5 +1,5 @@
-#include <imgui.h>
 #include <levk/defines.hpp>
+#include <levk/engine.hpp>
 #include <levk/scene/component.hpp>
 #include <levk/scene/scene_manager.hpp>
 #include <levk/service.hpp>
@@ -8,9 +8,7 @@
 namespace levk {
 Scene& Component::active_scene() const { return Service<SceneManager>::locate().active_scene(); }
 
-Ptr<Entity> Component::owning_entity() const { return active_scene().find(m_entity); }
+WindowState const& Component::window_state() const { return Service<Engine>::locate().window().state(); }
 
-void Component::inspect(imcpp::OpenWindow) {
-	if constexpr (debug_v) { ImGui::Text("[Not customized]"); }
-}
+Ptr<Entity> Component::owning_entity() const { return active_scene().find(m_entity); }
 } // namespace levk

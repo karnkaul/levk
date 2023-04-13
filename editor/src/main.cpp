@@ -10,6 +10,7 @@
 #include <levk/imcpp/reflector.hpp>
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/runtime.hpp>
+#include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/shape_renderer.hpp>
 #include <levk/ui/text.hpp>
 #include <levk/util/error.hpp>
@@ -24,59 +25,6 @@ namespace levk {
 namespace fs = std::filesystem;
 
 namespace {
-struct FreeCam {
-	Ptr<Window> window{};
-	glm::vec3 move_speed{10.0f};
-	float look_speed{0.3f};
-
-	glm::vec2 prev_cursor{};
-	glm::vec2 pitch_yaw{};
-
-	void tick(Transform& transform, Input const& input, Time dt) {
-		auto data = transform.data();
-
-		if (input.is_held(MouseButton::eRight)) {
-			if (window->cursor_mode() != CursorMode::eDisabled) { window->set_cursor_mode(CursorMode::eDisabled); }
-		} else {
-			if (window->cursor_mode() == CursorMode::eDisabled) { window->set_cursor_mode(CursorMode::eNormal); }
-		}
-
-		auto dxy = glm::vec2{};
-		if (window->cursor_mode() != CursorMode::eDisabled) {
-			prev_cursor = input.cursor;
-			pitch_yaw = glm::eulerAngles(transform.orientation());
-		} else {
-			dxy = input.cursor - prev_cursor;
-			dxy.y = -dxy.y;
-			pitch_yaw -= look_speed * glm::vec2{glm::radians(dxy.y), glm::radians(dxy.x)};
-
-			auto dxyz = glm::vec3{};
-			auto front = data.orientation * front_v;
-			auto right = data.orientation * right_v;
-			auto up = data.orientation * up_v;
-
-			if (input.is_held(Key::eW) || input.is_held(Key::eUp)) { dxyz.z -= 1.0f; }
-			if (input.is_held(Key::eS) || input.is_held(Key::eDown)) { dxyz.z += 1.0f; }
-			if (input.is_held(Key::eA) || input.is_held(Key::eLeft)) { dxyz.x -= 1.0f; }
-			if (input.is_held(Key::eD) || input.is_held(Key::eRight)) { dxyz.x += 1.0f; }
-			if (input.is_held(Key::eQ)) { dxyz.y -= 1.0f; }
-			if (input.is_held(Key::eE)) { dxyz.y += 1.0f; }
-			if (std::abs(dxyz.x) > 0.0f || std::abs(dxyz.y) > 0.0f || std::abs(dxyz.z) > 0.0f) {
-				dxyz = glm::normalize(dxyz);
-				auto const factor = dt.count() * move_speed;
-				data.position += factor * front * dxyz.z;
-				data.position += factor * right * dxyz.x;
-				data.position += factor * up * dxyz.y;
-			}
-		}
-
-		data.orientation = glm::vec3{pitch_yaw, 0.0f};
-		transform.set_data(data);
-
-		prev_cursor = input.cursor;
-	}
-};
-
 struct TestUiPrimitive : ui::Primitive {
 	using ui::Primitive::Primitive;
 
@@ -184,9 +132,15 @@ struct TestScene : Scene {
 		}
 
 		test.entity = spawn({.name = "shape"}).entity;
-		auto& entity = get(test.entity);
-		auto& cube_renderer = entity.attach(std::make_unique<CubeRenderer>());
+		auto& cube_entity = get(test.entity);
+		auto& cube_renderer = cube_entity.attach(std::make_unique<CubeRenderer>());
 		cube_renderer.material = std::make_unique<LitMaterial>();
+
+		auto& freecam = spawn({.name = "Freecam"});
+		auto& freecam_entity = get(freecam.entity);
+		freecam_entity.attach(std::make_unique<FreecamController>());
+		camera.target = freecam_entity.id();
+		freecam_entity.transform().set_position({0.0f, 0.0f, 5.0f});
 	}
 
 	void tick(Time dt) override {
@@ -234,7 +188,6 @@ struct Editor : Runtime {
 		};
 	}
 
-	FreeCam free_cam{};
 	LoadRequest load_request{};
 
 	Uri<Scene> scene_uri{"unnamed.scene.json"};
@@ -255,8 +208,6 @@ struct Editor : Runtime {
 		set_window_title();
 		context().render_device().set_clear(Rgba::from({0.05f, 0.05f, 0.05f, 1.0f}));
 		context().scene_manager.get().set_active<TestScene>();
-
-		free_cam.window = &context().window();
 
 		auto file_menu = [&] {
 			if (ImGui::MenuItem("Save", nullptr, false, !context().active_scene().empty())) { save_scene(); }
@@ -323,8 +274,6 @@ struct Editor : Runtime {
 			}
 		};
 		update_and_draw(load_request, on_request_loaded);
-
-		free_cam.tick(context().active_scene().camera.transform, frame.state.input, frame.dt);
 
 		if (frame.state.input.chord(Key::eW, Key::eLeftControl)) { context().shutdown(); }
 

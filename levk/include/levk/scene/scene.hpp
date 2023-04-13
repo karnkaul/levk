@@ -1,11 +1,11 @@
 #pragma once
-#include <levk/graphics/camera.hpp>
 #include <levk/graphics/lights.hpp>
 #include <levk/graphics/renderer.hpp>
 #include <levk/graphics/skeleton.hpp>
 #include <levk/io/serializable.hpp>
 #include <levk/node.hpp>
 #include <levk/scene/entity.hpp>
+#include <levk/scene/scene_camera.hpp>
 #include <levk/ui/view.hpp>
 #include <levk/util/monotonic_map.hpp>
 #include <levk/util/time.hpp>
@@ -45,7 +45,7 @@ class Scene : public Renderer, public Serializable {
 	bool deserialize(dj::Json const& json) override;
 
 	Lights lights{};
-	Camera camera{};
+	SceneCamera camera{};
 	std::string name{};
 	ui::View ui_root{};
 

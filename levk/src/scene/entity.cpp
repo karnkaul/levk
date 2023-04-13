@@ -1,7 +1,13 @@
 #include <levk/scene/entity.hpp>
+#include <levk/scene/scene.hpp>
 #include <algorithm>
 
 namespace levk {
+Transform& Entity::transform() {
+	assert(m_scene);
+	return m_scene->node_locator().get(node_id()).transform;
+}
+
 void Entity::tick(Time dt) {
 	m_sorted.clear();
 	m_sorted.reserve(m_components.size());

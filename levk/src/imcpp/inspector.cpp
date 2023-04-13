@@ -21,10 +21,12 @@ void Inspector::display(Scene& scene) {
 
 void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 	switch (target.type) {
-	case Type::eCamera: {
-		imcpp::TreeNode::leaf("Camera", ImGuiTreeNodeFlags_SpanFullWidth);
+	case Type::eSceneCamera: {
+		imcpp::TreeNode::leaf("Scene Camera", ImGuiTreeNodeFlags_SpanFullWidth);
 		if (auto tn = imcpp::TreeNode{"Transform", ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen}) {
 			Bool unified_scaling{true};
+			auto target = static_cast<int>(scene.camera.target);
+			if (ImGui::InputInt("Target", &target)) { scene.camera.target = static_cast<Id<Entity>::id_type>(target); }
 			imcpp::Reflector{w}(scene.camera.transform, unified_scaling, {});
 		}
 		ImGui::DragFloat("Exposure", &scene.camera.exposure, 0.25f, 1.0f, 100.0f);

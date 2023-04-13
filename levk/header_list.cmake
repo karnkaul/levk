@@ -121,8 +121,11 @@ set(font_headers
 set(scene_headers
   include/levk/scene/component.hpp
   include/levk/scene/entity.hpp
+  include/levk/scene/freecam_controller.hpp
+  include/levk/scene/inspectable.hpp
   include/levk/scene/primitive_renderer.hpp
   include/levk/scene/scene_manager.hpp
+  include/levk/scene/scene_camera.hpp
   include/levk/scene/scene_renderer.hpp
   include/levk/scene/scene.hpp
   include/levk/scene/shape_renderer.hpp

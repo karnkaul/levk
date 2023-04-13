@@ -51,6 +51,9 @@ class Entity final {
 	Id<Entity> id() const { return m_id; }
 	Id<Node> node_id() const { return m_node; }
 
+	Transform& transform();
+	Transform const& transform() const;
+
 	void tick(Time dt);
 
 	ComponentMap const& component_map() const { return m_components; }

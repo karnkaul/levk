@@ -1,5 +1,6 @@
 #pragma once
 #include <djson/json.hpp>
+#include <levk/graphics/camera.hpp>
 #include <levk/graphics/common.hpp>
 #include <levk/graphics/geometry.hpp>
 #include <levk/graphics/material.hpp>
@@ -72,6 +73,12 @@ void to_json(dj::Json& out, Cube const& cube);
 
 void from_json(dj::Json const& json, Sphere& out);
 void to_json(dj::Json& out, Sphere const& sphere);
+
+void from_json(dj::Json const& json, ViewPlane& out);
+void to_json(dj::Json& out, ViewPlane const& view_plane);
+
+void from_json(dj::Json const& json, Camera& out);
+void to_json(dj::Json& out, Camera const& camera);
 
 struct Material {
 	MaterialTextures textures{};

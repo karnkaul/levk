@@ -5,7 +5,7 @@
 namespace levk::imcpp {
 class Inspector {
   public:
-	enum class Type { eEntity, eCamera, eLights };
+	enum class Type { eEntity, eSceneCamera, eLights };
 
 	struct Target {
 		Id<Entity> entity{};

@@ -376,6 +376,51 @@ void asset::to_json(dj::Json& out, Sphere const& sphere) {
 	to_json(out["origin"], sphere.origin);
 }
 
+void asset::from_json(dj::Json const& json, ViewPlane& out) {
+	out.near = json["near"].as<float>(out.near);
+	out.far = json["far"].as<float>(out.far);
+}
+
+void asset::to_json(dj::Json& out, ViewPlane const& view_plane) {
+	out["near"] = view_plane.near;
+	out["far"] = view_plane.far;
+}
+
+void asset::from_json(dj::Json const& json, Camera& out) {
+	out.name = json["name"].as<std::string>();
+	asset::from_json(json["transform"], out.transform);
+	out.transform.recompute();
+	out.exposure = json["exposure"].as<float>(out.exposure);
+	if (json["type"].as_string() == "orthographic") {
+		auto type = Camera::Orthographic{};
+		from_json(json["view_plane"], type.view_plane);
+		out.type = type;
+	} else {
+		auto type = Camera::Perspective{};
+		from_json(json["view_plane"], type.view_plane);
+		type.field_of_view = Degrees{json["field_of_view"].as<float>(type.field_of_view)};
+		out.type = type;
+	}
+}
+
+void asset::to_json(dj::Json& out, Camera const& camera) {
+	out["name"] = camera.name;
+	asset::to_json(out["transform"], camera.transform);
+	out["exposure"] = camera.exposure;
+	auto const camera_visitor = Visitor{
+		[&out](Camera::Perspective const& perspective) {
+			out["type"] = "perspective";
+			out["field_of_view"] = perspective.field_of_view.to_degrees().value;
+			to_json(out["view_plane"], perspective.view_plane);
+		},
+		[&out](Camera::Orthographic const& orthographic) {
+			out["type"] = "orthographic";
+			to_json(out["view_plane"], orthographic.view_plane);
+		},
+	};
+	std::visit(camera_visitor, camera.type);
+}
+
 void asset::from_json(dj::Json const& json, asset::Material& out) {
 	assert(json["asset_type"].as_string() == "material");
 	out.textures.deserialize(json["textures"]);

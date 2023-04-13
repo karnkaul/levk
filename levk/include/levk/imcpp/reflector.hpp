@@ -6,6 +6,7 @@
 #include <levk/rect.hpp>
 #include <levk/transform.hpp>
 #include <levk/util/nvec3.hpp>
+#include <levk/util/radians.hpp>
 
 namespace levk::imcpp {
 ///
@@ -33,6 +34,7 @@ class Reflector {
 	bool operator()(char const* label, glm::vec4& out_vec4, float speed = 1.0f, float lo = min_v, float hi = max_v) const;
 	bool operator()(char const* label, nvec3& out_vec3, float speed = 0.01f) const;
 	bool operator()(char const* label, glm::quat& out_quat) const;
+	bool operator()(char const* label, Radians& out_as_degrees, float speed = 0.05f, float lo = min_v, float hi = max_v) const;
 	bool operator()(char const* label, AsRgb out_rgb) const;
 	bool operator()(Rgba& out_rgba, Bool show_alpha) const;
 	bool operator()(HdrRgba& out_rgba, Bool show_alpha, Bool show_intensity = {true}) const;

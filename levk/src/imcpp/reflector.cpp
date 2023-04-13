@@ -81,6 +81,15 @@ bool Reflector::operator()(char const* label, glm::quat& out_quat) const {
 	return ret;
 }
 
+bool Reflector::operator()(char const* label, Radians& out_as_degrees, float speed, float lo, float hi) const {
+	auto deg = Degrees{out_as_degrees};
+	if (ImGui::DragFloat(label, &deg.value, speed, lo, hi)) {
+		out_as_degrees = deg;
+		return true;
+	}
+	return false;
+}
+
 bool Reflector::operator()(char const* label, AsRgb out_rgb) const {
 	float arr[3] = {out_rgb.out.x, out_rgb.out.y, out_rgb.out.z};
 	if (ImGui::ColorEdit3(label, arr)) {
