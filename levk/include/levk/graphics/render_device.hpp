@@ -34,7 +34,7 @@ struct RenderDeviceInfo {
 	float render_scale{1.0f};
 	Rgba clear_colour{black_v};
 	Extent2D shadow_map_resolution{2048u, 2048u};
-	glm::vec2 shadow_map_world_size{128.0f, 128.0f};
+	glm::vec2 shadow_frustum{64.0f, 64.0f};
 };
 
 class RenderDevice {

@@ -718,7 +718,7 @@ bool Device::render(Renderer& renderer, AssetProviders const& asset_providers) {
 	render_cb.cb_shadow.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 	fb_shadow.undef_to_optimal(render_cb.cb_shadow);
 	fb_shadow.begin_render(render_cb.cb_shadow);
-	renderer.render_shadow(render_cb.cb_shadow, fb_shadow, device_info.shadow_map_world_size);
+	renderer.render_shadow(render_cb.cb_shadow, fb_shadow, device_info.shadow_frustum);
 	fb_shadow.end_render(render_cb.cb_shadow);
 	fb_shadow.optimal_to_read_only(render_cb.cb_shadow);
 	render_cb.cb_shadow.end();

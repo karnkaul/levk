@@ -398,7 +398,8 @@ void asset::from_json(dj::Json const& json, Camera& out) {
 	} else {
 		auto type = Camera::Perspective{};
 		from_json(json["view_plane"], type.view_plane);
-		type.field_of_view = Degrees{json["field_of_view"].as<float>(type.field_of_view)};
+		auto const in_degrees = json["field_of_view"].as<float>(Degrees{type.field_of_view}.value);
+		type.field_of_view = Degrees{in_degrees};
 		out.type = type;
 	}
 }
