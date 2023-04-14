@@ -1,4 +1,5 @@
 #include <levk/context.hpp>
+#include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/scene/shape_renderer.hpp>
 #include <levk/scene/skeleton_controller.hpp>
@@ -21,6 +22,7 @@ Context::Context(NotNull<DataSource const*> data_source, Engine::CreateInfo cons
 	: engine(create_info), asset_providers(make_apci(engine.get(), data_source, &serializer.get())), scene_manager(&asset_providers.get()) {
 
 	serializer.get().bind<SkeletonController>();
+	serializer.get().bind<FreecamController>();
 
 	serializer.get().bind<StaticMeshRenderer>();
 	serializer.get().bind<SkinnedMeshRenderer>();
