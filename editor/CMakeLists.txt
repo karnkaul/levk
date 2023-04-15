@@ -1,7 +1,11 @@
 project(levk-editor)
 
 add_executable(levk-editor)
-target_link_libraries(levk-editor PRIVATE levk::lib legsmi::lib)
+target_link_libraries(levk-editor PRIVATE
+  levk::lib
+  legsmi::lib
+  portable-file-dialogs::portable-file-dialogs
+)
 target_include_directories(levk-editor PRIVATE src)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL Clang OR CMAKE_CXX_COMPILER_ID STREQUAL GNU)

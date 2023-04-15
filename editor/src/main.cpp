@@ -20,6 +20,7 @@
 #include <main_menu.hpp>
 #include <cassert>
 #include <filesystem>
+#include <pfd/portable-file-dialogs.hpp>
 
 namespace levk {
 namespace fs = std::filesystem;
@@ -190,7 +191,6 @@ struct Editor : Runtime {
 
 	LoadRequest load_request{};
 
-	Uri<Scene> scene_uri{"unnamed.scene.json"};
 	MainMenu main_menu{};
 	imcpp::SceneGraph scene_graph{};
 	imcpp::AssetInspector asset_inspector{};
@@ -203,14 +203,53 @@ struct Editor : Runtime {
 	Editor(std::string_view data_path) : Runtime(std::make_unique<DiskVfs>(data_path), make_eci()) {}
 
 	void setup() override {
+		if constexpr (debug_v) { pfd::settings::verbose(true); }
+		if (pfd::settings::available()) { log.debug("Portable File Dialogs available"); }
+
 		context().serializer.get().bind<TestScene>();
 
 		set_window_title();
 		context().render_device().set_clear(Rgba::from({0.05f, 0.05f, 0.05f, 1.0f}));
 		context().scene_manager.get().set_active<TestScene>();
 
-		auto file_menu = [&] {
-			if (ImGui::MenuItem("Save", nullptr, false, !context().active_scene().empty())) { save_scene(); }
+		auto save_as = [this] {
+			auto uri = context().scene_manager.get().uri();
+			if (uri.is_empty()) { uri = "unnamed.scene.json"; }
+			static auto const pfd_filters = std::vector<std::string>{
+				"Scene Files",
+				"*.json",
+				"All Files",
+				"*",
+			};
+			auto result = pfd::save_file{uri.value(), std::string{m_data_source->mount_point()}, pfd_filters}.result();
+			if (auto uri = m_data_source->trim_to_uri(result)) {
+				context().scene_manager.get().set_uri(std::move(uri));
+				save_scene();
+			}
+		};
+
+		auto open_file = [&] {
+			static auto const pfd_filters = std::vector<std::string>{
+				"JSON Asset",
+				"*.json",
+			};
+			auto result = pfd::open_file{"Open Asset", std::string{m_data_source->mount_point()}, pfd_filters}.result();
+			if (!result.empty()) {
+				if (auto uri = m_context.data_source().trim_to_uri(result.front())) {
+					auto const asset_type = m_context.asset_providers.get().asset_type(uri);
+					if (asset_type == "mesh") {
+						load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Mesh>{uri}, m_context.engine.get().thread_pool());
+					} else if (asset_type == "scene") {
+						load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Scene>{uri}, m_context.engine.get().thread_pool());
+					}
+				}
+			}
+		};
+
+		auto file_menu = [=, this] {
+			if (ImGui::MenuItem("Open...")) { open_file(); }
+			if (ImGui::MenuItem("Save")) { save_scene(); }
+			if (ImGui::MenuItem("Save As...")) { save_as(); }
 			ImGui::Separator();
 			if (ImGui::MenuItem("Exit")) { m_context.shutdown(); }
 		};
@@ -237,10 +276,10 @@ struct Editor : Runtime {
 				auto path = fs::path{drop};
 				auto const extension = path.extension();
 				if (extension == ".gltf") {
-					gltf_import_wizard.emplace(drop.c_str(), std::string{m_context.data_source().mount_point()});
+					gltf_import_wizard.emplace(path.string().c_str(), std::string{m_context.data_source().mount_point()});
 					break;
 				} else if (extension == ".json") {
-					if (auto uri = m_context.data_source().trim_to_uri(drop)) {
+					if (auto uri = m_context.data_source().trim_to_uri(path.generic_string())) {
 						auto const asset_type = m_context.asset_providers.get().asset_type(uri);
 						if (asset_type == "mesh") {
 							load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Mesh>{uri}, m_context.engine.get().thread_pool());
@@ -268,10 +307,7 @@ struct Editor : Runtime {
 		}
 
 		auto const on_request_loaded = [&] {
-			if (auto uri = load_request.post_load(m_context.scene_manager.get(), m_context.asset_providers.get())) {
-				scene_uri = std::move(uri);
-				set_window_title();
-			}
+			if (auto uri = load_request.post_load(m_context.scene_manager.get(), m_context.asset_providers.get())) { set_window_title(); }
 		};
 		update_and_draw(load_request, on_request_loaded);
 
@@ -287,7 +323,8 @@ struct Editor : Runtime {
 	}
 
 	void save_scene() {
-		auto uri = scene_uri ? scene_uri : Uri<Scene>{"unnamed.scene.json"};
+		auto uri = context().scene_manager.get().uri();
+		if (uri.is_empty()) { uri = "unnamed.scene.json"; }
 		auto json = context().serializer.get().serialize(context().active_scene());
 		auto* disk_vfs = dynamic_cast<DiskVfs const*>(&context().data_source());
 		if (!disk_vfs || !disk_vfs->write_json(json, uri)) { return; }
@@ -296,7 +333,9 @@ struct Editor : Runtime {
 	}
 
 	void set_window_title() const {
-		auto const title = fmt::format("levk Editor - {}", scene_uri.value());
+		auto uri = context().scene_manager.get().uri();
+		if (uri.is_empty()) { uri = "unnamed.scene.json"; }
+		auto const title = fmt::format("levk Editor - {}", uri.value());
 		context().window().set_title(title.c_str());
 	}
 };
