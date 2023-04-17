@@ -32,7 +32,7 @@ TypeId list_resource_type_tabs() {
 struct Inspector {
 	void operator()(Uri<> const& uri, Texture& texture) const {
 		auto const extent = texture.extent();
-		TreeNode::leaf(FixedString{"{}", uri.value()}.c_str());
+		TreeNode::leaf(uri.value().c_str());
 		if (auto drag = DragDrop::Source{}) { DragDrop::set_string("texture", uri.value()); }
 		ImGui::Text("%s", FixedString{"Extent: {}x{}", extent.x, extent.y}.c_str());
 		ImGui::Text("%s", FixedString{"Mip levels: {}", texture.mip_levels()}.c_str());
@@ -40,7 +40,8 @@ struct Inspector {
 	}
 
 	void operator()(Uri<> const& uri, UMaterial& material) const {
-		ImGui::Text("%s", FixedString{"{}", uri.value()}.c_str());
+		TreeNode::leaf(uri.value().c_str());
+		if (auto drag = DragDrop::Source{}) { DragDrop::set_string("material", uri.value()); }
 		ImGui::Text("%s", FixedString{"Vertex Shader: {}", material->vertex_shader.value()}.c_str());
 		ImGui::Text("%s", FixedString{"Fragment Shader: {}", material->fragment_shader.value()}.c_str());
 		if (auto* lit = dynamic_cast<LitMaterial*>(material.get())) {
@@ -77,9 +78,15 @@ struct Inspector {
 		}
 	}
 
-	void operator()(Uri<> const& uri, StaticMesh& mesh) const { mesh_common(uri, mesh); }
+	void operator()(Uri<> const& uri, StaticMesh& mesh) const {
+		TreeNode::leaf(uri.value().c_str());
+		if (auto drag = DragDrop::Source{}) { DragDrop::set_string("static_mesh", uri.value()); }
+		mesh_common(uri, mesh);
+	}
 
 	void operator()(Uri<> const& uri, SkinnedMesh& mesh) const {
+		TreeNode::leaf(uri.value().c_str());
+		if (auto drag = DragDrop::Source{}) { DragDrop::set_string("skinned_mesh", uri.value()); }
 		mesh_common(uri, mesh);
 		FixedString<128> const label = mesh.skeleton ? mesh.skeleton.value() : "[None]";
 		TreeNode::leaf(FixedString<128>{"Skeleton: {}", label}.c_str());

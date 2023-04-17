@@ -21,21 +21,14 @@ AssetProviders::CreateInfo make_apci(Engine const& engine, NotNull<DataSource co
 Context::Context(NotNull<DataSource const*> data_source, Engine::CreateInfo const& create_info)
 	: engine(create_info), asset_providers(make_apci(engine.get(), data_source, &serializer.get())), scene_manager(&asset_providers.get()) {
 
-	serializer.get().bind<SkeletonController>();
-	serializer.get().bind<FreecamController>();
-
-	serializer.get().bind<StaticMeshRenderer>();
-	serializer.get().bind<SkinnedMeshRenderer>();
-	serializer.get().bind<QuadRenderer>();
-	serializer.get().bind<CubeRenderer>();
-	serializer.get().bind<SphereRenderer>();
+	serializer.get().bind<QuadShape>();
+	serializer.get().bind<CubeShape>();
+	serializer.get().bind<SphereShape>();
 
 	serializer.get().bind<UnlitMaterial>();
 	serializer.get().bind<LitMaterial>();
 	serializer.get().bind<SkinnedMaterial>();
-
-	serializer.get().bind<Scene>();
 }
 
-void Context::render(RenderList render_list) const { scene_manager.get().render(std::move(render_list)); }
+void Context::render() const { scene_manager.get().render(); }
 } // namespace levk

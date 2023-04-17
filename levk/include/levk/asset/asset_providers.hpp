@@ -6,9 +6,10 @@
 #include <levk/asset/shader_provider.hpp>
 #include <levk/asset/skeleton_provider.hpp>
 #include <levk/asset/texture_provider.hpp>
+#include <levk/util/signal.hpp>
 
 namespace levk {
-class Scene;
+class Level;
 
 class AssetProviders {
   public:
@@ -36,6 +37,7 @@ class AssetProviders {
 
 	ShaderProvider& shader() const { return *m_providers.shader; }
 	SkeletonProvider& skeleton() const { return *m_providers.skeleton; }
+	SkeletalAnimationProvider const& skeletal_animation() const { return *m_providers.skeletal_animation; }
 	TextureProvider& texture() const { return *m_providers.texture; }
 	MaterialProvider& material() const { return *m_providers.material; }
 	StaticMeshProvider& static_mesh() const { return *m_providers.static_mesh; }
@@ -47,7 +49,7 @@ class AssetProviders {
 
 	std::string asset_type(Uri<> const& uri) const;
 	MeshType mesh_type(Uri<> const& uri) const;
-	AssetList build_asset_list(Uri<Scene> const& uri) const;
+	AssetList build_asset_list(Uri<Level> const& uri) const;
 
   private:
 	struct Base {
@@ -64,9 +66,11 @@ class AssetProviders {
 	};
 
 	std::vector<std::unique_ptr<Base>> m_storage{};
+	Signal<std::string_view>::Listener m_on_mount_point_changed{};
 	struct {
 		Ptr<ShaderProvider> shader{};
 		Ptr<SkeletonProvider> skeleton{};
+		Ptr<SkeletalAnimationProvider> skeletal_animation{};
 		Ptr<TextureProvider> texture{};
 		Ptr<MaterialProvider> material{};
 		Ptr<StaticMeshProvider> static_mesh{};

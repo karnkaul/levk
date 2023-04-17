@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_DEBUG_POSTFIX "-d")
 
-project(levk VERSION "0.5.0")
+project(levk VERSION "0.6.0")
 
 set(is_root_project OFF)
 

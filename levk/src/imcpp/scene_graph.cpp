@@ -15,7 +15,7 @@ bool SceneGraph::check_stale() {
 		m_inspector.target = {};
 		ret = true;
 	}
-	if (m_inspector.target.type == Inspector::Type::eEntity && !m_scene->find(m_inspector.target.entity)) { m_inspector.target = {}; }
+	if (m_inspector.target.type == Inspector::Type::eEntity && !m_scene->find_entity(m_inspector.target.entity)) { m_inspector.target = {}; }
 	return ret;
 }
 
@@ -75,11 +75,11 @@ bool SceneGraph::walk_node(Node& node) {
 	auto node_locator = m_scene->node_locator();
 	auto flags = int{};
 	flags |= (ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnArrow);
-	if (node.entity && m_inspector.target == node.entity) { flags |= ImGuiTreeNodeFlags_Selected; }
+	if (node.entity_id && m_inspector.target == node.entity_id) { flags |= ImGuiTreeNodeFlags_Selected; }
 	if (node.children().empty()) { flags |= ImGuiTreeNodeFlags_Leaf; }
 	auto tn = imcpp::TreeNode{node.name.c_str(), flags};
-	if (node.entity) {
-		auto target = Inspector::Target{node.entity, Inspector::Type::eEntity};
+	if (node.entity_id) {
+		auto target = Inspector::Target{node.entity_id, Inspector::Type::eEntity};
 		if (ImGui::IsItemClicked()) { m_inspector.target = target; }
 		if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
 			m_right_clicked = true;
@@ -126,7 +126,7 @@ void SceneGraph::handle_popups() {
 	}
 
 	if (auto popup = Popup{"scene_graph.right_click"}) {
-		if (m_right_clicked_target.type == Inspector::Type::eEntity && !m_scene->find(m_right_clicked_target.entity)) {
+		if (m_right_clicked_target.type == Inspector::Type::eEntity && !m_scene->find_entity(m_right_clicked_target.entity)) {
 			m_right_clicked_target = {};
 			return popup.close_current();
 		}
@@ -136,7 +136,7 @@ void SceneGraph::handle_popups() {
 			popup.close_current();
 		}
 		if (m_right_clicked_target.type == Inspector::Type::eEntity && ImGui::Selectable("Destroy")) {
-			m_scene->destroy(m_right_clicked_target.entity);
+			m_scene->destroy_entity(m_right_clicked_target.entity);
 			m_right_clicked_target = {};
 			popup.close_current();
 		}

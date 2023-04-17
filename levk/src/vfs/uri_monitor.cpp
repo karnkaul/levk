@@ -32,4 +32,10 @@ void UriMonitor::dispatch_modified() {
 	lock.unlock();
 	for (auto [uri, monitor] : modified) { monitor->on_modified(*uri); }
 }
+
+void UriMonitor::change_mount_point(std::string new_mount_point) {
+	auto lock = std::scoped_lock{m_mutex};
+	m_monitors.clear();
+	m_mount_point = std::move(new_mount_point);
+}
 } // namespace levk

@@ -55,13 +55,14 @@ struct SceneRenderer : Device::Renderer {
 	GlobalLayout global_layout{};
 
 	Frame frame{};
+	Ptr<Scene const> scene{};
+	Ptr<RenderList const> render_list{};
 
 	ScopedDeviceBlocker device_block{};
 
 	SceneRenderer(DeviceView const& device);
 
-	void build_frame(Scene const& scene, RenderList const& render_list);
-
+	void next_frame() final;
 	void render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer, glm::vec2 map_size) final;
 	void render_3d(vk::CommandBuffer cb, Framebuffer& framebuffer, ImageView const& shadow_map) final;
 	void render_ui(vk::CommandBuffer cb, Framebuffer& framebuffer, ImageView const& output_3d) final;

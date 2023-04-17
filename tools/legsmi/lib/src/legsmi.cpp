@@ -52,6 +52,42 @@ levk::Transform from(glm::mat4 const& mat) {
 	return ret;
 }
 
+levk::Transform from(gltf2cpp::Transform const& transform) {
+	auto ret = levk::Transform{};
+	auto visitor = levk::Visitor{
+		[&ret](gltf2cpp::Trs const& trs) {
+			ret.set_position({trs.translation[0], trs.translation[1], trs.translation[2]});
+			ret.set_orientation({trs.rotation[3], trs.rotation[0], trs.rotation[1], trs.rotation[2]});
+			ret.set_scale({trs.scale[0], trs.scale[1], trs.scale[2]});
+		},
+		[&ret](gltf2cpp::Mat4x4 const& mat) { ret = from(from(mat)); },
+	};
+	std::visit(visitor, transform);
+	return ret;
+}
+
+levk::Camera from(gltf2cpp::Camera const& camera) {
+	auto ret = levk::Camera{};
+	ret.name = camera.name;
+	auto const visitor = levk::Visitor{
+		[&](gltf2cpp::Camera::Orthographic const& o) {
+			auto out = levk::Camera::Orthographic{};
+			out.view_plane.near = o.znear;
+			out.view_plane.far = o.zfar;
+			ret.type = out;
+		},
+		[&](gltf2cpp::Camera::Perspective const& p) {
+			auto out = levk::Camera::Perspective{};
+			out.view_plane.near = p.znear;
+			if (p.zfar) { out.view_plane.far = *p.zfar; }
+			out.field_of_view = p.yfov;
+			ret.type = out;
+		},
+	};
+	std::visit(visitor, camera.payload);
+	return ret;
+}
+
 template <glm::length_t Dim>
 std::vector<glm::vec<Dim, float>> from(std::vector<gltf2cpp::Vec<Dim>> const in) {
 	if (in.empty()) { return {}; }
@@ -82,9 +118,6 @@ levk::Geometry::Packed to_geometry(gltf2cpp::Mesh::Primitive const& primitive) {
 	return ret;
 }
 
-template <typename T>
-using Index = levk::Skeleton::Index<T>;
-
 // Joints in a GLTF skin reference nodes in the GLTF global tree via their indices.
 // To construct a skinned mesh skeleton and its animations, the tree needs to be trimmed to
 // only the nodes relevant to the skin, and node indices correspondingly retargeted.
@@ -92,55 +125,61 @@ using Index = levk::Skeleton::Index<T>;
 // the animations and rewrite each animator target to match its corresponding Id<Node>.
 // The order of joints after all these transformations must be identical to the source data,
 // hence the [Index => *] unordered_map invasion.
+using GltfNodeToJoint = std::unordered_map<gltf2cpp::Index<gltf2cpp::Node>, levk::Id<levk::Node>>;
+
 struct MapGltfNodesToJoints {
-	struct Entry {
-		levk::Skeleton::Joint joint{};
-		Index<levk::Skeleton::Joint> index{};
-	};
+	gltf2cpp::Root const& root;
 
-	struct Result {
-		std::vector<levk::Skeleton::Joint> joints{};
-		std::unordered_map<Index<gltf2cpp::Node>, Index<levk::Skeleton::Joint>> map{};
-	};
+	std::vector<levk::Id<levk::Node>> ordered_joints{};
+	levk::NodeTree joints{};
+	GltfNodeToJoint mapping{};
 
-	std::unordered_map<Index<gltf2cpp::Node>, Entry> map{};
-	std::vector<levk::Skeleton::Joint> joints{};
-
-	std::span<gltf2cpp::Node const> nodes{};
-
-	void add_node_and_children(Index<levk::Node> node_idx, std::optional<Index<levk::Skeleton::Joint>> parent = {}) {
-		if (map.contains(node_idx)) { return; }
-		auto const& node = nodes[node_idx];
-		auto entry = Entry{};
-		entry.joint.name = node.name;
-		entry.joint.transform = legsmi::from(node.transform);
-		entry.joint.children = {node.children.begin(), node.children.end()};
-		entry.joint.parent = parent;
-		entry.index = joints.size();
-		map.insert_or_assign(node_idx, std::move(entry));
-		for (auto const child : node.children) { add_node_and_children(child, entry.index); }
+	void add_node(std::size_t index) {
+		auto const& in_node = root.nodes[index];
+		auto& out_node = joints.add(levk::Node::CreateInfo{
+			.transform = from(in_node.transform),
+			.name = in_node.name,
+		});
+		mapping.insert_or_assign(index, out_node.id());
 	}
 
-	[[nodiscard]] Result operator()(gltf2cpp::Skin const& skin, std::span<gltf2cpp::Node const> nodes) {
-		auto ret = Result{};
-		this->nodes = nodes;
-		for (auto const& node_idx : skin.joints) { add_node_and_children(node_idx); }
-		auto old = std::move(joints);
-		for (auto const node_idx : skin.joints) {
-			assert(map.contains(node_idx));
-			auto& entry = map[node_idx];
-			entry.joint.self = entry.index = joints.size();
-			joints.push_back(std::move(entry.joint));
-		}
-		for (auto& joint : joints) {
-			for (auto& child : joint.children) {
-				assert(map.contains(child));
-				child = map[child].index;
+	void add_node_and_children(std::size_t index) {
+		auto const& in_node = root.nodes[index];
+		add_node(index);
+		for (auto const child_index : in_node.children) { add_node_and_children(child_index); }
+	}
+
+	void setup_hierarchy() {
+		for (auto const& [in_index, node_id] : mapping) {
+			auto* out_node = joints.find(node_id);
+			assert(out_node);
+			auto const& in_node = root.nodes[in_index];
+			if (in_node.parent) {
+				auto it = mapping.find(*in_node.parent);
+				assert(it != mapping.end());
+				joints.reparent(*out_node, it->second);
 			}
 		}
-		ret.joints = std::move(joints);
-		for (auto const& [i, e] : map) { ret.map.insert_or_assign(i, e.index); }
-		return ret;
+	}
+
+	std::size_t find_root_of(std::size_t node_index) const {
+		auto const& node = root.nodes[node_index];
+		if (!node.parent) { return node_index; }
+		return find_root_of(*node.parent);
+	}
+
+	void setup_for(gltf2cpp::Skin const& skin) {
+		if (skin.skeleton) { add_node(*skin.skeleton); }
+		for (auto index : skin.joints) {
+			index = find_root_of(index);
+			if (!mapping.contains(index)) { add_node_and_children(index); }
+		}
+		for (auto const index : skin.joints) {
+			auto const it = mapping.find(index);
+			assert(it != mapping.end());
+			ordered_joints.push_back(it->second);
+		}
+		setup_hierarchy();
 	}
 };
 
@@ -199,6 +238,9 @@ Resource make_resource(std::string_view in, std::string_view type, std::size_t i
 }
 
 struct Exporter {
+	template <typename T>
+	using Index = gltf2cpp::Index<T>;
+
 	ImportMap& out_imported;
 	Logger const& import_logger;
 	gltf2cpp::Root const& in_root;
@@ -234,10 +276,10 @@ struct Exporter {
 		return false;
 	}
 
-	std::string copy_image(gltf2cpp::Image const& in, std::size_t index) {
+	std::string copy_image(gltf2cpp::Image const& in, std::size_t index, std::string_view subdir = "textures") {
 		assert(!in.source_filename.empty());
 		if (auto it = out_imported.images.find(index); it != out_imported.images.end()) { return it->second; }
-		auto uri = (dir_uri / in.source_filename).generic_string();
+		auto uri = (dir_uri / subdir / in.source_filename).generic_string();
 		auto dst = uri_prefix / uri;
 		if (!should_overwrite(dst.generic_string())) { return uri; }
 
@@ -248,11 +290,15 @@ struct Exporter {
 		return uri;
 	}
 
-	std::string copy_image(gltf2cpp::Texture const& in, std::size_t index) { return copy_image(in_root.images[in.source], index); }
+	std::string copy_image(gltf2cpp::Texture const& in, std::size_t index, std::string_view subdir = "textures") {
+		return copy_image(in_root.images[in.source], index, subdir);
+	}
 
 	levk::Uri<levk::Texture> export_texture(gltf2cpp::Texture const& in, std::size_t index, levk::ColourSpace colour_space) {
 		auto image_uri = copy_image(in_root.images[in.source], index);
-		auto uri = (dir_uri / fmt::format("{}.json", in_root.images[in.source].source_filename)).generic_string();
+		auto json_uri = fs::path{image_uri};
+		json_uri = json_uri.parent_path() / json_uri.stem();
+		auto uri = fmt::format("{}.json", json_uri.generic_string());
 		auto dst = uri_prefix / uri;
 		if (!should_overwrite(dst.generic_string())) { return uri; }
 
@@ -266,9 +312,11 @@ struct Exporter {
 
 	levk::Uri<levk::Material> export_material(Resource const& resource, bool skinned) {
 		if (auto it = out_imported.materials.find(resource.index); it != out_imported.materials.end()) { return it->second; }
-		auto uri = (dir_uri / fmt::format("{}.json", resource.name.out)).generic_string();
+		auto uri = (dir_uri / "materials" / fmt::format("{}.json", resource.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
 		if (!should_overwrite(dst.generic_string())) { return uri; }
+
+		fs::create_directories(dst.parent_path());
 
 		auto const& in = in_root.materials[resource.index];
 		auto material = asset::Material{};
@@ -289,7 +337,10 @@ struct Exporter {
 		material.fragment_shader = "shaders/lit.frag";
 		auto json = dj::Json{};
 		to_json(json, material);
-		json.to_file(dst.string().c_str());
+		if (!json.to_file(dst.string().c_str())) {
+			import_logger.error("[legsmi] Failed to write material JSON [{}]", uri);
+			return {};
+		}
 		import_logger.info("[legsmi] Material [{}] imported", uri);
 		out_imported.add_to(out_imported.materials, resource.index, uri);
 		return uri;
@@ -297,9 +348,11 @@ struct Exporter {
 
 	levk::Uri<asset::BinGeometry> export_geometry(gltf2cpp::Mesh const& in, std::size_t primitive_index, std::size_t mesh_index, std::vector<glm::uvec4> joints,
 												  std::vector<glm::vec4> weights) {
-		auto uri = (dir_uri / fmt::format("mesh_{}.geometry_{}.bin", mesh_index, primitive_index)).generic_string();
+		auto uri = (dir_uri / "geometries" / fmt::format("mesh_{}.geometry_{}.bin", mesh_index, primitive_index)).generic_string();
 		auto dst = uri_prefix / uri;
 		if (!should_overwrite(dst.generic_string())) { return uri; }
+
+		fs::create_directories(dst.parent_path());
 
 		auto bin = asset::BinGeometry{};
 		bin.geometry = to_geometry(in.primitives[primitive_index]);
@@ -315,6 +368,8 @@ struct Exporter {
 		auto uri = (dir_uri / fmt::format("{}.json", resource.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
 		if (!should_overwrite(dst.generic_string())) { return uri; }
+
+		fs::create_directories(dst.parent_path());
 
 		auto out_mesh = asset::Mesh3D{.type = asset::Mesh3D::Type::eStatic};
 		auto const& in_mesh = in_root.meshes[resource.index];
@@ -372,9 +427,11 @@ struct Exporter {
 	}
 
 	levk::Uri<asset::BinSkeletalAnimation> export_skeletal_animation(Resource const& resource, asset::BinSkeletalAnimation const& animation) {
-		auto uri = (dir_uri / fmt::format("{}.bin", resource.name.out)).generic_string();
+		auto uri = (dir_uri / "animations" / fmt::format("{}.bin", resource.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
 		if (!should_overwrite(dst.generic_string())) { return uri; }
+
+		fs::create_directories(dst.parent_path());
 
 		if (!animation.write(dst.generic_string().c_str())) {
 			import_logger.error("[legsmi] Failed to import Skeletal Animation: [{}]", uri);
@@ -385,10 +442,68 @@ struct Exporter {
 		return uri;
 	}
 
+	asset::BinSkeletalAnimation to_skeletal_animation(GltfNodeToJoint const& mapping, std::size_t index) {
+		auto const& in_animation = in_root.animations[index];
+		auto const resource = make_resource(in_animation.name, "animation", index);
+		auto ret = asset::BinSkeletalAnimation{};
+		ret.name = in_animation.name;
+		for (auto const& in_channel : in_animation.channels) {
+			if (!in_channel.target.node) { continue; }
+			auto joint_it = mapping.find(*in_channel.target.node);
+			if (joint_it == mapping.end()) { continue; }
+			using Path = gltf2cpp::Animation::Path;
+			auto out_sampler = asset::BinSkeletalAnimation::Sampler{};
+			auto const& in_sampler = in_animation.samplers[in_channel.sampler];
+			if (in_sampler.interpolation == gltf2cpp::Interpolation::eCubicSpline) { continue; } // facade constraint
+			auto const& input = in_root.accessors[in_sampler.input];
+			assert(input.type == gltf2cpp::Accessor::Type::eScalar && input.component_type == gltf2cpp::ComponentType::eFloat);
+			auto times = std::get<gltf2cpp::Accessor::Float>(input.data).span();
+			auto const& output = in_root.accessors[in_sampler.output];
+			assert(output.component_type == gltf2cpp::ComponentType::eFloat);
+			auto const values = std::get<gltf2cpp::Accessor::Float>(output.data).span();
+			switch (in_channel.target.path) {
+			case Path::eTranslation:
+			case Path::eScale: {
+				assert(output.type == gltf2cpp::Accessor::Type::eVec3);
+				auto vec = std::vector<glm::vec3>{};
+				vec.resize(values.size() / 3);
+				std::memcpy(vec.data(), values.data(), values.size_bytes());
+				if (in_channel.target.path == Path::eScale) {
+					out_sampler = levk::TransformAnimation::Scale{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
+				} else {
+					out_sampler = levk::TransformAnimation::Translate{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
+				}
+				break;
+			}
+			case Path::eRotation: {
+				assert(output.type == gltf2cpp::Accessor::Type::eVec4);
+				auto vec = std::vector<glm::quat>{};
+				vec.resize(values.size() / 4);
+				std::memcpy(vec.data(), values.data(), values.size_bytes());
+				out_sampler = levk::TransformAnimation::Rotate{make_interpolator<glm::quat>(times, vec, in_sampler.interpolation)};
+				break;
+			}
+			default:
+				// TODO: not implemented
+				continue;
+			}
+
+			ret.samplers.push_back(std::move(out_sampler));
+			ret.target_joints.push_back(joint_it->second);
+		}
+		if (!ret.samplers.empty()) {
+			assert(ret.samplers.size() == ret.target_joints.size());
+			export_skeletal_animation(resource, ret);
+		}
+		return ret;
+	}
+
 	levk::Uri<levk::Skeleton> export_skeleton(Resource const& resource_skin) {
-		auto uri = (dir_uri / fmt::format("{}.json", resource_skin.name.out)).generic_string();
+		auto uri = (dir_uri / "skeletons" / fmt::format("{}.json", resource_skin.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
 		if (!should_overwrite(dst.generic_string())) { return uri; }
+
+		fs::create_directories(dst.parent_path());
 
 		auto skin_node = Ptr<gltf2cpp::Node const>{};
 		for (auto& node : in_root.nodes) {
@@ -399,73 +514,24 @@ struct Exporter {
 		assert(skin_node->mesh.has_value());
 		if (auto it = out_imported.skeletons.find(resource_skin.index); it != out_imported.skeletons.end()) { return it->second; }
 
-		auto const& in = in_root.skins[resource_skin.index];
-		auto [joints, map] = MapGltfNodesToJoints{}(in, in_root.nodes);
+		auto const& in_skin = in_root.skins[resource_skin.index];
+		auto mapper = MapGltfNodesToJoints{in_root};
+		mapper.setup_for(in_skin);
+		auto asset = levk::Skeleton{.joint_tree = std::move(mapper.joints), .ordered_joints_ids = std::move(mapper.ordered_joints)};
 
-		auto animations = std::vector<asset::BinSkeletalAnimation>{};
-		for (auto const& in_animation : in_root.animations) {
-			auto out_animation = asset::BinSkeletalAnimation{};
-			out_animation.name = in_animation.name;
-			for (auto const& in_channel : in_animation.channels) {
-				if (!in_channel.target.node) { continue; }
-				auto joint_it = map.find(*in_channel.target.node);
-				if (joint_it == map.end()) { continue; }
-				using Path = gltf2cpp::Animation::Path;
-				auto out_sampler = asset::BinSkeletalAnimation::Sampler{};
-				auto const& in_sampler = in_animation.samplers[in_channel.sampler];
-				if (in_sampler.interpolation == gltf2cpp::Interpolation::eCubicSpline) { continue; } // facade constraint
-				auto const& input = in_root.accessors[in_sampler.input];
-				assert(input.type == gltf2cpp::Accessor::Type::eScalar && input.component_type == gltf2cpp::ComponentType::eFloat);
-				auto times = std::get<gltf2cpp::Accessor::Float>(input.data).span();
-				auto const& output = in_root.accessors[in_sampler.output];
-				assert(output.component_type == gltf2cpp::ComponentType::eFloat);
-				auto const values = std::get<gltf2cpp::Accessor::Float>(output.data).span();
-				switch (in_channel.target.path) {
-				case Path::eTranslation:
-				case Path::eScale: {
-					assert(output.type == gltf2cpp::Accessor::Type::eVec3);
-					auto vec = std::vector<glm::vec3>{};
-					vec.resize(values.size() / 3);
-					std::memcpy(vec.data(), values.data(), values.size_bytes());
-					if (in_channel.target.path == Path::eScale) {
-						out_sampler = levk::TransformAnimation::Scale{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
-					} else {
-						out_sampler = levk::TransformAnimation::Translate{make_interpolator<glm::vec3>(times, vec, in_sampler.interpolation)};
-					}
-					break;
-				}
-				case Path::eRotation: {
-					assert(output.type == gltf2cpp::Accessor::Type::eVec4);
-					auto vec = std::vector<glm::quat>{};
-					vec.resize(values.size() / 4);
-					std::memcpy(vec.data(), values.data(), values.size_bytes());
-					out_sampler = levk::TransformAnimation::Rotate{make_interpolator<glm::quat>(times, vec, in_sampler.interpolation)};
-					break;
-				}
-				default:
-					// TODO: not implemented
-					continue;
-				}
-
-				out_animation.samplers.push_back(std::move(out_sampler));
-				out_animation.target_joints.push_back(joint_it->second);
-			}
-			if (!out_animation.samplers.empty()) {
-				assert(out_animation.samplers.size() == out_animation.target_joints.size());
-				animations.push_back(std::move(out_animation));
-			}
-		}
-
-		auto asset = asset::Skeleton{.joints = std::move(joints)};
-		for (auto const [in_animation, index] : levk::enumerate(animations)) {
+		for (auto const [in_animation, index] : levk::enumerate(in_root.animations)) {
 			auto const animation_prefix = make_resource(in_animation.name, "animation", index);
-			asset.animations.push_back(export_skeletal_animation(animation_prefix, in_animation));
+			auto const skeletal_animation = to_skeletal_animation(mapper.mapping, index);
+			asset.animations.push_back(export_skeletal_animation(animation_prefix, skeletal_animation));
 		}
 
 		asset.name = fs::path{resource_skin.name.out}.stem().string();
 		auto json = dj::Json{};
-		to_json(json, asset);
-		json.to_file(dst.string().c_str());
+		asset::to_json(json, asset);
+		if (!json.to_file(dst.string().c_str())) {
+			import_logger.error("[legsmi] Failed to write Skeleton JSON [{}]", uri);
+			return {};
+		}
 		import_logger.info("[legsmi] Skeleton [{}] imported", uri);
 		out_imported.add_to(out_imported.skeletons, resource_skin.index, uri);
 		return uri;
@@ -478,7 +544,7 @@ struct SceneWalker {
 	AssetList const& asset_list;
 	std::string export_uri;
 
-	levk::Scene& out_scene;
+	levk::Level& out_level;
 
 	std::unordered_map<std::size_t, levk::Uri<levk::StaticMesh>> imported_meshes{};
 
@@ -499,11 +565,10 @@ struct SceneWalker {
 
 	void add_node(std::size_t index, levk::Id<levk::Node> parent) {
 		auto const& in_node = importer.root.nodes[index];
-		auto& out_node = out_scene.spawn(levk::NodeCreateInfo{.transform = legsmi::from(in_node.transform), .name = in_node.name, .parent = parent});
-		if (in_node.mesh) {
-			auto uri = import_mesh(*in_node.mesh);
-			out_scene.get(out_node.entity).attach(std::make_unique<levk::StaticMeshRenderer>()).mesh = std::move(uri);
-		}
+		auto& out_node = out_level.node_tree.add(levk::NodeCreateInfo{.transform = legsmi::from(in_node.transform), .name = in_node.name, .parent = parent});
+		if (in_node.mesh) { out_level.attachments[out_node.id()].mesh_uri = import_mesh(*in_node.mesh); }
+		// TODO: cameras
+		if (in_node.camera) { out_level.camera = from(importer.root.cameras[*in_node.camera]); }
 		parent = out_node.id();
 		for (auto const node_index : in_node.children) { add_node(node_index, parent); }
 	}
@@ -519,14 +584,14 @@ struct SceneWalker {
 };
 } // namespace
 
-std::string AssetList::make_default_scene_uri(std::size_t scene_index) const {
+std::string AssetList::make_default_level_uri(std::size_t scene_index) const {
 	auto uri = fs::path{gltf_path}.stem();
 	if (scene_index < scenes.size() && !scenes[scene_index].name.empty()) {
 		uri /= scenes[scene_index].name;
 	} else {
 		uri /= uri.filename();
 	}
-	return fmt::format("{}.scene_{}.json", uri.generic_string(), scene_index);
+	return fmt::format("{}.level_{}.json", uri.generic_string(), scene_index);
 }
 
 MeshImporter AssetList::mesh_importer(std::string root_path, std::string dir_uri, Logger import_logger, bool overwrite) const {
@@ -555,7 +620,7 @@ SceneImporter AssetList::scene_importer(std::string root_path, std::string dir_u
 	ret.mesh_importer = mesh_importer(root_path, dir_uri, std::move(import_logger), overwrite);
 	if (!ret.mesh_importer) { return {}; }
 	ret.asset_list = peek_assets(gltf_path, serializer);
-	ret.scene_uri = std::move(scene_uri);
+	ret.level_uri = std::move(scene_uri);
 	return ret;
 }
 
@@ -578,17 +643,19 @@ levk::Uri<asset::Mesh3D> MeshImporter::try_import(Mesh const& mesh, ImportMap& o
 	}
 }
 
-levk::Uri<levk::Scene> SceneImporter::try_import(Scene const& scene, ImportMap& out_imported) const {
+levk::Uri<levk::Level> SceneImporter::try_import(Scene const& scene, ImportMap& out_imported) const {
 	auto const export_path = fs::path{mesh_importer.uri_prefix} / mesh_importer.dir_uri;
 	try {
-		auto out_scene = levk::Scene{};
-		auto ret = SceneWalker{out_imported, mesh_importer, asset_list, export_path.generic_string(), out_scene}(scene);
+		auto out_level = levk::Level{};
+		auto ret = SceneWalker{out_imported, mesh_importer, asset_list, export_path.generic_string(), out_level}(scene);
+		out_level.name = fs::path{level_uri}.stem().stem().string();
 
-		auto scene_path = fs::path{mesh_importer.uri_prefix} / scene_uri;
-		auto json = mesh_importer.serializer->serialize(out_scene);
+		auto scene_path = fs::path{mesh_importer.uri_prefix} / level_uri;
+		auto json = dj::Json{};
+		asset::to_json(json, out_level);
 		json.to_file(scene_path.string().c_str());
 
-		return scene_uri;
+		return level_uri;
 	} catch (std::exception const& e) {
 		mesh_importer.import_logger.error("[legsmi] Fatal error: {}", e.what());
 		return {};

@@ -1,16 +1,12 @@
 #pragma once
-#include <levk/scene/component.hpp>
-#include <levk/util/bit_flags.hpp>
+#include <levk/io/serializable.hpp>
 #include <levk/util/type_id.hpp>
+#include <functional>
+#include <string>
 
 namespace levk {
 class Serializer {
   public:
-	enum class Tag : std::uint8_t {
-		eComponent = 1 << 0,
-	};
-	using Tags = BitFlags<Tag>;
-
 	template <typename Type>
 	using Factory = std::function<std::unique_ptr<Type>()>;
 
@@ -33,13 +29,6 @@ class Serializer {
 		return {};
 	}
 
-	template <std::derived_from<Serializable> To>
-	static constexpr Tags build_tags() {
-		auto ret = Tags{};
-		if constexpr (std::derived_from<To, Component>) { ret.set(Tag::eComponent); }
-		return ret;
-	}
-
 	// clang-format off
 	template <std::derived_from<Serializable> Type>
 		requires(std::is_default_constructible_v<Type>) 
@@ -58,10 +47,10 @@ class Serializer {
 
 	template <std::derived_from<Serializable> Type>
 	bool bind_to(std::string type_name, Factory<Type> factory) {
-		return bind_to(std::move(type_name), TypeId::make<Type>(), std::move(factory), build_tags<Type>());
+		return bind_to(std::move(type_name), TypeId::make<Type>(), std::move(factory));
 	}
 
-	bool bind_to(std::string type_name, TypeId type_id, Factory<Serializable> factory, Tags tags);
+	bool bind_to(std::string type_name, TypeId type_id, Factory<Serializable> factory);
 
 	template <typename Type>
 	std::unique_ptr<Type> try_make(std::string const& type_name) const {
@@ -71,7 +60,6 @@ class Serializer {
 
 	TypeId type_id(std::string const& type_name) const;
 	std::unordered_set<std::string> const& type_names() const { return m_type_names; }
-	std::vector<std::string_view> type_names_by_tag(Tag tag) const;
 
 	dj::Json serialize(Serializable const& serializable) const;
 	Result<Serializable> deserialize(dj::Json const& json) const;
@@ -82,13 +70,10 @@ class Serializer {
 		return {dynamic_unique_cast<To>(std::move(result.value)), result.type_name, result.type_id};
 	}
 
-	bool attach(Entity& out, std::string const& type_name) const;
-
   protected:
 	struct Entry {
 		Factory<Serializable> factory{};
 		TypeId type_id{};
-		Tags tags{};
 	};
 
 	std::unordered_map<std::string, Entry> m_entries{};

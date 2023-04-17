@@ -32,6 +32,8 @@ SceneRenderer::Frame build_render_frame(SceneRenderer& scene_renderer, Scene con
 
 	auto opaque = DrawList{};
 	auto transparent = DrawList{};
+	opaque.import_skins(render_list.scene.skins());
+	transparent.import_skins(render_list.scene.skins());
 	for (auto const& drawable : render_list.scene.drawables()) {
 		if (drawable.material->is_opaque()) {
 			opaque.add(drawable);
@@ -43,7 +45,7 @@ SceneRenderer::Frame build_render_frame(SceneRenderer& scene_renderer, Scene con
 	auto& buffer_pool = scene_renderer.buffer_pools[*scene_renderer.device.buffered_index];
 
 	opaque.sort_by([](Drawable const& a, Drawable const& b) { return a.material.get() < b.material.get(); });
-	ret.opaque = RenderObject::build_objects(opaque.drawables(), buffer_pool);
+	ret.opaque = RenderObject::build_objects(opaque, buffer_pool);
 
 	transparent.sort_by([camera_position = scene.camera.transform.position()](Drawable const& a, Drawable const& b) {
 		auto const transform_a = Transform::from(a.parent);
@@ -52,9 +54,9 @@ SceneRenderer::Frame build_render_frame(SceneRenderer& scene_renderer, Scene con
 		auto const sqr_dist_b = glm::length2(transform_b.position() - camera_position);
 		return sqr_dist_a < sqr_dist_b;
 	});
-	ret.transparent = RenderObject::build_objects(transparent.drawables(), buffer_pool);
+	ret.transparent = RenderObject::build_objects(transparent, buffer_pool);
 
-	ret.ui = RenderObject::build_objects(render_list.ui.drawables(), buffer_pool);
+	ret.ui = RenderObject::build_objects(render_list.ui, buffer_pool);
 
 	return ret;
 }
@@ -147,7 +149,7 @@ struct Drawer {
 		if (object.instances.mats_vbo.buffer) { cb.bindVertexBuffers(object.instances.vertex_binding_v, object.instances.mats_vbo.buffer, vk::DeviceSize{0}); }
 		if (object.joints.mats_ssbo.buffer) { shader.update(object.joints.descriptor_set_v, object.joints.descriptor_binding_v, object.joints.mats_ssbo); }
 		shader.bind(pipeline.layout, cb);
-		primitive->draw(cb);
+		primitive->draw(cb, object.instances.count);
 		++*device.draw_calls;
 	}
 };
@@ -163,16 +165,17 @@ SceneRenderer::SceneRenderer(DeviceView const& device) : device(device), global_
 	for (auto& pool : buffer_pools) { pool.device = device; }
 }
 
-void SceneRenderer::build_frame(Scene const& scene, RenderList const& render_list) {
+void SceneRenderer::next_frame() {
+	assert(scene && render_list);
 	buffer_pools[*device.buffered_index].reset_all();
 
 	if constexpr (debug_v) {
 		static constexpr auto warn_size_v{2048};
-		auto const list_size = render_list.size();
+		auto const list_size = render_list->size();
 		if (list_size > warn_size_v) { g_log.warn("RenderList contains [{}] drawables / draw calls, consider reducing the count.", list_size); }
 	}
 
-	frame = build_render_frame(*this, scene, render_list);
+	frame = build_render_frame(*this, *scene, *render_list);
 }
 
 void SceneRenderer::render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer, glm::vec2 const map_size) {

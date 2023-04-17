@@ -12,14 +12,11 @@ SceneRenderer::SceneRenderer(NotNull<AssetProviders const*> asset_providers)
 	  m_asset_providers(asset_providers) {}
 
 void SceneRenderer::render(Scene const& scene) const {
-	auto render_list = RenderList{};
-	render(scene, render_list);
-}
-
-void SceneRenderer::render(Scene const& scene, RenderList render_list) const {
 	assert(m_impl);
+	auto render_list = RenderList{};
 	scene.render(render_list);
-	m_impl->build_frame(scene, render_list);
+	m_impl->scene = &scene;
+	m_impl->render_list = &render_list;
 	m_render_device->vulkan_device().render(*m_impl, *m_asset_providers);
 }
 } // namespace levk

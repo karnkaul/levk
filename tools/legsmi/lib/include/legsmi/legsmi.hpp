@@ -2,6 +2,7 @@
 #include <gltf2cpp/gltf2cpp.hpp>
 #include <levk/asset/common.hpp>
 #include <levk/graphics/render_device.hpp>
+#include <levk/level/level.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/not_null.hpp>
 #include <levk/util/ptr.hpp>
@@ -58,7 +59,7 @@ struct AssetList {
 	std::string default_dir_uri{};
 	bool has_skinned_mesh{};
 
-	std::string make_default_scene_uri(std::size_t scene_index) const;
+	std::string make_default_level_uri(std::size_t scene_index) const;
 
 	MeshImporter mesh_importer(std::string root_path, std::string dir_uri, Logger import_logger = {}, bool overwrite = {}) const;
 	SceneImporter scene_importer(std::string root_path, std::string dir_uri, std::string scene_uri, Logger import_logger = {}, bool overwrite = {}) const;
@@ -83,9 +84,9 @@ struct MeshImporter {
 struct SceneImporter {
 	AssetList asset_list{};
 	MeshImporter mesh_importer{};
-	std::string scene_uri{};
+	std::string level_uri{};
 
-	levk::Uri<levk::Scene> try_import(Scene const& scene, ImportMap& out_imported) const;
+	levk::Uri<levk::Level> try_import(Scene const& scene, ImportMap& out_imported) const;
 
 	explicit operator bool() const { return !!mesh_importer; }
 };

@@ -8,6 +8,7 @@
 namespace levk {
 struct FontLibrary;
 class ThreadPool;
+class Scene;
 
 struct EngineCreateInfo {
 	glm::uvec2 window_extent{1280u, 720u};
@@ -15,11 +16,6 @@ struct EngineCreateInfo {
 	bool autoshow{};
 
 	RenderDeviceCreateInfo render_device_create_info{};
-};
-
-struct Frame {
-	Window::State const& state;
-	Time dt{};
 };
 
 class Engine {
@@ -33,10 +29,9 @@ class Engine {
 	FontLibrary const& font_library() const;
 	ThreadPool& thread_pool() const;
 
-	Frame next_frame();
+	void next_frame();
 	FrameProfile frame_profile() const;
 
-	Time delta_time() const;
 	int framerate() const;
 
   private:

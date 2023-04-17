@@ -18,6 +18,8 @@ class DiskVfs : public DataSink {
 
 	Ptr<UriMonitor> uri_monitor() const final { return m_monitor.get(); }
 
+	bool change_mount_point(std::string_view new_mount_point);
+
   private:
 	std::unique_ptr<UriMonitor> m_monitor{};
 	std::string m_mount_point{};

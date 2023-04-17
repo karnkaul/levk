@@ -4,21 +4,21 @@
 #include <levk/imcpp/input_text.hpp>
 
 namespace levk {
-class Scene;
+struct Level;
 }
 
 namespace levk::imcpp {
 class GltfImportWizard {
   public:
-	enum class Type { eMesh, eScene };
+	enum class Type { eMesh, eLevel };
 
 	struct Result {
-		Uri<Scene> scene{};
+		Uri<Level> level{};
 		Uri<Mesh> mesh{};
 		bool should_load{};
 		bool inactive{};
 
-		explicit operator bool() const { return scene || mesh; }
+		explicit operator bool() const { return level || mesh; }
 	};
 
 	GltfImportWizard(std::string gltf_path, std::string root);
@@ -26,14 +26,14 @@ class GltfImportWizard {
 	Result update();
 
   private:
-	enum class Page { eNone, eType, eMesh, eScene };
+	enum class Page { eNone, eType, eMesh, eLevel };
 
 	struct Shared {
 		std::string gltf_path{};
 		std::string gltf_filename{};
 		std::string root_path{};
 		legsmi::AssetList asset_list{};
-		bool allow_scene{};
+		bool allow_level{};
 	};
 
 	struct TypePage {
@@ -57,7 +57,7 @@ class GltfImportWizard {
 		Uri<Mesh> import_mesh(Shared& out);
 	};
 
-	struct ScenePage {
+	struct LevelPage {
 		struct Entry {
 			std::string display_name{};
 			legsmi::Scene scene{};
@@ -70,7 +70,7 @@ class GltfImportWizard {
 
 		void setup(Shared const& shared);
 		void update(Shared& out);
-		Uri<Scene> import_scene(Shared& out);
+		Uri<Level> import_scene(Shared& out);
 	};
 
 	struct Walk;
@@ -78,12 +78,12 @@ class GltfImportWizard {
 	struct {
 		TypePage type{};
 		MeshPage mesh{};
-		ScenePage scene{};
+		LevelPage level{};
 	} m_pages{};
 
 	Shared m_shared{};
 	Page m_current{};
 	bool m_load_mesh{};
-	bool m_load_scene{};
+	bool m_load_level{};
 };
 } // namespace levk::imcpp

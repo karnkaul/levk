@@ -3,9 +3,11 @@
 #include <levk/graphics/camera.hpp>
 #include <levk/graphics/common.hpp>
 #include <levk/graphics/geometry.hpp>
+#include <levk/graphics/lights.hpp>
 #include <levk/graphics/material.hpp>
 #include <levk/graphics/skeleton.hpp>
 #include <levk/graphics/texture.hpp>
+#include <levk/level/level.hpp>
 #include <levk/rect.hpp>
 #include <levk/transform.hpp>
 #include <levk/uri.hpp>
@@ -80,6 +82,15 @@ void to_json(dj::Json& out, ViewPlane const& view_plane);
 void from_json(dj::Json const& json, Camera& out);
 void to_json(dj::Json& out, Camera const& camera);
 
+void from_json(dj::Json const& json, Lights& out);
+void to_json(dj::Json& out, Lights const& lights);
+
+void from_json(dj::Json const& json, NodeTree& out);
+void to_json(dj::Json& out, NodeTree const& node_tree);
+
+void from_json(dj::Json const& json, Level& out);
+void to_json(dj::Json& out, Level const& level);
+
 struct Material {
 	MaterialTextures textures{};
 	Rgba albedo{white_v};
@@ -141,14 +152,6 @@ struct BinSkeletalAnimation {
 	bool write(char const* path) const;
 	bool read(char const* path);
 	bool read(std::span<std::byte const> bytes);
-};
-
-struct Skeleton {
-	using Joint = levk::Skeleton::Joint;
-
-	std::vector<Joint> joints{};
-	std::vector<Uri<BinSkeletalAnimation>> animations{};
-	std::string name{};
 };
 
 void from_json(dj::Json const& json, Skeleton& out);

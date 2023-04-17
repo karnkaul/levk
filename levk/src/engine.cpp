@@ -31,10 +31,9 @@ auto const g_log{Logger{"Engine"}};
 struct Engine::Impl {
 	Service<Window>::Instance window;
 	Service<RenderDevice>::Instance render_device;
-	std::unique_ptr<FontLibrary> font_library{};
+	std::unique_ptr<FontLibrary> font_library;
 	ThreadPool thread_pool{};
 
-	DeltaTime dt{};
 	Fps fps{};
 
 	Impl(CreateInfo const& create_info)
@@ -57,15 +56,13 @@ RenderDevice& Engine::render_device() const { return m_impl->render_device.get()
 FontLibrary const& Engine::font_library() const { return *m_impl->font_library; }
 ThreadPool& Engine::thread_pool() const { return m_impl->thread_pool; }
 
-Frame Engine::next_frame() {
+void Engine::next_frame() {
 	FrameProfiler::instance().profile(FrameProfile::Type::eFrameTime);
 	m_impl->window.get().poll();
 	m_impl->fps();
-	return {.state = m_impl->window.get().state(), .dt = m_impl->dt()};
 }
 
 FrameProfile Engine::frame_profile() const { return FrameProfiler::instance().previous_profile(); }
 
-Time Engine::delta_time() const { return m_impl->dt.value; }
 int Engine::framerate() const { return m_impl->fps.fps == 0 ? m_impl->fps.frames : m_impl->fps.fps; }
 } // namespace levk

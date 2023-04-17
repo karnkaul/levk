@@ -118,26 +118,36 @@ set(font_headers
   include/levk/font/static_font_atlas.hpp
 )
 
-set(scene_headers
-  include/levk/scene/component.hpp
-  include/levk/scene/entity.hpp
-  include/levk/scene/freecam_controller.hpp
-  include/levk/scene/inspectable.hpp
-  include/levk/scene/primitive_renderer.hpp
-  include/levk/scene/scene_manager.hpp
-  include/levk/scene/scene_camera.hpp
-  include/levk/scene/scene_renderer.hpp
-  include/levk/scene/scene.hpp
-  include/levk/scene/shape_renderer.hpp
-  include/levk/scene/skeleton_controller.hpp
-  include/levk/scene/skinned_mesh_renderer.hpp
-  include/levk/scene/static_mesh_renderer.hpp
+set(node_headers
+  include/levk/node/node_tree_serializer.hpp
+  include/levk/node/node_tree.hpp
+  include/levk/node/node.hpp
+)
+
+set(level_headers
+  include/levk/level/inspectable.hpp
+  include/levk/level/level.hpp
+  include/levk/level/shape.hpp
 )
 
 set(ui_headers
   include/levk/ui/primitive.hpp
   include/levk/ui/text.hpp
   include/levk/ui/view.hpp
+)
+
+set(scene_headers
+  include/levk/scene/component.hpp
+  include/levk/scene/entity.hpp
+  include/levk/scene/freecam_controller.hpp
+  include/levk/scene/scene_camera.hpp
+  include/levk/scene/scene_manager.hpp
+  include/levk/scene/scene_renderer.hpp
+  include/levk/scene/scene.hpp
+  include/levk/scene/shape_renderer.hpp
+  include/levk/scene/skeleton_controller.hpp
+  include/levk/scene/skinned_mesh_renderer.hpp
+  include/levk/scene/static_mesh_renderer.hpp
 )
 
 set(levk_headers
@@ -149,15 +159,15 @@ set(levk_headers
   ${assets_headers}
   ${vfs_headers}
   ${font_headers}
-  ${scene_headers}
+  ${level_headers}
   ${ui_headers}
+  ${scene_headers}
 
   include/levk/context.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
   include/levk/frame_profile.hpp
   include/levk/interpolator.hpp
-  include/levk/node.hpp
   include/levk/rect.hpp
   include/levk/runtime.hpp
   include/levk/service.hpp

@@ -37,15 +37,17 @@ void Runtime::run() {
 	setup();
 	m_context.show();
 	while (m_context.is_running()) {
-		auto frame = m_context.next_frame();
+		m_context.next_frame();
+		auto const dt = m_delta_time();
 		FrameProfiler::instance().profile(FrameProfile::Type::eTick);
 		auto* monitor = m_context.asset_providers.get().uri_monitor();
-		if (monitor && frame.state.focus_changed() && frame.state.is_in_focus()) {
+		auto const& state = m_context.engine.get().window().state();
+		if (monitor && state.focus_changed() && state.is_in_focus()) {
 			monitor->dispatch_modified();
 			m_context.asset_providers.get().reload_out_of_date();
 		}
-		tick(frame);
-		m_context.scene_manager.get().tick(frame.state, frame.dt);
+		tick(dt);
+		m_context.scene_manager.get().tick(dt);
 		render();
 	}
 }
