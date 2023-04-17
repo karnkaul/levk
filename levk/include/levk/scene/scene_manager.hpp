@@ -14,11 +14,9 @@ class SceneManager {
   public:
 	SceneManager(NotNull<AssetProviders*> asset_providers);
 
-	bool load_into_tree(Uri<Mesh> const& uri);
-	bool load_into_tree(Uri<StaticMesh> const& uri);
-	bool load_into_tree(Uri<SkinnedMesh> const& uri);
-	bool add_to_tree(Uri<StaticMesh> const& uri, StaticMesh const& static_mesh);
-	bool add_to_tree(Uri<SkinnedMesh> const& uri, SkinnedMesh const& skinned_mesh);
+	bool load_and_spawn(Uri<Mesh> const& uri, std::string name = {});
+	bool load_and_spawn(Uri<StaticMesh> const& uri, std::string name = {});
+	bool load_and_spawn(Uri<SkinnedMesh> const& uri, std::string name = {});
 
 	AssetProviders& asset_providers() const { return *m_asset_providers; }
 	DataSource const& data_source() const;

@@ -3,6 +3,8 @@
 #include <levk/util/type_id.hpp>
 #include <functional>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace levk {
 class Serializer {

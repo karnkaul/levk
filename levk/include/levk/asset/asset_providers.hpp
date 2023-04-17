@@ -9,7 +9,7 @@
 #include <levk/util/signal.hpp>
 
 namespace levk {
-class Level;
+struct Level;
 
 class AssetProviders {
   public:

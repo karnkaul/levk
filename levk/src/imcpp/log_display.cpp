@@ -5,6 +5,7 @@
 #include <levk/util/logger.hpp>
 #include <levk/util/reversed.hpp>
 #include <algorithm>
+#include <vector>
 
 namespace levk::imcpp {
 namespace {

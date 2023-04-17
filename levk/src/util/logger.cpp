@@ -1,6 +1,7 @@
 #include <levk/util/async_queue.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/ptr.hpp>
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <filesystem>

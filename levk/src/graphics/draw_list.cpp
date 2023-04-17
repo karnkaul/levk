@@ -13,6 +13,10 @@ void DrawList::add(NotNull<StaticPrimitive const*> primitive, NotNull<Material c
 	});
 }
 
+void DrawList::add(NotNull<StaticPrimitive const*> primitive, NotNull<Material const*> material, Transform const& transform) {
+	add(primitive, material, {transform.matrix()});
+}
+
 void DrawList::add(NotNull<DynamicPrimitive const*> primitive, NotNull<Material const*> material, Instances const& instances) {
 	m_drawables.push_back(Drawable{
 		.primitive = primitive->vulkan_primitive(),
@@ -22,14 +26,9 @@ void DrawList::add(NotNull<DynamicPrimitive const*> primitive, NotNull<Material 
 	});
 }
 
-// void DrawList::add(NotNull<SkinnedPrimitive const*> primitive, NotNull<Material const*> material, Skin const& skin) {
-// 	m_drawables.push_back(Drawable{
-// 		.primitive = primitive->vulkan_primitive(),
-// 		.material = material,
-// 		.inverse_bind_matrices = skin.inverse_bind_matrices,
-// 		.joints = skin.joints_global_transforms,
-// 	});
-// }
+void DrawList::add(NotNull<DynamicPrimitive const*> primitive, NotNull<Material const*> material, Transform const& transform) {
+	add(primitive, material, {transform.matrix()});
+}
 
 void DrawList::add(NotNull<StaticMesh const*> mesh, Instances const& instances, MaterialProvider& provider) {
 	static auto const s_default_mat{UnlitMaterial{}};
@@ -66,13 +65,5 @@ void DrawList::add(NotNull<SkinnedMesh const*> mesh, std::span<glm::mat4 const> 
 void DrawList::add(Drawable drawable) {
 	if (drawable.skin_index) { assert(*drawable.skin_index < m_skins.size()); }
 	m_drawables.push_back(drawable);
-}
-
-void DrawList::add(NotNull<StaticPrimitive const*> primitive, NotNull<Material const*> material, Transform const& transform) {
-	add(primitive, material, {transform.matrix()});
-}
-
-void DrawList::add(NotNull<DynamicPrimitive const*> primitive, NotNull<Material const*> material, Transform const& transform) {
-	add(primitive, material, {transform.matrix()});
 }
 } // namespace levk

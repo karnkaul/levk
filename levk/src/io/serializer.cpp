@@ -1,5 +1,6 @@
 #include <levk/io/serializer.hpp>
 #include <levk/util/logger.hpp>
+#include <cassert>
 
 namespace levk {
 namespace {

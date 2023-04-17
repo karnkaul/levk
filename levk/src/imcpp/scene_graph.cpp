@@ -49,7 +49,7 @@ Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 			if (scene_manager) {
 				imcpp::TreeNode::leaf("(Instantiate skeleton)");
 				if (auto target = imcpp::DragDrop::Target{}) {
-					if (auto uri = imcpp::DragDrop::accept_string("skinned_mesh"); !uri.empty()) { scene_manager->load_into_tree(Uri<SkinnedMesh>{uri}); }
+					if (auto uri = imcpp::DragDrop::accept_string("skinned_mesh"); !uri.empty()) { scene_manager->load_and_spawn(Uri<SkinnedMesh>{uri}); }
 				}
 			}
 		}

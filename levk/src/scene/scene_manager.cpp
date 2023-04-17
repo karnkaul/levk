@@ -21,40 +21,34 @@ SceneManager::SceneManager(NotNull<AssetProviders*> asset_providers)
 	});
 }
 
-bool SceneManager::load_into_tree(Uri<Mesh> const& uri) {
+bool SceneManager::load_and_spawn(Uri<Mesh> const& uri, std::string name) {
 	switch (asset_providers().mesh_type(uri)) {
-	case MeshType::eSkinned: return load_into_tree(Uri<SkinnedMesh>(uri)); return true;
-	case MeshType::eStatic: return load_into_tree(Uri<StaticMesh>(uri)); return true;
+	case MeshType::eSkinned: return load_and_spawn(Uri<SkinnedMesh>(uri), std::move(name)); return true;
+	case MeshType::eStatic: return load_and_spawn(Uri<StaticMesh>(uri), std::move(name)); return true;
 	default: break;
 	}
 	return false;
 }
 
-bool SceneManager::load_into_tree(Uri<StaticMesh> const& uri) {
+bool SceneManager::load_and_spawn(Uri<StaticMesh> const& uri, std::string name) {
 	auto* mesh = asset_providers().static_mesh().load(uri);
 	if (!mesh) { return false; }
-	return add_to_tree(uri, *mesh);
-}
-
-bool SceneManager::load_into_tree(Uri<SkinnedMesh> const& uri) {
-	auto* mesh = asset_providers().skinned_mesh().load(uri);
-	if (!mesh) { return false; }
-	return add_to_tree(uri, *mesh);
-}
-
-bool SceneManager::add_to_tree(Uri<StaticMesh> const& uri, StaticMesh const& mesh) {
-	auto& entity = active_scene().spawn(NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
+	if (name.empty()) { name = fs::path{name}.stem().string(); }
+	auto& entity = active_scene().spawn(NodeCreateInfo{.name = std::move(name)});
 	auto mesh_renderer = std::make_unique<StaticMeshRenderer>();
 	mesh_renderer->mesh_uri = uri;
 	entity.attach(std::move(mesh_renderer));
 	return true;
 }
 
-bool SceneManager::add_to_tree(Uri<SkinnedMesh> const& uri, SkinnedMesh const& mesh) {
-	auto& entity = active_scene().spawn(NodeCreateInfo{.name = fs::path{mesh.name}.stem().string()});
+bool SceneManager::load_and_spawn(Uri<SkinnedMesh> const& uri, std::string name) {
+	auto* mesh = asset_providers().skinned_mesh().load(uri);
+	if (!mesh) { return false; }
+	if (name.empty()) { name = fs::path{name}.stem().string(); }
+	auto& entity = active_scene().spawn(NodeCreateInfo{.name = std::move(name)});
 	auto enabled = std::optional<Id<SkeletalAnimation>>{};
-	if (mesh.skeleton) {
-		auto const* skeleton = asset_providers().skeleton().find(mesh.skeleton);
+	if (mesh->skeleton) {
+		auto const* skeleton = asset_providers().skeleton().find(mesh->skeleton);
 		if (skeleton && !skeleton->animations.empty()) { enabled = 0; }
 	}
 	entity.attach(std::make_unique<SkinnedMeshRenderer>()).set_mesh_uri(uri);

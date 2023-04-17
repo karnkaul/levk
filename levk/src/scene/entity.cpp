@@ -1,5 +1,6 @@
 #include <levk/scene/entity.hpp>
 #include <levk/scene/scene.hpp>
+#include <algorithm>
 #include <ranges>
 
 namespace levk {

@@ -79,7 +79,7 @@ struct LoadRequest {
 			[&scene_manager, &ret](Uri<Level> const& uri) {
 				if (scene_manager.load_level(uri)) { ret = uri; }
 			},
-			[&scene_manager](Uri<Mesh> const& uri) { scene_manager.load_into_tree(uri); },
+			[&scene_manager](Uri<Mesh> const& uri) { scene_manager.load_and_spawn(uri); },
 		};
 		std::visit(visitor, to_load);
 		loader.reset();

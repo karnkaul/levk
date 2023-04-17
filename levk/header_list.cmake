@@ -159,6 +159,7 @@ set(levk_headers
   ${assets_headers}
   ${vfs_headers}
   ${font_headers}
+  ${node_headers}
   ${level_headers}
   ${ui_headers}
   ${scene_headers}

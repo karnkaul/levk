@@ -28,9 +28,8 @@ class DrawList {
 	Rect2D<> rect() const { return Rect2D<>::from_extent(extent()); }
 
 	void add(NotNull<StaticPrimitive const*> primitive, NotNull<Material const*> material, Instances const& instances);
-	void add(NotNull<DynamicPrimitive const*> primitive, NotNull<Material const*> material, Instances const& instances);
-	// void add(NotNull<SkinnedPrimitive const*> primitive, NotNull<Material const*> material, Skin const& skin);
 	void add(NotNull<StaticPrimitive const*> primitive, NotNull<Material const*> material, Transform const& transform);
+	void add(NotNull<DynamicPrimitive const*> primitive, NotNull<Material const*> material, Instances const& instances);
 	void add(NotNull<DynamicPrimitive const*> primitive, NotNull<Material const*> material, Transform const& transform);
 
 	void add(NotNull<StaticMesh const*> mesh, Instances const& instances, MaterialProvider& material_provider);
