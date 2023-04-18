@@ -1,5 +1,6 @@
 #pragma once
 #include <djson/json.hpp>
+#include <levk/asset/asset_type.hpp>
 #include <levk/graphics/camera.hpp>
 #include <levk/graphics/common.hpp>
 #include <levk/graphics/geometry.hpp>
@@ -12,6 +13,11 @@
 #include <variant>
 
 namespace levk::asset {
+Type get_type(std::string_view str);
+
+void from_json(dj::Json const& json, Type& out);
+void to_json(dj::Json& out, Type const& type);
+
 void from_json(dj::Json const& json, Quad& out);
 void to_json(dj::Json& out, Quad const& quad);
 

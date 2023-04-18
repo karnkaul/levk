@@ -1,5 +1,6 @@
 #pragma once
 #include <legsmi/legsmi.hpp>
+#include <levk/asset/asset_type.hpp>
 #include <levk/imcpp/common.hpp>
 #include <levk/imcpp/input_text.hpp>
 
@@ -13,12 +14,12 @@ class GltfImportWizard {
 	enum class Type { eMesh, eLevel };
 
 	struct Result {
-		Uri<Level> level{};
-		Uri<Mesh> mesh{};
+		Uri<> uri{};
+		asset::Type type{};
 		bool should_load{};
 		bool inactive{};
 
-		explicit operator bool() const { return level || mesh; }
+		explicit operator bool() const { return !!uri; }
 	};
 
 	GltfImportWizard(std::string gltf_path, std::string root);

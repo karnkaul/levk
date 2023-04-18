@@ -162,12 +162,14 @@ GltfImportWizard::Result GltfImportWizard::update() {
 			ImGui::SameLine();
 			if (m_current == Page::eLevel) {
 				if (ImGui::Button("Import Level")) {
-					ret.level = m_pages.level.import_scene(m_shared);
+					ret.uri = m_pages.level.import_scene(m_shared);
+					ret.type = asset::Type::eLevel;
 					ret.should_load = m_load_level;
 				}
 			} else {
 				if (ImGui::Button("Import Mesh")) {
-					ret.mesh = m_pages.mesh.import_mesh(m_shared);
+					ret.uri = m_pages.mesh.import_mesh(m_shared);
+					ret.type = asset::Type::eMesh;
 					ret.should_load = m_load_mesh;
 				}
 			}

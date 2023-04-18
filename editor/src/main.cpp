@@ -293,7 +293,7 @@ struct Editor : Runtime {
 
 	void tick(Time) final {
 		auto const& state = m_context.engine.get().window().state();
-		if (!load_request && !state.drops.empty()) {
+		if (!load_request && !gltf_import_wizard && !state.drops.empty()) {
 			for (auto const& drop : state.drops) {
 				auto path = fs::path{drop};
 				auto const extension = path.extension();
@@ -301,14 +301,7 @@ struct Editor : Runtime {
 					gltf_import_wizard.emplace(path.string().c_str(), std::string{m_context.data_source().mount_point()});
 					break;
 				} else if (extension == ".json") {
-					if (auto uri = m_context.data_source().trim_to_uri(path.generic_string())) {
-						auto const asset_type = m_context.asset_providers.get().asset_type(uri);
-						if (asset_type == "Mesh") {
-							load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Mesh>{uri}, m_context.engine.get().thread_pool());
-						} else if (asset_type == "Level") {
-							load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Level>{uri}, m_context.engine.get().thread_pool());
-						}
-					}
+					if (auto uri = m_context.data_source().trim_to_uri(path.generic_string())) { make_load_request(uri); }
 					break;
 				}
 			}
@@ -318,12 +311,8 @@ struct Editor : Runtime {
 			auto result = gltf_import_wizard->update();
 			if (result.inactive) {
 				gltf_import_wizard.reset();
-			} else if (result && result.should_load) {
-				if (result.level) {
-					load_request = LoadRequest::make(&context().asset_providers.get(), std::move(result.level), m_context.engine.get().thread_pool());
-				} else if (result.mesh) {
-					load_request = LoadRequest::make(&context().asset_providers.get(), std::move(result.mesh), m_context.engine.get().thread_pool());
-				}
+			} else if (result) {
+				if (result.should_load) { make_load_request(result.uri, result.type); }
 				gltf_import_wizard.reset();
 			}
 		}
@@ -351,15 +340,7 @@ struct Editor : Runtime {
 			auto result = dialogs.open_file->result();
 			dialogs.open_file.reset();
 			if (!result.empty()) {
-				if (auto uri = m_context.data_source().trim_to_uri(result.front())) {
-					auto const asset_type = m_context.asset_providers.get().asset_type(uri);
-					if (asset_type == "Mesh") {
-						load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Mesh>{uri}, m_context.engine.get().thread_pool());
-					} else if (asset_type == "Level") {
-						load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Level>{uri}, m_context.engine.get().thread_pool());
-						level_uri = uri;
-					}
-				}
+				if (auto uri = m_context.data_source().trim_to_uri(result.front())) { make_load_request(uri); }
 			}
 		}
 
@@ -386,6 +367,21 @@ struct Editor : Runtime {
 		}
 
 		main_menu.display_windows();
+	}
+
+	void make_load_request(Uri<> const& uri, asset::Type type = asset::Type::eUnknown) {
+		if (type == asset::Type::eUnknown) { type = context().asset_providers.get().asset_type(uri); }
+		switch (type) {
+		case asset::Type::eMesh:
+			load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Mesh>{uri}, m_context.engine.get().thread_pool());
+			break;
+		case asset::Type::eLevel: {
+			load_request = LoadRequest::make(&m_context.asset_providers.get(), Uri<Level>{uri}, m_context.engine.get().thread_pool());
+			level_uri = uri;
+			break;
+		}
+		default: break;
+		}
 	}
 
 	void export_level() {

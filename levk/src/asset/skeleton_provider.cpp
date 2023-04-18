@@ -28,10 +28,6 @@ SkeletonProvider::Payload SkeletonProvider::load_payload(Uri<Skeleton> const& ur
 		m_logger.error("Failed to load JSON [{}]", uri.value());
 		return {};
 	}
-	if (json["asset_type"].as_string() != "Skeleton") {
-		m_logger.error("JSON is not a Skeleton [{}]", uri.value());
-		return {};
-	}
 	ret.asset.emplace();
 	asset::from_json(json, *ret.asset);
 	for (auto const& in_animation : ret.asset->animations) { animation_provider().load(in_animation); }

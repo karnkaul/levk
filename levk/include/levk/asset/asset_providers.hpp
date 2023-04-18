@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/asset/asset_list.hpp>
+#include <levk/asset/asset_type.hpp>
 #include <levk/asset/font_provider.hpp>
 #include <levk/asset/material_provider.hpp>
 #include <levk/asset/mesh_provider.hpp>
@@ -47,7 +48,7 @@ class AssetProviders {
 	void reload_out_of_date();
 	void clear();
 
-	std::string asset_type(Uri<> const& uri) const;
+	asset::Type asset_type(Uri<> const& uri) const;
 	MeshType mesh_type(Uri<> const& uri) const;
 	AssetList build_asset_list(Uri<Level> const& uri) const;
 

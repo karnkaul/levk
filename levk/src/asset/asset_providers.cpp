@@ -29,15 +29,19 @@ void AssetProviders::clear() {
 	g_log.info("All assets cleared");
 }
 
-std::string AssetProviders::asset_type(Uri<> const& uri) const {
+asset::Type AssetProviders::asset_type(Uri<> const& uri) const {
 	auto json = data_source().read_json(uri);
 	if (!json) { return {}; }
-	return json["asset_type"].as<std::string>();
+	auto ret = asset::Type{};
+	asset::from_json(json, ret);
+	return ret;
 }
 
 MeshType AssetProviders::mesh_type(Uri<> const& uri) const {
 	auto json = data_source().read_json(uri);
-	if (!json || json["asset_type"].as_string() != "Mesh") { return MeshType::eNone; }
+	auto asset_type = asset::Type{};
+	asset::from_json(json, asset_type);
+	if (!json || asset_type != asset::Type::eMesh) { return MeshType::eNone; }
 	if (json.contains("skeleton")) { return MeshType::eSkinned; }
 	return MeshType::eStatic;
 }

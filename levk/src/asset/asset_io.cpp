@@ -12,6 +12,23 @@
 
 namespace levk {
 namespace {
+constexpr auto type_names_v{EnumArray<asset::Type, std::string_view>{
+	"Unknown",
+	"Quad",
+	"Cube",
+	"Sphere",
+	"ViewPlane",
+	"Camera",
+	"Lights",
+	"NodeTree",
+	"Material",
+	"Skeleton",
+	"Mesh",
+	"Level",
+}};
+
+static_assert(std::size(type_names_v.t) == std::size_t(asset::Type::eCOUNT_));
+
 constexpr AlphaMode to_alpha_mode(std::string_view const str) {
 	if (str == "blend") { return AlphaMode::eBlend; }
 	if (str == "mask") { return AlphaMode::eMask; }
@@ -142,6 +159,13 @@ bool read_from(BinarySourceT&& source, asset::BinSkeletalAnimation& out) {
 	out = std::move(in);
 	return true;
 }
+
+bool check_asset_type(asset::Type const type, dj::Json const& json) {
+	if (type == asset::Type::eUnknown) { return false; }
+	auto in_type = asset::Type{};
+	from_json(json, in_type);
+	return in_type == type;
+}
 } // namespace
 
 namespace asset {
@@ -230,10 +254,23 @@ bool BinSkeletalAnimation::write(char const* path) const {
 
 bool BinSkeletalAnimation::read(char const* path) { return read_from(BinarySourceFile{path}, *this); }
 bool BinSkeletalAnimation::read(std::span<std::byte const> bytes) { return read_from(BinarySourceData{bytes}, *this); }
+
+constexpr std::string_view asset_type_key_v{"asset_type"};
 } // namespace asset
 
+auto asset::get_type(std::string_view const str) -> Type {
+	for (Type type{}; type < Type::eCOUNT_; type = Type(int(type) + 1)) {
+		if (type_names_v[type] == str) { return type; }
+	}
+	return Type::eUnknown;
+}
+
+void asset::from_json(dj::Json const& json, Type& out) { out = get_type(json[asset_type_key_v].as_string()); }
+
+void asset::to_json(dj::Json& out, Type const& type) { out[asset_type_key_v] = type_names_v[type]; }
+
 void asset::from_json(dj::Json const& json, Quad& out) {
-	assert(json["asset_type"].as_string() == "Quad");
+	assert(check_asset_type(asset::Type::eQuad, json));
 	levk::from_json(json["size"], out.size, out.size);
 	from_json(json["uv_rect"], out.uv, out.uv);
 	from_json(json["rgb"], out.rgb);
@@ -241,7 +278,7 @@ void asset::from_json(dj::Json const& json, Quad& out) {
 }
 
 void asset::to_json(dj::Json& out, Quad const& quad) {
-	out["asset_type"] = "Quad";
+	to_json(out, asset::Type::eQuad);
 	levk::to_json(out["size"], quad.size);
 	to_json(out["uv_rect"], quad.uv);
 	to_json(out["rgb"], quad.rgb);
@@ -249,21 +286,21 @@ void asset::to_json(dj::Json& out, Quad const& quad) {
 }
 
 void asset::from_json(dj::Json const& json, Cube& out) {
-	assert(json["asset_type"].as_string() == "Cube");
+	assert(check_asset_type(asset::Type::eCube, json));
 	levk::from_json(json["size"], out.size, out.size);
 	from_json(json["rgb"], out.rgb);
 	levk::from_json(json["origin"], out.origin, out.origin);
 }
 
 void asset::to_json(dj::Json& out, Cube const& cube) {
-	out["asset_type"] = "Cube";
+	to_json(out, asset::Type::eCube);
 	levk::to_json(out["size"], cube.size);
 	to_json(out["rgb"], cube.rgb);
 	levk::to_json(out["origin"], cube.origin);
 }
 
 void asset::from_json(dj::Json const& json, Sphere& out) {
-	assert(json["asset_type"].as_string() == "Sphere");
+	assert(check_asset_type(asset::Type::eSphere, json));
 	out.diameter = json["diameter"].as<float>(out.diameter);
 	out.resolution = json["resolution"].as<std::uint32_t>(out.resolution);
 	from_json(json["rgb"], out.rgb);
@@ -271,7 +308,7 @@ void asset::from_json(dj::Json const& json, Sphere& out) {
 }
 
 void asset::to_json(dj::Json& out, Sphere const& sphere) {
-	out["asset_type"] = "Sphere";
+	to_json(out, asset::Type::eSphere);
 	out["size"] = sphere.diameter;
 	out["resolution"] = sphere.resolution;
 	to_json(out["rgb"], sphere.rgb);
@@ -279,19 +316,19 @@ void asset::to_json(dj::Json& out, Sphere const& sphere) {
 }
 
 void asset::from_json(dj::Json const& json, ViewPlane& out) {
-	assert(json["asset_type"].as_string() == "ViewPlane");
+	assert(check_asset_type(asset::Type::eViewPlane, json));
 	out.near = json["near"].as<float>(out.near);
 	out.far = json["far"].as<float>(out.far);
 }
 
 void asset::to_json(dj::Json& out, ViewPlane const& view_plane) {
-	out["asset_type"] = "ViewPlane";
+	to_json(out, asset::Type::eViewPlane);
 	out["near"] = view_plane.near;
 	out["far"] = view_plane.far;
 }
 
 void asset::from_json(dj::Json const& json, Camera& out) {
-	assert(json["asset_type"].as_string() == "Camera");
+	assert(check_asset_type(asset::Type::eCamera, json));
 	out.name = json["name"].as<std::string>();
 	levk::from_json(json["transform"], out.transform);
 	out.transform.recompute();
@@ -310,7 +347,7 @@ void asset::from_json(dj::Json const& json, Camera& out) {
 }
 
 void asset::to_json(dj::Json& out, Camera const& camera) {
-	out["asset_type"] = "Camera";
+	to_json(out, asset::Type::eCamera);
 	out["name"] = camera.name;
 	levk::to_json(out["transform"], camera.transform);
 	out["exposure"] = camera.exposure;
@@ -329,7 +366,7 @@ void asset::to_json(dj::Json& out, Camera const& camera) {
 }
 
 void asset::from_json(dj::Json const& json, Lights& out) {
-	assert(json["asset_type"].as_string() == "Lights");
+	assert(check_asset_type(asset::Type::eLights, json));
 	if (auto const& in_primary_light = json["primary"]) {
 		levk::from_json(in_primary_light["direction"], out.primary.direction);
 		from_json(in_primary_light["rgb"], out.primary.rgb);
@@ -344,7 +381,7 @@ void asset::from_json(dj::Json const& json, Lights& out) {
 }
 
 void asset::to_json(dj::Json& out, Lights const& lights) {
-	out["asset_type"] = "Lights";
+	to_json(out, asset::Type::eLights);
 	auto& out_primary_light = out["primary"];
 	levk::to_json(out_primary_light["direction"], lights.primary.direction);
 	to_json(out_primary_light["rgb"], lights.primary.rgb);
@@ -359,17 +396,17 @@ void asset::to_json(dj::Json& out, Lights const& lights) {
 }
 
 void asset::from_json(dj::Json const& json, NodeTree& out) {
-	assert(json["asset_type"].as_string() == "NodeTree");
+	assert(check_asset_type(asset::Type::eNodeTree, json));
 	NodeTree::Serializer::deserialize(json, out);
 }
 
 void asset::to_json(dj::Json& out, NodeTree const& node_tree) {
-	out["asset_type"] = "NodeTree";
+	to_json(out, asset::Type::eNodeTree);
 	NodeTree::Serializer::serialize(out, node_tree);
 }
 
 void asset::from_json(dj::Json const& json, Level& out) {
-	assert(json["asset_type"].as_string() == "Level");
+	assert(check_asset_type(asset::Type::eLevel, json));
 	out.name = json["name"].as_string(out.name);
 	from_json(json["node_tree"], out.node_tree);
 	from_json(json["camera"], out.camera);
@@ -396,7 +433,7 @@ void asset::from_json(dj::Json const& json, Level& out) {
 }
 
 void asset::to_json(dj::Json& out, Level const& level) {
-	out["asset_type"] = "Level";
+	to_json(out, asset::Type::eLevel);
 	out["name"] = level.name;
 	to_json(out["node_tree"], level.node_tree);
 	to_json(out["camera"], level.camera);
@@ -418,7 +455,7 @@ void asset::to_json(dj::Json& out, Level const& level) {
 }
 
 void asset::from_json(dj::Json const& json, asset::Material& out) {
-	assert(json["asset_type"].as_string() == "Material");
+	assert(check_asset_type(asset::Type::eMaterial, json));
 	out.textures.deserialize(json["textures"]);
 	levk::from_json(json["albedo"], out.albedo);
 	levk::from_json(json["emissive_factor"], out.emissive_factor);
@@ -433,8 +470,8 @@ void asset::from_json(dj::Json const& json, asset::Material& out) {
 }
 
 void asset::to_json(dj::Json& out, asset::Material const& asset) {
+	to_json(out, asset::Type::eMaterial);
 	out["type_name"] = asset.vertex_shader.find("skinned") != std::string_view::npos ? SkinnedMaterial{}.type_name() : LitMaterial{}.type_name();
-	out["asset_type"] = "Material";
 	asset.textures.serialize(out["textures"]);
 	levk::to_json(out["albedo"], asset.albedo);
 	levk::to_json(out["emissive_factor"], asset.emissive_factor);
@@ -449,7 +486,7 @@ void asset::to_json(dj::Json& out, asset::Material const& asset) {
 }
 
 void asset::from_json(dj::Json const& json, Skeleton& out) {
-	assert(json["asset_type"].as_string() == "Skeleton");
+	assert(check_asset_type(asset::Type::eSkeleton, json));
 	out.name = json["name"].as_string();
 	from_json(json["joint_tree"], out.joint_tree);
 	auto const& in_ordered_joints = json["ordered_joints"].array_view();
@@ -459,7 +496,7 @@ void asset::from_json(dj::Json const& json, Skeleton& out) {
 }
 
 void asset::to_json(dj::Json& out, Skeleton const& asset) {
-	out["asset_type"] = "Skeleton";
+	to_json(out, asset::Type::eSkeleton);
 	out["name"] = asset.name;
 	to_json(out["joint_tree"], asset.joint_tree);
 	auto& out_joints = out["ordered_joints"];
@@ -472,7 +509,7 @@ void asset::to_json(dj::Json& out, Skeleton const& asset) {
 }
 
 void asset::from_json(dj::Json const& json, Mesh3D& out) {
-	assert(json["asset_type"].as_string() == "Mesh");
+	assert(check_asset_type(asset::Type::eMesh, json));
 	out.skeleton = std::string{json["skeleton"].as_string()};
 	out.type = out.skeleton.is_empty() ? Mesh3D::Type::eStatic : Mesh3D::Type::eSkinned;
 	for (auto const& in_primitive : json["primitives"].array_view()) {
@@ -486,7 +523,7 @@ void asset::from_json(dj::Json const& json, Mesh3D& out) {
 }
 
 void asset::to_json(dj::Json& out, Mesh3D const& asset) {
-	out["asset_type"] = "Mesh";
+	to_json(out, asset::Type::eMesh);
 	if (!asset.primitives.empty()) {
 		auto& primitives = out["primitives"];
 		for (auto const& in_primitive : asset.primitives) {
