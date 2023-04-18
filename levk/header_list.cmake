@@ -127,6 +127,8 @@ set(node_headers
 )
 
 set(level_headers
+  include/levk/level/attachment.hpp
+  include/levk/level/attachments.hpp
   include/levk/level/inspectable.hpp
   include/levk/level/level.hpp
   include/levk/level/shape.hpp

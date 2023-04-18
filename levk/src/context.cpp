@@ -1,4 +1,5 @@
 #include <levk/context.hpp>
+#include <levk/level/attachments.hpp>
 #include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/scene/shape_renderer.hpp>
@@ -20,6 +21,11 @@ AssetProviders::CreateInfo make_apci(Engine const& engine, NotNull<DataSource co
 
 Context::Context(NotNull<DataSource const*> data_source, Engine::CreateInfo const& create_info)
 	: engine(create_info), asset_providers(make_apci(engine.get(), data_source, &serializer.get())), scene_manager(&asset_providers.get()) {
+
+	serializer.get().bind<ShapeAttachment>();
+	serializer.get().bind<MeshAttachment>();
+	serializer.get().bind<SkeletonAttachment>();
+	serializer.get().bind<FreecamAttachment>();
 
 	serializer.get().bind<QuadShape>();
 	serializer.get().bind<CubeShape>();

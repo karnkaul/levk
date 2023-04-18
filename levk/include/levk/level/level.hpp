@@ -10,20 +10,10 @@ namespace levk {
 struct Mesh;
 
 struct Level {
-	struct Attachment {
-		Uri<Mesh> mesh_uri{};
-		dj::Json shape{};
-		std::vector<Transform> mesh_instances{};
-		std::vector<Transform> shape_instances{};
-		std::optional<std::size_t> enabled_animation{};
-
-		explicit operator bool() const { return mesh_uri || shape; }
-	};
-
 	Camera camera{};
 	Lights lights{};
 	NodeTree node_tree{};
-	std::unordered_map<Id<Node>::id_type, Attachment> attachments{};
+	std::unordered_map<Id<Node>::id_type, std::vector<dj::Json>> attachments_map{};
 	std::string name{};
 };
 } // namespace levk

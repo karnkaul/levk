@@ -2,6 +2,7 @@
 #include <legsmi/legsmi.hpp>
 #include <levk/graphics/material.hpp>
 #include <levk/io/serializer.hpp>
+#include <levk/level/attachments.hpp>
 #include <levk/level/level.hpp>
 #include <levk/service.hpp>
 #include <levk/util/cli_args.hpp>
@@ -168,6 +169,8 @@ struct App {
 		serializer.get().bind<levk::LitMaterial>();
 		serializer.get().bind<levk::UnlitMaterial>();
 		serializer.get().bind<levk::SkinnedMaterial>();
+		serializer.get().bind<levk::MeshAttachment>();
+		serializer.get().bind<levk::SkeletonAttachment>();
 
 		auto parser = Args::Parser{};
 

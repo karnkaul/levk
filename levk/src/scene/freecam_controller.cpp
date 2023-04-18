@@ -2,6 +2,7 @@
 #include <levk/asset/asset_io.hpp>
 #include <levk/engine.hpp>
 #include <levk/imcpp/reflector.hpp>
+#include <levk/level/attachments.hpp>
 #include <levk/scene/entity.hpp>
 #include <levk/scene/freecam_controller.hpp>
 #include <levk/service.hpp>
@@ -55,4 +56,6 @@ void FreecamController::tick(Time dt) {
 
 	entity->transform().set_data(data);
 }
+
+std::unique_ptr<Attachment> FreecamController::to_attachment() const { return std::make_unique<FreecamAttachment>(); }
 } // namespace levk

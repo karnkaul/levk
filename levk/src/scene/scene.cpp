@@ -2,13 +2,11 @@
 #include <levk/engine.hpp>
 #include <levk/graphics/render_list.hpp>
 #include <levk/io/serializer.hpp>
+#include <levk/level/attachment.hpp>
 #include <levk/level/level.hpp>
 #include <levk/scene/scene.hpp>
-#include <levk/scene/shape_renderer.hpp>
-#include <levk/scene/skeleton_controller.hpp>
-#include <levk/scene/skinned_mesh_renderer.hpp>
-#include <levk/scene/static_mesh_renderer.hpp>
 #include <levk/service.hpp>
+#include <levk/util/enumerate.hpp>
 #include <ranges>
 
 namespace levk {
@@ -60,24 +58,13 @@ Level Scene::export_level() const {
 	ret.lights = lights;
 	ret.name = name;
 	auto func = [&](Id<Entity>, Entity const& e) {
-		auto attachment = Level::Attachment{};
+		auto attachments = std::vector<dj::Json>{};
 		for (auto const& [_, component] : e.m_components) {
-			if (auto* smr = dynamic_cast<StaticMeshRenderer const*>(component.get())) {
-				attachment.mesh_uri = smr->mesh_uri;
-				attachment.mesh_instances = smr->instances;
-			} else if (auto* sc = dynamic_cast<SkeletonController const*>(component.get())) {
-				attachment.enabled_animation = sc->enabled;
-			} else if (auto* smr = dynamic_cast<SkinnedMeshRenderer const*>(component.get())) {
-				attachment.mesh_uri = smr->mesh_uri();
-				attachment.mesh_instances = smr->instances;
-			} else if (auto* sr = dynamic_cast<ShapeRenderer const*>(component.get())) {
-				if (auto* shape = sr->shape()) {
-					attachment.shape = serializer->serialize(*shape);
-					attachment.mesh_instances = sr->instances;
-				}
+			if (auto attachment = component->to_attachment()) {
+				if (auto json = serializer->serialize(*attachment)) { attachments.push_back(std::move(json)); }
 			}
 		}
-		if (attachment) { ret.attachments.insert_or_assign(e.node_id(), std::move(attachment)); }
+		if (!attachments.empty()) { ret.attachments_map.insert_or_assign(e.node_id(), std::move(attachments)); }
 	};
 	for_each(m_entities, func);
 	return ret;
@@ -85,7 +72,8 @@ Level Scene::export_level() const {
 
 bool Scene::import_level(Level const& level) {
 	auto* asset_providers = Service<AssetProviders>::find();
-	if (!asset_providers) { return false; }
+	auto* serializer = Service<Serializer>::find();
+	if (!asset_providers || !serializer) { return false; }
 	static_cast<Camera&>(camera) = level.camera;
 	lights = level.lights;
 	name = level.name;
@@ -94,36 +82,15 @@ bool Scene::import_level(Level const& level) {
 	auto func = [&](Node& out_node) {
 		auto [id, entity] = m_entities.add(make_entity(out_node.id()));
 		out_node.entity_id = entity.m_id = id;
-		auto it = level.attachments.find(out_node.id());
-		if (it == level.attachments.end()) { return; }
-		auto& attachment = it->second;
-		if (attachment.mesh_uri) {
-			switch (asset_providers->mesh_type(attachment.mesh_uri)) {
-			case MeshType::eSkinned: {
-				asset_providers->skinned_mesh().load(attachment.mesh_uri);
-				auto& smr = entity.attach(std::make_unique<SkinnedMeshRenderer>());
-				smr.set_mesh_uri(attachment.mesh_uri);
-				smr.instances = attachment.mesh_instances;
-				auto& sc = entity.attach(std::make_unique<SkeletonController>());
-				sc.enabled = attachment.enabled_animation;
-				break;
+		auto it = level.attachments_map.find(out_node.id());
+		if (it == level.attachments_map.end()) { return; }
+		for (auto [attachment, index] : enumerate(it->second)) {
+			auto result = serializer->deserialize_as<Attachment>(attachment);
+			if (!result) {
+				m_logger.error("Failed to deserialize Level attachment #{} for Entity ID {}", index, id);
+				continue;
 			}
-			case MeshType::eStatic: {
-				asset_providers->static_mesh().load(attachment.mesh_uri);
-				auto& smr = entity.attach(std::make_unique<StaticMeshRenderer>());
-				smr.mesh_uri = attachment.mesh_uri;
-				smr.instances = attachment.mesh_instances;
-				break;
-			}
-			default: break;
-			}
-		}
-		if (attachment.shape) {
-			auto result = asset_providers->serializer().deserialize_as<Shape>(attachment.shape);
-			if (!result) { return; }
-			auto& renderer = entity.attach(std::make_unique<ShapeRenderer>());
-			renderer.set_shape(std::move(result.value));
-			renderer.instances = attachment.shape_instances;
+			result.value->attach(entity);
 		}
 	};
 	m_nodes.for_each(func);

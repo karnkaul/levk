@@ -56,6 +56,7 @@ class Entity final {
 
 	Id<Entity> id() const { return m_id; }
 	Id<Node> node_id() const { return m_node; }
+	Ptr<Scene> owning_scene() const { return m_scene; }
 
 	bool is_destroyed() const { return m_destroyed; }
 	void set_destroyed() { m_destroyed = true; }

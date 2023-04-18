@@ -1,5 +1,6 @@
 #include <levk/asset/asset_io.hpp>
 #include <levk/asset/asset_providers.hpp>
+#include <levk/level/attachment.hpp>
 #include <levk/level/shape.hpp>
 
 namespace levk {
@@ -51,12 +52,11 @@ AssetList AssetProviders::build_asset_list(Uri<Level> const& uri) const {
 	auto level = Level{};
 	asset::from_json(json, level);
 	auto ret = AssetList{};
-	for (auto const& [_, attachment] : level.attachments) {
-		if (attachment.mesh_uri) { ret.meshes.insert(attachment.mesh_uri); }
-		if (attachment.shape) {
-			if (auto result = serializer().deserialize_as<Shape>(attachment.shape)) {
-				if (result.value->material_uri) { ret.materials.insert(result.value->material_uri); }
-			}
+	for (auto const& [_, attachments] : level.attachments_map) {
+		for (auto const& attachment : attachments) {
+			auto result = serializer().deserialize_as<Attachment>(attachment);
+			if (!result) { continue; }
+			result.value->add_assets(ret);
 		}
 	}
 	for (auto const& mesh : ret.meshes) {

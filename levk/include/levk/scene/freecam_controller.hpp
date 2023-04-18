@@ -8,6 +8,7 @@ namespace levk {
 class FreecamController : public Component {
   public:
 	void tick(Time dt) override;
+	std::unique_ptr<Attachment> to_attachment() const override;
 
 	glm::vec3 move_speed{10.0f};
 	float look_speed{0.3f};

@@ -15,5 +15,6 @@ class SkeletonController : public Component {
 	glm::mat4 global_transform(Id<Node> node_id) const;
 
 	void tick(Time dt) override;
+	std::unique_ptr<Attachment> to_attachment() const override;
 };
 } // namespace levk

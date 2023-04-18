@@ -16,6 +16,7 @@ class SkinnedMeshRenderer : public RenderComponent {
 	glm::mat4 global_transform(Id<Node> node_id) const;
 
 	void render(DrawList& out) const final;
+	std::unique_ptr<Attachment> to_attachment() const final;
 
 	std::vector<Transform> instances{};
 

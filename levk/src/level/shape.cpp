@@ -10,8 +10,7 @@
 
 namespace levk {
 bool Shape::serialize(dj::Json& out) const {
-	if (!material_uri) { return false; }
-	out["material_uri"] = material_uri.value();
+	if (material_uri) { out["material_uri"] = material_uri.value(); }
 	return true;
 }
 

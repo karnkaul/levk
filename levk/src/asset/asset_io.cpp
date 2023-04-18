@@ -411,10 +411,7 @@ void asset::from_json(dj::Json const& json, Level& out) {
 	from_json(json["node_tree"], out.node_tree);
 	from_json(json["camera"], out.camera);
 	from_json(json["lights"], out.lights);
-	auto add_instances = [](dj::Json const& json, std::vector<Transform>& out_instances) {
-		for (auto const& instance : json.array_view()) { levk::from_json(instance, out_instances.emplace_back()); }
-	};
-	for (auto const& [node_id_str, in_attachment] : json["attachments"].object_view()) {
+	for (auto const& [node_id_str, in_attachments_map] : json["attachments"].object_view()) {
 		auto const get_node_id = [](std::string_view const in) -> Id<Node>::id_type {
 			auto ret = Id<Node>::id_type{};
 			auto [_, ec] = std::from_chars(in.data(), in.data() + in.size(), ret);
@@ -423,12 +420,8 @@ void asset::from_json(dj::Json const& json, Level& out) {
 		};
 		auto const node_id = get_node_id(node_id_str);
 		if (!node_id) { continue; }
-		auto& out_attachment = out.attachments[node_id];
-		out_attachment.mesh_uri = in_attachment["mesh_uri"].as_string();
-		out_attachment.shape = in_attachment["shape"];
-		if (auto const& enabled_animation = in_attachment["enabled_animation"]) { out_attachment.enabled_animation = enabled_animation.as<std::size_t>(); }
-		add_instances(in_attachment["mesh_instances"], out_attachment.mesh_instances);
-		add_instances(in_attachment["shape_instances"], out_attachment.shape_instances);
+		auto& out_attachments = out.attachments_map[node_id];
+		for (auto attachment : in_attachments_map.array_view()) { out_attachments.push_back(std::move(attachment)); }
 	}
 }
 
@@ -438,18 +431,11 @@ void asset::to_json(dj::Json& out, Level const& level) {
 	to_json(out["node_tree"], level.node_tree);
 	to_json(out["camera"], level.camera);
 	to_json(out["lights"], level.lights);
-	if (!level.attachments.empty()) {
-		auto add_instances = [](dj::Json& out_json, std::span<Transform const> instances) {
-			for (auto const& transform : instances) { levk::to_json(out_json.push_back({}), transform); }
-		};
-		auto& out_attachments = out["attachments"];
-		for (auto const& [node_id, attachment] : level.attachments) {
-			auto& out_attachment = out_attachments[std::to_string(node_id)];
-			if (attachment.mesh_uri) { out_attachment["mesh_uri"] = attachment.mesh_uri.value(); }
-			if (attachment.shape) { out_attachment["shape"] = attachment.shape; }
-			if (attachment.enabled_animation) { out_attachment["enabled_animation"] = *attachment.enabled_animation; }
-			if (!attachment.mesh_instances.empty()) { add_instances(out["mesh_instances"], attachment.mesh_instances); }
-			if (!attachment.shape_instances.empty()) { add_instances(out["shape_instances"], attachment.shape_instances); }
+	if (!level.attachments_map.empty()) {
+		auto& out_attachments_map = out["attachments"];
+		for (auto const& [node_id, attachments] : level.attachments_map) {
+			auto& out_attachments = out_attachments_map[std::to_string(node_id)];
+			for (auto const& in_attachment : attachments) { out_attachments.push_back(in_attachment); }
 		}
 	}
 }

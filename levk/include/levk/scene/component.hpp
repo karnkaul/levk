@@ -1,4 +1,5 @@
 #pragma once
+#include <levk/level/attachment.hpp>
 #include <levk/util/id.hpp>
 #include <levk/util/ptr.hpp>
 #include <levk/util/time.hpp>
@@ -22,6 +23,7 @@ class Component {
 
 	virtual void setup() {}
 	virtual void tick(Time dt) = 0;
+	virtual std::unique_ptr<Attachment> to_attachment() const { return {}; }
 
 	Id<Component> id() const { return m_id; }
 	Ptr<Scene> owning_scene() const { return m_scene; }

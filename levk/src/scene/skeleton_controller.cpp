@@ -1,5 +1,6 @@
 #include <levk/asset/asset_providers.hpp>
 #include <levk/asset/skeleton_provider.hpp>
+#include <levk/level/attachments.hpp>
 #include <levk/scene/entity.hpp>
 #include <levk/scene/skeleton_controller.hpp>
 #include <levk/scene/skinned_mesh_renderer.hpp>
@@ -41,5 +42,11 @@ void SkeletonController::tick(Time dt) {
 	elapsed += dt * time_scale;
 	animation->update_nodes(renderer->joint_locator(), elapsed);
 	if (elapsed > animation->animation.duration()) { elapsed = {}; }
+}
+
+std::unique_ptr<Attachment> SkeletonController::to_attachment() const {
+	auto ret = std::make_unique<SkeletonAttachment>();
+	ret->enabled_index = enabled;
+	return ret;
 }
 } // namespace levk

@@ -2,6 +2,7 @@
 #include <levk/asset/mesh_provider.hpp>
 #include <levk/asset/skeleton_provider.hpp>
 #include <levk/graphics/draw_list.hpp>
+#include <levk/level/attachments.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/scene/skinned_mesh_renderer.hpp>
 #include <levk/service.hpp>
@@ -47,5 +48,12 @@ void SkinnedMeshRenderer::render(DrawList& out) const {
 	}
 	auto const parent_mat = scene->node_tree().global_transform(scene->node_tree().get(entity->node_id()));
 	out.add(m, m_joint_matrices.span(), DrawList::Instances{parent_mat, instances}, asset_providers->material());
+}
+
+std::unique_ptr<Attachment> SkinnedMeshRenderer::to_attachment() const {
+	auto ret = std::make_unique<MeshAttachment>();
+	ret->uri = m_mesh;
+	ret->instances = instances;
+	return ret;
 }
 } // namespace levk

@@ -1,6 +1,7 @@
 #include <levk/asset/asset_providers.hpp>
 #include <levk/asset/material_provider.hpp>
 #include <levk/graphics/render_device.hpp>
+#include <levk/level/attachments.hpp>
 #include <levk/scene/entity.hpp>
 #include <levk/scene/shape_renderer.hpp>
 #include <levk/service.hpp>
@@ -33,5 +34,15 @@ void ShapeRenderer::render(DrawList& out) const {
 		.parent = matrix,
 		.instances = instances,
 	});
+}
+
+std::unique_ptr<Attachment> ShapeRenderer::to_attachment() const {
+	auto* serializer = Service<Serializer>::find();
+	if (!m_shape || !serializer) { return {}; }
+	auto ret = std::make_unique<ShapeAttachment>();
+	ret->shape = serializer->serialize(*m_shape);
+	ret->instances = instances;
+	ret->material_uri = m_shape->material_uri;
+	return ret;
 }
 } // namespace levk

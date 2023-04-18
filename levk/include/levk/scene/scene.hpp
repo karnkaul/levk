@@ -4,6 +4,7 @@
 #include <levk/scene/entity.hpp>
 #include <levk/scene/scene_camera.hpp>
 #include <levk/ui/view.hpp>
+#include <levk/util/logger.hpp>
 #include <levk/util/monotonic_map.hpp>
 #include <levk/util/pinned.hpp>
 #include <levk/util/time.hpp>
@@ -52,5 +53,6 @@ class Scene : public Pinned {
 
 	MonotonicMap<Entity> m_entities{};
 	NodeTree m_nodes{};
+	Logger m_logger{"Scene"};
 };
 } // namespace levk

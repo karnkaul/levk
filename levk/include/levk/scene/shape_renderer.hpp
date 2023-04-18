@@ -15,6 +15,7 @@ class ShapeRenderer : public RenderComponent {
 
 	void setup() override;
 	void render(DrawList& out) const override;
+	std::unique_ptr<Attachment> to_attachment() const override;
 
 	std::vector<Transform> instances{};
 

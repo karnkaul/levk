@@ -2,6 +2,7 @@
 #include <legsmi/legsmi.hpp>
 #include <levk/asset/asset_io.hpp>
 #include <levk/io/serializer.hpp>
+#include <levk/level/attachments.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/scene/skeleton_controller.hpp>
 #include <levk/scene/skinned_mesh_renderer.hpp>
@@ -568,7 +569,12 @@ struct SceneWalker {
 	void add_node(std::size_t index, levk::Id<levk::Node> parent) {
 		auto const& in_node = importer.root.nodes[index];
 		auto& out_node = out_level.node_tree.add(levk::NodeCreateInfo{.transform = legsmi::from(in_node.transform), .name = in_node.name, .parent = parent});
-		if (in_node.mesh) { out_level.attachments[out_node.id()].mesh_uri = import_mesh(*in_node.mesh); }
+		if (in_node.mesh) {
+			auto attachment = levk::MeshAttachment{};
+			attachment.uri = import_mesh(*in_node.mesh);
+			auto json = importer.serializer->serialize(attachment);
+			if (json) { out_level.attachments_map[out_node.id()].push_back(std::move(json)); }
+		}
 		// TODO: cameras
 		if (in_node.camera) { out_level.camera = from(importer.root.cameras[*in_node.camera]); }
 		parent = out_node.id();
