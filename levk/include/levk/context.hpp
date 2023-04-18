@@ -16,8 +16,8 @@ class Context {
 	void hide() { return engine.get().window().hide(); }
 	void shutdown() { return engine.get().window().close(); }
 	bool is_running() const { return engine.get().window().is_open(); }
-	Frame next_frame() { return engine.get().next_frame(); }
-	void render(RenderList render_list = {}) const;
+	void next_frame() { return engine.get().next_frame(); }
+	void render() const;
 
 	DataSource const& data_source() const { return asset_providers.get().data_source(); }
 	RenderDevice& render_device() const { return engine.get().render_device(); }

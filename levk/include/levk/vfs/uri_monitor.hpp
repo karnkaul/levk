@@ -18,6 +18,7 @@ class UriMonitor {
 	Timestamp last_modified(Uri<> const& uri) const;
 	OnModified& on_modified(Uri<> const& uri);
 	void dispatch_modified();
+	void change_mount_point(std::string new_mount_point);
 
   private:
 	struct Monitor {

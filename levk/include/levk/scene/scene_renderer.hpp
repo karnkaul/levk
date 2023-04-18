@@ -16,7 +16,6 @@ class SceneRenderer {
 	SceneRenderer(NotNull<AssetProviders const*> asset_providers);
 
 	void render(Scene const& scene) const;
-	void render(Scene const& scene, RenderList render_list = {}) const;
 
   private:
 	struct Deleter {

@@ -9,7 +9,9 @@
 
 namespace levk {
 void FreecamController::tick(Time dt) {
-	auto data = owning_entity()->transform().data();
+	auto* entity = owning_entity();
+	if (!entity) { return; }
+	auto data = entity->transform().data();
 	auto& window = Service<Engine>::locate().window();
 
 	if (input().is_held(MouseButton::eRight)) {
@@ -51,30 +53,6 @@ void FreecamController::tick(Time dt) {
 	data.orientation = glm::vec3{pitch, yaw, 0.0f};
 	m_prev_cursor = input().cursor;
 
-	owning_entity()->transform().set_data(data);
-}
-
-bool FreecamController::serialize(dj::Json& out) const {
-	asset::to_json(out["move_speed"], move_speed);
-	out["look_speed"] = look_speed;
-	out["pitch"] = Degrees{pitch}.value;
-	out["yaw"] = Degrees{yaw}.value;
-	return true;
-}
-
-bool FreecamController::deserialize(dj::Json const& json) {
-	asset::from_json(json["move_speed"], move_speed, move_speed);
-	look_speed = json["look_speed"].as<float>(look_speed);
-	pitch = Degrees{json["pitch"].as<float>()};
-	yaw = Degrees{json["yaw"].as<float>()};
-	return true;
-}
-
-void FreecamController::inspect(imcpp::OpenWindow w) {
-	auto const reflector = imcpp::Reflector{w};
-	reflector("Move Speed", move_speed, 0.25f, 0.0f);
-	ImGui::DragFloat("Look Speed", &look_speed, 0.025f, 0.0f, 10.0f);
-	reflector("Pitch", pitch, 0.05f, -89.0f, 89.0f);
-	reflector("Yaw", yaw, 0.1f);
+	entity->transform().set_data(data);
 }
 } // namespace levk

@@ -9,7 +9,7 @@ namespace fs = std::filesystem;
 
 DiskVfs::DiskVfs(std::string_view mount_point) {
 	auto path = fs::path{mount_point}.generic_string();
-	if (!fs::is_directory(mount_point)) { throw Error{"Invalid mount point: " + path}; }
+	if (!fs::is_directory(path)) { throw Error{"Invalid mount point: " + path}; }
 	m_mount_point = std::move(path);
 	m_monitor = std::make_unique<UriMonitor>(m_mount_point);
 }
@@ -33,6 +33,15 @@ bool DiskVfs::write(std::span<std::byte const> bytes, Uri<> const& uri) const {
 	auto file = std::ofstream{uri.absolute_path(mount_point()), std::ios::binary};
 	if (!file) { return false; }
 	file.write(reinterpret_cast<char const*>(bytes.data()), static_cast<std::streamsize>(bytes.size_bytes()));
+	return true;
+}
+
+bool DiskVfs::change_mount_point(std::string_view new_mount_point) {
+	auto path = fs::path{new_mount_point}.generic_string();
+	if (!fs::is_directory(path)) { return false; }
+	m_mount_point = std::move(path);
+	m_monitor->change_mount_point(m_mount_point);
+	m_on_mount_point_changed.dispatch(m_mount_point);
 	return true;
 }
 } // namespace levk

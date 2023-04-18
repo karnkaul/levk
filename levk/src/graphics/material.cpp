@@ -1,9 +1,12 @@
+#include <imgui.h>
 #include <graphics/vulkan/material.hpp>
 #include <levk/asset/common.hpp>
 #include <levk/asset/texture_provider.hpp>
 #include <levk/graphics/material.hpp>
 #include <levk/graphics/shader.hpp>
+#include <levk/imcpp/drag_drop.hpp>
 #include <levk/util/enumerate.hpp>
+#include <levk/util/fixed_string.hpp>
 
 namespace levk {
 namespace {
@@ -59,6 +62,23 @@ bool Material::deserialize(dj::Json const& json) {
 	vertex_shader = json["vertex_shader"].as_string();
 	fragment_shader = json["fragment_shader"].as_string();
 	return true;
+}
+
+void Material::inspect(imcpp::OpenWindow) {
+	ImGui::Text("%s", FixedString{"Vertex Shader: {}", vertex_shader.value()}.c_str());
+	ImGui::Text("%s", FixedString{"Fragment Shader: {}", fragment_shader.value()}.c_str());
+	for (auto [texture, index] : enumerate(textures.uris)) {
+		if (auto tn = imcpp::TreeNode{FixedString{"texture[{}]", index}.c_str()}) {
+			FixedString<128> const label = texture ? texture.value() : "[None]";
+			imcpp::TreeNode::leaf(label.c_str());
+			if (texture) {
+				if (auto drag = imcpp::DragDrop::Source{}) { imcpp::DragDrop::set_string("texture", texture.value()); }
+			}
+			if (auto drop = imcpp::DragDrop::Target{}) {
+				if (auto tex = imcpp::DragDrop::accept_string("texture"); !tex.empty()) { texture = tex; }
+			}
+		}
+	}
 }
 
 UnlitMaterial::UnlitMaterial() {

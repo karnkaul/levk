@@ -32,8 +32,8 @@ void vsync_combo(RenderDevice& device, RenderDeviceInfo const& device_info) {
 }
 } // namespace
 
-void EngineStatus::draw_to(NotClosed<Window>, Engine& engine) {
-	auto const ms = engine.delta_time().count() * 1000.0f;
+void EngineStatus::draw_to(NotClosed<Window>, Engine& engine, Time dt) {
+	auto const ms = dt.count() * 1000.0f;
 	auto& device = engine.render_device();
 	auto const& device_info = device.info();
 	m_dts.resize(static_cast<std::size_t>(m_capacity));

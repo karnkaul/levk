@@ -19,7 +19,7 @@ class Runtime {
   protected:
 	Runtime(NotNull<std::unique_ptr<DataSource>> data_source, Engine::CreateInfo const& create_info = {});
 
-	virtual void tick(Frame const& frame) = 0;
+	virtual void tick(Time dt) = 0;
 	virtual void render() const;
 
 	virtual void setup() {}
@@ -27,5 +27,6 @@ class Runtime {
 	Logger::Instance m_logger{};
 	NotNull<std::unique_ptr<DataSource>> m_data_source;
 	Context m_context;
+	DeltaTime m_delta_time{};
 };
 } // namespace levk

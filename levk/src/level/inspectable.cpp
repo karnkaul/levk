@@ -1,6 +1,6 @@
 #include <imgui.h>
 #include <levk/defines.hpp>
-#include <levk/scene/inspectable.hpp>
+#include <levk/level/inspectable.hpp>
 
 namespace levk {
 void Inspectable::inspect(imcpp::OpenWindow) {

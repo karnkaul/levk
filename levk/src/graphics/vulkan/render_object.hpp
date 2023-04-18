@@ -1,9 +1,12 @@
 #pragma once
 #include <graphics/vulkan/common.hpp>
-#include <levk/graphics/drawable.hpp>
+#include <levk/graphics/draw_list.hpp>
+#include <optional>
 
 namespace levk::vulkan {
 struct RenderObject {
+	struct List;
+
 	struct Instances {
 		static constexpr std::uint32_t vertex_binding_v{4u};
 
@@ -23,10 +26,17 @@ struct RenderObject {
 		static constexpr std::uint32_t descriptor_binding_v{1u};
 	};
 
-	static std::vector<RenderObject> build_objects(std::span<Drawable const> drawables, HostBuffer::Pool& buffer_pool);
+	static std::vector<RenderObject> build_objects(DrawList const& draw_list, HostBuffer::Pool& buffer_pool);
 
 	Drawable drawable;
 	Instances instances{};
 	Joints joints{};
+};
+
+struct RenderObject::List {
+	std::vector<RenderObject> objects{};
+	std::vector<BufferView> joints_mats{};
+
+	static List build(DrawList const& in, HostBuffer::Pool& buffer_pool);
 };
 } // namespace levk::vulkan

@@ -710,7 +710,10 @@ bool Device::render(Renderer& renderer, AssetProviders const& asset_providers) {
 	impl->draw_calls = {};
 	impl->scratch_buffer_allocators[impl->buffered_index].clear();
 	impl->set_allocators[impl->buffered_index].reset_all();
+
 	renderer.asset_providers = &asset_providers;
+	renderer.next_frame();
+
 	auto render_cb = impl->render_cbs[impl->buffered_index];
 
 	FrameProfiler::instance().profile(FrameProfile::Type::eRenderShadowMap);

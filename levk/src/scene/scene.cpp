@@ -1,226 +1,175 @@
-#include <imgui.h>
 #include <levk/asset/asset_providers.hpp>
-#include <levk/asset/common.hpp>
-#include <levk/graphics/mesh.hpp>
+#include <levk/engine.hpp>
 #include <levk/graphics/render_list.hpp>
-#include <levk/imcpp/common.hpp>
-#include <levk/imcpp/drag_drop.hpp>
 #include <levk/io/serializer.hpp>
+#include <levk/level/level.hpp>
 #include <levk/scene/scene.hpp>
-#include <levk/scene/scene_manager.hpp>
+#include <levk/scene/shape_renderer.hpp>
+#include <levk/scene/skeleton_controller.hpp>
+#include <levk/scene/skinned_mesh_renderer.hpp>
+#include <levk/scene/static_mesh_renderer.hpp>
 #include <levk/service.hpp>
-#include <levk/util/enumerate.hpp>
-#include <levk/util/fixed_string.hpp>
-#include <levk/util/logger.hpp>
-#include <levk/util/visitor.hpp>
-#include <levk/window/window_state.hpp>
+#include <ranges>
 
 namespace levk {
-namespace {
-auto const g_log{Logger{"Scene"}};
-} // namespace
+Entity& Scene::spawn(NodeCreateInfo create_info) {
+	auto& node = m_nodes.add(create_info);
+	auto [id, ret] = m_entities.add(make_entity(node.id()));
+	node.entity_id = ret.m_id = id;
+	return ret;
+}
 
-AssetList Scene::peek_assets(Serializer const& serializer, dj::Json const& json) {
-	auto ret = AssetList{};
-	for (auto const& in_entity : json["entities"].array_view()) {
-		for (auto const& in_component : in_entity["components"].array_view()) {
-			auto component = serializer.try_make<Component>(in_component["type_name"].as<std::string>());
-			if (!component) { continue; }
-			component->add_assets(ret, in_component);
+Ptr<Entity const> Scene::find_entity(Id<Entity> id) const {
+	if (!id) { return {}; }
+	return m_entities.find(id);
+}
+
+Ptr<Entity> Scene::find_entity(Id<Entity> id) {
+	if (!id) { return {}; }
+	return m_entities.find(id);
+}
+
+Entity const& Scene::get_entity(Id<Entity> id) const {
+	auto* ret = find_entity(id);
+	assert(ret);
+	return *ret;
+}
+
+Entity& Scene::get_entity(Id<Entity> id) {
+	auto* ret = find_entity(id);
+	assert(ret);
+	return *ret;
+}
+
+void Scene::destroy_entity(Id<Entity> id) {
+	if (auto* entity = find_entity(id)) { entity->set_destroyed(); }
+}
+
+void Scene::clear() {
+	m_entities.clear();
+	m_nodes.clear();
+	ui_root.clear_sub_views();
+}
+
+Level Scene::export_level() const {
+	auto* serializer = Service<Serializer>::find();
+	if (!serializer) { return {}; }
+	auto ret = Level{};
+	ret.node_tree = m_nodes;
+	ret.camera = camera;
+	ret.lights = lights;
+	ret.name = name;
+	auto func = [&](Id<Entity>, Entity const& e) {
+		auto attachment = Level::Attachment{};
+		for (auto const& [_, component] : e.m_components) {
+			if (auto* smr = dynamic_cast<StaticMeshRenderer const*>(component.get())) {
+				attachment.mesh_uri = smr->mesh_uri;
+				attachment.mesh_instances = smr->instances;
+			} else if (auto* sc = dynamic_cast<SkeletonController const*>(component.get())) {
+				attachment.enabled_animation = sc->enabled;
+			} else if (auto* smr = dynamic_cast<SkinnedMeshRenderer const*>(component.get())) {
+				attachment.mesh_uri = smr->mesh_uri();
+				attachment.mesh_instances = smr->instances;
+			} else if (auto* sr = dynamic_cast<ShapeRenderer const*>(component.get())) {
+				if (auto* shape = sr->shape()) {
+					attachment.shape = serializer->serialize(*shape);
+					attachment.mesh_instances = sr->instances;
+				}
+			}
 		}
-	}
+		if (attachment) { ret.attachments.insert_or_assign(e.node_id(), std::move(attachment)); }
+	};
+	for_each(m_entities, func);
 	return ret;
 }
 
-Node& Scene::spawn(Node::CreateInfo const& node_create_info) {
-	auto entity = Entity{};
-	entity.m_scene = this;
-	auto& ret = m_nodes.add(node_create_info);
-	auto [i, e] = m_entities.add(std::move(entity));
-	e.m_id = i;
-	e.m_node = ret.id();
-	ret.entity = e.m_id;
-	return ret;
+bool Scene::import_level(Level const& level) {
+	auto* asset_providers = Service<AssetProviders>::find();
+	if (!asset_providers) { return false; }
+	static_cast<Camera&>(camera) = level.camera;
+	lights = level.lights;
+	name = level.name;
+	m_nodes = level.node_tree;
+	m_entities.clear();
+	auto func = [&](Node& out_node) {
+		auto [id, entity] = m_entities.add(make_entity(out_node.id()));
+		out_node.entity_id = entity.m_id = id;
+		auto it = level.attachments.find(out_node.id());
+		if (it == level.attachments.end()) { return; }
+		auto& attachment = it->second;
+		if (attachment.mesh_uri) {
+			switch (asset_providers->mesh_type(attachment.mesh_uri)) {
+			case MeshType::eSkinned: {
+				asset_providers->skinned_mesh().load(attachment.mesh_uri);
+				auto& smr = entity.attach(std::make_unique<SkinnedMeshRenderer>());
+				smr.set_mesh_uri(attachment.mesh_uri);
+				smr.instances = attachment.mesh_instances;
+				auto& sc = entity.attach(std::make_unique<SkeletonController>());
+				sc.enabled = attachment.enabled_animation;
+				break;
+			}
+			case MeshType::eStatic: {
+				asset_providers->static_mesh().load(attachment.mesh_uri);
+				auto& smr = entity.attach(std::make_unique<StaticMeshRenderer>());
+				smr.mesh_uri = attachment.mesh_uri;
+				smr.instances = attachment.mesh_instances;
+				break;
+			}
+			default: break;
+			}
+		}
+		if (attachment.shape) {
+			auto result = asset_providers->serializer().deserialize_as<Shape>(attachment.shape);
+			if (!result) { return; }
+			auto& renderer = entity.attach(std::make_unique<ShapeRenderer>());
+			renderer.set_shape(std::move(result.value));
+			renderer.instances = attachment.shape_instances;
+		}
+	};
+	m_nodes.for_each(func);
+	return true;
 }
 
-void Scene::tick(WindowState const& window_state, Time dt) {
-	m_window_state = window_state;
-	tick(dt);
+WindowState const& Scene::window_state() const { return Service<Engine>::locate().window().state(); }
+Input const& Scene::input() const { return Service<Engine>::locate().window().state().input; }
 
-	auto to_tick = std::vector<std::reference_wrapper<Entity>>{};
-	to_tick.reserve(m_entities.size());
-	fill_to_if(m_entities, to_tick, [](Id<Entity>, Entity const& e) { return e.active; });
-	std::sort(to_tick.begin(), to_tick.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
-	for (Entity& entity : to_tick) { entity.tick(dt); }
-	auto destroy_entity = [&](Node const& node) { m_entities.remove(node.entity); };
-	for (auto const id : m_to_destroy) {
-		auto* entity = m_entities.find(id);
-		if (!entity) { continue; }
-		m_nodes.remove(entity->m_node, destroy_entity);
-	}
-	m_to_destroy.clear();
+void Scene::tick(Time dt) {
+	auto entities = std::vector<Ptr<Entity>>{};
+	for_each(m_entities, [&entities](Id<Entity>, Entity& e) {
+		if (e.is_active) { entities.push_back(&e); }
+	});
+	std::ranges::sort(entities, [](Ptr<Entity const> a, Ptr<Entity const> b) { return a->id() < b->id(); });
 
-	ui_root.set_extent(window_state.framebuffer);
-	ui_root.tick(window_state.input, dt);
+	std::ranges::for_each(entities, [dt](Ptr<Entity> e) { e->tick(dt); });
 
-	if (auto* entity = find(camera.target)) { camera.transform = m_nodes.get(entity->node_id()).transform; }
-}
+	m_entities.remove_if([this](Id<Entity>, Entity const& e) {
+		if (e.is_destroyed()) {
+			m_nodes.remove(e.node_id());
+			return true;
+		}
+		return false;
+	});
 
-bool Scene::destroy(Id<Entity> entity) {
-	if (m_entities.contains(entity)) {
-		m_to_destroy.insert(entity);
-		return true;
-	}
-	return false;
+	if (auto target = m_entities.find(camera.target)) { camera.transform = m_nodes.get(target->node_id()).transform; }
+
+	ui_root.set_extent(window_state().framebuffer);
+	ui_root.tick(input(), dt);
 }
 
 void Scene::render(RenderList& out) const {
-	auto to_render = std::vector<std::reference_wrapper<Entity const>>{};
-	to_render.reserve(m_entities.size());
-	fill_to_if(m_entities, to_render, [](Id<Entity>, Entity const& e) { return e.active && !e.m_render_components.empty(); });
-	std::sort(to_render.begin(), to_render.end(), [](Entity const& a, Entity const& b) { return a.id() < b.id(); });
-	for (Entity const& entity : to_render) {
-		for (auto const* rc : entity.m_render_components) { rc->render(out.scene); }
-	}
+	auto entities = std::vector<Ptr<Entity const>>{};
+	for_each(m_entities, [&entities](Id<Entity>, Entity const& e) {
+		if (e.is_active) { entities.push_back(&e); }
+	});
 
+	for (auto const& entity : entities) { entity->render(out.scene); }
 	ui_root.render(out.ui);
 }
 
-Skeleton::Instance Scene::instantiate_skeleton(Skeleton const& source, Id<Node> root) { return source.instantiate(m_nodes, root); }
-
-bool Scene::serialize(dj::Json& out) const {
-	auto const* serializer = Service<Serializer>::find();
-	if (!serializer) {
-		auto* scene_manager = Service<SceneManager>::find();
-		if (!scene_manager) { return false; }
-		serializer = &scene_manager->serializer();
-	}
-	out["asset_type"] = "scene";
-	out["name"] = name;
-	auto out_nodes = dj::Json{};
-	for (auto const& [id, in_node] : m_nodes.map()) {
-		auto out_node = dj::Json{};
-		out_node["name"] = in_node.name;
-		asset::to_json(out_node["transform"], in_node.transform);
-		out_node["id"] = in_node.id().value();
-		out_node["parent"] = in_node.parent().value();
-		if (!in_node.children().empty()) {
-			auto out_children = dj::Json{};
-			for (auto id : in_node.children()) { out_children.push_back(id.value()); }
-			out_node["children"] = std::move(out_children);
-		}
-		if (in_node.entity) { out_node["entity"] = in_node.entity.value(); }
-		out_nodes.push_back(std::move(out_node));
-	}
-	out["nodes"] = std::move(out_nodes);
-	auto out_roots = dj::Json{};
-	for (auto const id : m_nodes.roots()) { out_roots.push_back(id.value()); }
-	out["roots"] = std::move(out_roots);
-	auto out_entities = dj::Json{};
-	auto func = [&](Id<Entity> id, Entity const& in_entity) {
-		auto out_entity = dj::Json{};
-		out_entity["id"] = id.value();
-		out_entity["node"] = in_entity.node_id().value();
-		auto& out_components = out_entity["components"];
-		for (auto const& [_, component] : in_entity.m_components) {
-			if (auto out_component = serializer->serialize(*component)) {
-				out_components.push_back(std::move(out_component));
-			} else {
-				g_log.warn("Failed to serialize Component [{}]", component->type_name());
-			}
-		}
-		out_entities.push_back(std::move(out_entity));
-	};
-	for_each(m_entities, func);
-	out["entities"] = std::move(out_entities);
-	auto& out_camera = out["camera"];
-	if (camera.target) { out_camera["target"] = camera.target.value(); }
-	asset::to_json(out_camera, camera);
-	auto& out_lights = out["lights"];
-	auto& out_primary_light = out_lights["primary"];
-	asset::to_json(out_primary_light["direction"], lights.primary.direction);
-	asset::to_json(out_primary_light["rgb"], lights.primary.rgb);
-	if (!lights.dir_lights.empty()) {
-		auto& out_dir_lights = out_lights["dir_lights"];
-		for (auto const& in_dir_light : lights.dir_lights) {
-			auto& out_dir_light = out_dir_lights.push_back({});
-			asset::to_json(out_dir_light["direction"], in_dir_light.direction);
-			asset::to_json(out_dir_light["rgb"], in_dir_light.rgb);
-		}
-	}
-	return true;
-}
-
-bool Scene::deserialize(dj::Json const& json) {
-	auto const* serializer = Service<Serializer>::find();
-	if (!serializer) {
-		auto* scene_manager = Service<SceneManager>::find();
-		if (!scene_manager) { return false; }
-		serializer = &scene_manager->serializer();
-	}
-	if (json["asset_type"].as_string() != "scene") { return false; }
-	name = json["name"].as<std::string>();
-	auto out_nodes = Node::Tree::Map{};
-	for (auto const& in_node : json["nodes"].array_view()) {
-		auto transform = Transform{};
-		asset::from_json(in_node["transform"], transform);
-		auto nci = Node::CreateInfo{
-			.transform = transform,
-			.name = in_node["name"].as<std::string>(),
-			.parent = in_node["parent"].as<std::size_t>(),
-			.entity = in_node["entity"].as<std::size_t>(),
-		};
-		auto children = std::vector<Id<Node>>{};
-		for (auto const& in_child : in_node["children"].array_view()) { children.push_back(in_child.as<std::size_t>()); }
-		auto const id = in_node["id"].as<std::size_t>();
-		auto out_node = Node::Tree::make_node(id, std::move(children), std::move(nci));
-		out_nodes.insert_or_assign(id, std::move(out_node));
-	}
-	auto out_roots = std::vector<Id<Node>>{};
-	for (auto const& in_root : json["roots"].array_view()) { out_roots.push_back(in_root.as<std::size_t>()); }
-	m_nodes.import_tree(std::move(out_nodes), std::move(out_roots));
-	auto out_entities = std::unordered_map<std::size_t, Entity>{};
-	for (auto const& in_entity : json["entities"].array_view()) {
-		auto out_entity = Entity{};
-		auto const id = in_entity["id"].as<std::size_t>();
-		out_entity.m_id = id;
-		out_entity.m_node = in_entity["node"].as<std::size_t>();
-		out_entity.m_scene = this;
-		for (auto const& in_component : in_entity["components"].array_view()) {
-			auto result = serializer->deserialize_as<Component>(in_component);
-			if (!result) {
-				g_log.warn("Failed to deserialize [{}] Component", result.type_name);
-				continue;
-			}
-			out_entity.attach(result.type_id.value(), std::move(result.value));
-		}
-		out_entities.insert_or_assign(id, std::move(out_entity));
-	}
-	m_entities.import_map(std::move(out_entities));
-	auto const& in_camera = json["camera"];
-	camera.target = in_camera["target"].as<Id<Entity>::id_type>(camera.target);
-	asset::from_json(in_camera, camera);
-	auto const& in_lights = json["lights"];
-	if (auto const& in_primary_light = in_lights["primary"]) {
-		asset::from_json(in_primary_light["direction"], lights.primary.direction);
-		asset::from_json(in_primary_light["rgb"], lights.primary.rgb);
-	}
-	auto const& in_dir_lights = in_lights["dir_lights"];
-	if (!in_dir_lights.array_view().empty()) { lights.dir_lights.clear(); }
-	for (auto const& in_dir_light : in_dir_lights.array_view()) {
-		auto& out_dir_light = lights.dir_lights.emplace_back();
-		asset::from_json(in_dir_light["direction"], out_dir_light.direction);
-		asset::from_json(in_dir_light["rgb"], out_dir_light.rgb);
-	}
-	return true;
-}
-
-bool Scene::detach_from(Entity& out_entity, TypeId::value_type component_type) const {
-	if (auto it = out_entity.m_components.find(component_type); it != out_entity.m_components.end()) {
-		if (auto* rc = dynamic_cast<RenderComponent*>(it->second.get())) { out_entity.m_render_components.erase(rc); }
-		out_entity.m_components.erase(component_type);
-		return true;
-	}
-	return false;
+Entity Scene::make_entity(Id<Node> node_id) {
+	auto entity = Entity{};
+	entity.m_node = node_id;
+	entity.m_scene = this;
+	return entity;
 }
 } // namespace levk

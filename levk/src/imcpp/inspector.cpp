@@ -1,14 +1,166 @@
 #include <imgui.h>
+#include <levk/asset/asset_providers.hpp>
+#include <levk/imcpp/drag_drop.hpp>
 #include <levk/imcpp/inspector.hpp>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/io/serializer.hpp>
+#include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/scene.hpp>
+#include <levk/scene/shape_renderer.hpp>
+#include <levk/scene/skeleton_controller.hpp>
+#include <levk/scene/skinned_mesh_renderer.hpp>
+#include <levk/scene/static_mesh_renderer.hpp>
 #include <levk/service.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/fixed_string.hpp>
 #include <levk/util/visitor.hpp>
 
 namespace levk::imcpp {
+namespace {
+void inspect(OpenWindow w, std::vector<Transform>& out_instances) {
+	if (auto tn = imcpp::TreeNode{"Instances"}) {
+		auto const reflector = imcpp::Reflector{w};
+		Bool unified_scaling{true};
+		auto to_remove = std::optional<std::size_t>{};
+		for (auto [instance, index] : enumerate(out_instances)) {
+			if (auto tn = imcpp::TreeNode{FixedString{"[{}]", index}.c_str()}) {
+				reflector(instance, unified_scaling, {false});
+				if (imcpp::small_button_red("X")) { to_remove = index; }
+			}
+		}
+		if (to_remove) { out_instances.erase(out_instances.begin() + static_cast<std::ptrdiff_t>(*to_remove)); }
+		if (ImGui::Button("+")) { out_instances.push_back({}); }
+	}
+}
+
+void inspect(OpenWindow w, ShapeRenderer& shape_renderer) {
+	if (auto tn = TreeNode{"Shape"}) {
+		if (auto* shape = const_cast<Shape*>(shape_renderer.shape())) {
+			shape->inspect(w);
+			if (ImGui::SmallButton("Refresh")) { shape_renderer.refresh_geometry(); }
+		} else {
+			imcpp::TreeNode::leaf("[None]");
+		}
+		inspect(w, shape_renderer.instances);
+		// TODO: set shape popup
+	}
+}
+
+void inspect(OpenWindow w, StaticMeshRenderer& mesh_renderer) {
+	auto* asset_providers = Service<AssetProviders>::find();
+	auto label = FixedString{};
+	if (asset_providers) {
+		if (auto const* static_mesh = asset_providers->static_mesh().find(mesh_renderer.mesh_uri)) { label = static_mesh->name; }
+	}
+	TreeNode::leaf(FixedString{"Mesh: {}", label}.c_str());
+	if (mesh_renderer.mesh_uri && ImGui::IsItemClicked(ImGuiMouseButton_Right)) { Popup::open("static_mesh_renderer.right_click"); }
+	if (auto drop = DragDrop::Target{}) {
+		if (auto const in_mesh = DragDrop::accept_string("static_mesh"); !in_mesh.empty()) { mesh_renderer.mesh_uri = in_mesh; }
+	}
+
+	inspect(w, mesh_renderer.instances);
+
+	if (auto popup = imcpp::Popup{"static_mesh_renderer.right_click"}) {
+		if (ImGui::Selectable("Unset")) {
+			mesh_renderer.mesh_uri = {};
+			popup.close_current();
+		}
+	}
+}
+
+void inspect(OpenWindow w, SkinnedMeshRenderer& mesh_renderer) {
+	auto* asset_providers = Service<AssetProviders>::find();
+	auto label = FixedString{};
+	if (asset_providers) {
+		if (auto const* mesh = asset_providers->skinned_mesh().find(mesh_renderer.mesh_uri())) { label = mesh->name; }
+	}
+	TreeNode::leaf(FixedString{"Mesh: {}", label}.c_str());
+	if (mesh_renderer.mesh_uri() && ImGui::IsItemClicked(ImGuiMouseButton_Right)) { Popup::open("skinned_mesh_renderer.right_click"); }
+	if (auto drop = DragDrop::Target{}) {
+		if (auto const in_mesh = DragDrop::accept_string("skinned_mesh"); !in_mesh.empty()) { mesh_renderer.set_mesh_uri(in_mesh); }
+	}
+
+	inspect(w, mesh_renderer.instances);
+
+	if (auto popup = imcpp::Popup{"skinned_mesh_renderer.right_click"}) {
+		if (ImGui::Selectable("Unset")) {
+			mesh_renderer.set_mesh_uri({});
+			popup.close_current();
+		}
+	}
+}
+
+void inspect(OpenWindow, Entity const& entity, SkeletonController& skeleton_controller) {
+	auto const* skinned_mesh_renderer = entity.find<SkinnedMeshRenderer>();
+	if (!skinned_mesh_renderer) { return; }
+	auto const preview = skeleton_controller.enabled ? FixedString{"{}", skeleton_controller.enabled->value()} : FixedString{"[None]"};
+	if (auto combo = imcpp::Combo{"Active", preview.c_str()}) {
+		if (ImGui::Selectable("[None]")) {
+			skeleton_controller.change_animation({});
+		} else {
+			for (std::size_t i = 0; i < skinned_mesh_renderer->skeleton().animations.size(); ++i) {
+				if (ImGui::Selectable(FixedString{"{}", i}.c_str(), skeleton_controller.enabled && i == skeleton_controller.enabled->value())) {
+					skeleton_controller.change_animation(i);
+					break;
+				}
+			}
+		}
+	}
+	auto const* asset_providers = Service<AssetProviders>::find();
+	auto& animations = skinned_mesh_renderer->skeleton().animations;
+	if (asset_providers && skeleton_controller.enabled && *skeleton_controller.enabled < animations.size()) {
+		auto* animation = asset_providers->skeletal_animation().find(animations[*skeleton_controller.enabled]);
+		ImGui::Text("%s", FixedString{"Duration: {:.1f}s", animation->animation.duration().count()}.c_str());
+		float const progress = skeleton_controller.elapsed / animation->animation.duration();
+		ImGui::ProgressBar(progress);
+	}
+}
+
+template <typename Type>
+bool detach(Entity& entity) {
+	ImGui::Separator();
+	if (ImGui::Button("Detach")) {
+		entity.detach<Type>();
+		return false;
+	}
+	return true;
+}
+
+bool inspect_component(OpenWindow w, Entity& entity, Component& component) {
+	if (auto* shape_renderer = dynamic_cast<ShapeRenderer*>(&component)) {
+		if (auto tn = imcpp::TreeNode{"ShapeRenderer", ImGuiTreeNodeFlags_Framed}) {
+			inspect(w, *shape_renderer);
+			return detach<ShapeRenderer>(entity);
+		}
+	} else if (auto* mesh_renderer = dynamic_cast<StaticMeshRenderer*>(&component)) {
+		if (auto tn = imcpp::TreeNode{"StaticMeshRenderer", ImGuiTreeNodeFlags_Framed}) {
+			inspect(w, *mesh_renderer);
+			return detach<StaticMeshRenderer>(entity);
+		}
+	} else if (auto* mesh_renderer = dynamic_cast<SkinnedMeshRenderer*>(&component)) {
+		if (auto tn = imcpp::TreeNode{"SkinnedMeshRenderer", ImGuiTreeNodeFlags_Framed}) {
+			inspect(w, *mesh_renderer);
+			return detach<SkinnedMeshRenderer>(entity);
+		}
+	} else if (auto* skeleton_controller = dynamic_cast<SkeletonController*>(&component)) {
+		if (auto tn = imcpp::TreeNode{"SkeletonController", ImGuiTreeNodeFlags_Framed}) {
+			inspect(w, entity, *skeleton_controller);
+			return detach<SkeletonController>(entity);
+		}
+	}
+	return true;
+}
+
+template <typename T>
+bool attach_selectable(char const* label, Entity& out) {
+	if (!out.contains<T>() && ImGui::Selectable(label)) {
+		out.attach(std::make_unique<T>());
+		return true;
+	}
+	return false;
+}
+} // namespace
+
 void Inspector::display(Scene& scene) {
 	if (bool show_inspector = static_cast<bool>(target)) {
 		auto const width = ImGui::GetMainViewport()->Size.x * width_pct;
@@ -72,31 +224,18 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 		break;
 	}
 	default: {
-		auto* entity = scene.find(target.entity);
+		auto* entity = scene.find_entity(target.entity);
 		if (!entity) { return; }
 		auto* node = scene.node_locator().find(entity->node_id());
 		if (!node) { return; }
 		imcpp::TreeNode::leaf(node->name.c_str());
-		ImGui::Checkbox("Active", &entity->active);
+		ImGui::Checkbox("Active", &entity->is_active);
 		if (auto tn = imcpp::TreeNode("Transform", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
 			auto unified_scaling = Bool{true};
 			imcpp::Reflector{w}(node->transform, unified_scaling, {true});
 		}
-		auto inspect_component = [&](TypeId::value_type type_id, Component& component) {
-			if (auto tn = imcpp::TreeNode{FixedString<128>{component.type_name()}.c_str(), ImGuiTreeNodeFlags_Framed}) {
-				component.inspect(w);
-				if (type_id) {
-					ImGui::Separator();
-					if (ImGui::Button("Detach")) {
-						scene.detach_from(*entity, type_id);
-						return false;
-					}
-				}
-			}
-			return true;
-		};
 		for (auto const& [type_id, component] : entity->component_map()) {
-			if (!inspect_component(type_id, *component)) { break; }
+			if (!inspect_component(w, *entity, *component)) { break; }
 		}
 		if (ImGui::Button("Attach...")) { Popup::open("inspector.attach"); }
 		break;
@@ -105,13 +244,14 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 
 	if (auto popup = Popup{"inspector.attach"}) {
 		assert(target.type == Type::eEntity);
-		auto* entity = scene.find(target.entity);
+		auto* entity = scene.find_entity(target.entity);
 		assert(entity);
-		auto const& serializer = Service<Serializer>::locate();
-		auto const type_names = serializer.type_names_by_tag(Serializer::Tag::eComponent);
-		for (auto const& type_name : type_names) {
-			if (ImGui::Selectable(type_name.data())) { serializer.attach(*entity, std::string{type_name}); }
-		}
+		bool close = attach_selectable<ShapeRenderer>("ShapeRenderer", *entity);
+		close |= attach_selectable<StaticMeshRenderer>("StaticMeshRenderer", *entity);
+		close |= attach_selectable<SkinnedMeshRenderer>("SkinnedMeshRenderer", *entity);
+		close |= attach_selectable<SkeletonController>("SkeletonController", *entity);
+		close |= attach_selectable<FreecamController>("FreecamController", *entity);
+		if (close) { popup.close_current(); }
 	}
 }
 } // namespace levk::imcpp
