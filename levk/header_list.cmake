@@ -84,11 +84,11 @@ set(imcpp_headers
 )
 
 set(assets_headers
+  include/levk/asset/asset_io.hpp
   include/levk/asset/asset_list_loader.hpp
   include/levk/asset/asset_list.hpp
   include/levk/asset/asset_provider.hpp
   include/levk/asset/asset_providers.hpp
-  include/levk/asset/common.hpp
   include/levk/asset/font_provider.hpp
   include/levk/asset/material_provider.hpp
   include/levk/asset/mesh_provider.hpp
@@ -105,6 +105,7 @@ set(vfs_headers
 )
 
 set(io_headers
+  include/levk/io/common.hpp
   include/levk/io/serializable.hpp
   include/levk/io/serializer.hpp
 )

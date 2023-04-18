@@ -1,6 +1,7 @@
 #include <fmt/format.h>
 #include <glm/gtx/matrix_decompose.hpp>
-#include <levk/asset/common.hpp>
+#include <levk/asset/asset_io.hpp>
+#include <levk/io/common.hpp>
 #include <levk/node/node_tree_serializer.hpp>
 #include <levk/util/binary_file.hpp>
 #include <levk/util/hash_combine.hpp>
@@ -11,22 +12,6 @@
 
 namespace levk {
 namespace {
-constexpr RenderMode::Type to_render_mode_type(std::string_view const str) {
-	if (str == "fill") { return RenderMode::Type::eFill; }
-	if (str == "line") { return RenderMode::Type::eLine; }
-	if (str == "point") { return RenderMode::Type::ePoint; }
-	return RenderMode::Type::eDefault;
-}
-
-constexpr std::string_view from(RenderMode::Type const type) {
-	switch (type) {
-	case RenderMode::Type::eFill: return "fill";
-	case RenderMode::Type::eLine: return "line";
-	case RenderMode::Type::ePoint: return "point";
-	default: return "default";
-	}
-}
-
 constexpr AlphaMode to_alpha_mode(std::string_view const str) {
 	if (str == "blend") { return AlphaMode::eBlend; }
 	if (str == "mask") { return AlphaMode::eMask; }
@@ -39,37 +24,6 @@ constexpr std::string_view from(AlphaMode const mode) {
 	case AlphaMode::eMask: return "mask";
 	default: return "opaque";
 	}
-}
-
-std::string to_hex(Rgba const& rgba) {
-	auto ret = std::string{"#"};
-	fmt::format_to(std::back_inserter(ret), "{:02x}", rgba.channels.x);
-	fmt::format_to(std::back_inserter(ret), "{:02x}", rgba.channels.y);
-	fmt::format_to(std::back_inserter(ret), "{:02x}", rgba.channels.z);
-	fmt::format_to(std::back_inserter(ret), "{:02x}", rgba.channels.w);
-	return ret;
-}
-
-std::uint8_t to_channel(std::string_view const hex) {
-	assert(hex.size() == 2);
-	auto str = std::stringstream{};
-	str << std::hex << hex;
-	auto ret = std::uint32_t{};
-	str >> ret;
-	return static_cast<std::uint8_t>(ret);
-}
-
-HdrRgba to_hdr_rgba(std::string_view hex, float intensity) {
-	assert(!hex.empty());
-	if (hex[0] == '#') { hex = hex.substr(1); }
-	assert(hex.size() == 8);
-	auto ret = HdrRgba{};
-	ret.channels.x = to_channel(hex.substr(0, 2));
-	ret.channels.y = to_channel(hex.substr(2, 2));
-	ret.channels.z = to_channel(hex.substr(4, 2));
-	ret.channels.w = to_channel(hex.substr(6));
-	ret.intensity = intensity;
-	return ret;
 }
 
 template <glm::length_t Dim>
@@ -278,96 +232,34 @@ bool BinSkeletalAnimation::read(char const* path) { return read_from(BinarySourc
 bool BinSkeletalAnimation::read(std::span<std::byte const> bytes) { return read_from(BinarySourceData{bytes}, *this); }
 } // namespace asset
 
-void asset::from_json(dj::Json const& json, glm::quat& out, glm::quat const& fallback) {
-	auto vec = glm::vec4{};
-	from_json(json, vec, {fallback.x, fallback.y, fallback.z, fallback.w});
-	out = glm::quat{vec.w, vec.x, vec.y, vec.z};
-}
-
-void asset::to_json(dj::Json& out, glm::quat const& quat) {
-	auto const vec = glm::vec4{quat.x, quat.y, quat.z, quat.w};
-	to_json(out, vec);
-}
-
-void asset::from_json(dj::Json const& json, glm::mat4& out) {
-	out[0] = glm_vec_from_json<4>(json, out[0]);
-	out[1] = glm_vec_from_json<4>(json, out[1], 4);
-	out[2] = glm_vec_from_json<4>(json, out[2], 8);
-	out[3] = glm_vec_from_json<4>(json, out[3], 12);
-}
-
-void asset::to_json(dj::Json& out, glm::mat4 const& mat) {
-	for (glm::length_t i = 0; i < 4; ++i) { add_to(out, mat[i]); }
-}
-
-void asset::to_json(dj::Json& out, Rgba const& rgba) {
-	auto hdr = HdrRgba{rgba, 1.0f};
-	return to_json(out, hdr);
-}
-
-void asset::from_json(dj::Json const& json, Rgba& out) {
-	auto hdr = HdrRgba{};
-	from_json(json, hdr);
-	out = hdr;
-}
-
-void asset::to_json(dj::Json& out, HdrRgba const& rgba) {
-	out["hex"] = to_hex(rgba);
-	out["intensity"] = rgba.intensity;
-}
-
-void asset::from_json(dj::Json const& json, HdrRgba& out) { out = to_hdr_rgba(json["hex"].as_string(), json["intensity"].as<float>(1.0f)); }
-
-void asset::from_json(dj::Json const& json, Transform& out) {
-	auto mat = glm::mat4{1.0f};
-	from_json(json, mat);
-	out.decompose(mat);
-}
-
-void asset::to_json(dj::Json& out, Transform const& transform) { to_json(out, transform.matrix()); }
-
-void asset::from_json(dj::Json const& json, RenderMode& out) {
-	assert(json["asset_type"].as_string() == "RenderMode");
-	out.line_width = json["line_width"].as<float>(out.line_width);
-	out.type = to_render_mode_type(json["type"].as_string());
-	out.depth_test = json["depth_test"].as<bool>();
-}
-
-void asset::to_json(dj::Json& out, RenderMode const& render_mode) {
-	out["asset_type"] = "RenderMode";
-	out["line_width"] = render_mode.line_width;
-	out["type"] = from(render_mode.type);
-	out["depth_test"] = dj::Boolean{render_mode.depth_test};
-}
-
 void asset::from_json(dj::Json const& json, Quad& out) {
 	assert(json["asset_type"].as_string() == "Quad");
-	from_json(json["size"], out.size, out.size);
+	levk::from_json(json["size"], out.size, out.size);
 	from_json(json["uv_rect"], out.uv, out.uv);
 	from_json(json["rgb"], out.rgb);
-	from_json(json["origin"], out.origin, out.origin);
+	levk::from_json(json["origin"], out.origin, out.origin);
 }
 
 void asset::to_json(dj::Json& out, Quad const& quad) {
 	out["asset_type"] = "Quad";
-	to_json(out["size"], quad.size);
+	levk::to_json(out["size"], quad.size);
 	to_json(out["uv_rect"], quad.uv);
 	to_json(out["rgb"], quad.rgb);
-	to_json(out["origin"], quad.origin);
+	levk::to_json(out["origin"], quad.origin);
 }
 
 void asset::from_json(dj::Json const& json, Cube& out) {
 	assert(json["asset_type"].as_string() == "Cube");
-	from_json(json["size"], out.size, out.size);
+	levk::from_json(json["size"], out.size, out.size);
 	from_json(json["rgb"], out.rgb);
-	from_json(json["origin"], out.origin, out.origin);
+	levk::from_json(json["origin"], out.origin, out.origin);
 }
 
 void asset::to_json(dj::Json& out, Cube const& cube) {
 	out["asset_type"] = "Cube";
-	to_json(out["size"], cube.size);
+	levk::to_json(out["size"], cube.size);
 	to_json(out["rgb"], cube.rgb);
-	to_json(out["origin"], cube.origin);
+	levk::to_json(out["origin"], cube.origin);
 }
 
 void asset::from_json(dj::Json const& json, Sphere& out) {
@@ -375,7 +267,7 @@ void asset::from_json(dj::Json const& json, Sphere& out) {
 	out.diameter = json["diameter"].as<float>(out.diameter);
 	out.resolution = json["resolution"].as<std::uint32_t>(out.resolution);
 	from_json(json["rgb"], out.rgb);
-	from_json(json["origin"], out.origin);
+	levk::from_json(json["origin"], out.origin);
 }
 
 void asset::to_json(dj::Json& out, Sphere const& sphere) {
@@ -383,7 +275,7 @@ void asset::to_json(dj::Json& out, Sphere const& sphere) {
 	out["size"] = sphere.diameter;
 	out["resolution"] = sphere.resolution;
 	to_json(out["rgb"], sphere.rgb);
-	to_json(out["origin"], sphere.origin);
+	levk::to_json(out["origin"], sphere.origin);
 }
 
 void asset::from_json(dj::Json const& json, ViewPlane& out) {
@@ -401,7 +293,7 @@ void asset::to_json(dj::Json& out, ViewPlane const& view_plane) {
 void asset::from_json(dj::Json const& json, Camera& out) {
 	assert(json["asset_type"].as_string() == "Camera");
 	out.name = json["name"].as<std::string>();
-	asset::from_json(json["transform"], out.transform);
+	levk::from_json(json["transform"], out.transform);
 	out.transform.recompute();
 	out.exposure = json["exposure"].as<float>(out.exposure);
 	if (json["type"].as_string() == "orthographic") {
@@ -420,7 +312,7 @@ void asset::from_json(dj::Json const& json, Camera& out) {
 void asset::to_json(dj::Json& out, Camera const& camera) {
 	out["asset_type"] = "Camera";
 	out["name"] = camera.name;
-	asset::to_json(out["transform"], camera.transform);
+	levk::to_json(out["transform"], camera.transform);
 	out["exposure"] = camera.exposure;
 	auto const camera_visitor = Visitor{
 		[&out](Camera::Perspective const& perspective) {
@@ -439,14 +331,14 @@ void asset::to_json(dj::Json& out, Camera const& camera) {
 void asset::from_json(dj::Json const& json, Lights& out) {
 	assert(json["asset_type"].as_string() == "Lights");
 	if (auto const& in_primary_light = json["primary"]) {
-		from_json(in_primary_light["direction"], out.primary.direction);
+		levk::from_json(in_primary_light["direction"], out.primary.direction);
 		from_json(in_primary_light["rgb"], out.primary.rgb);
 	}
 	auto const& in_dir_lights = json["dir_lights"];
 	if (!in_dir_lights.array_view().empty()) { out.dir_lights.clear(); }
 	for (auto const& in_dir_light : in_dir_lights.array_view()) {
 		auto& out_dir_light = out.dir_lights.emplace_back();
-		from_json(in_dir_light["direction"], out_dir_light.direction);
+		levk::from_json(in_dir_light["direction"], out_dir_light.direction);
 		from_json(in_dir_light["rgb"], out_dir_light.rgb);
 	}
 }
@@ -454,14 +346,14 @@ void asset::from_json(dj::Json const& json, Lights& out) {
 void asset::to_json(dj::Json& out, Lights const& lights) {
 	out["asset_type"] = "Lights";
 	auto& out_primary_light = out["primary"];
-	to_json(out_primary_light["direction"], lights.primary.direction);
+	levk::to_json(out_primary_light["direction"], lights.primary.direction);
 	to_json(out_primary_light["rgb"], lights.primary.rgb);
 	if (!lights.dir_lights.empty()) {
 		auto& out_dir_lights = out["dir_lights"];
 		for (auto const& in_dir_light : lights.dir_lights) {
 			auto& out_dir_light = out_dir_lights.push_back({});
-			to_json(out_dir_light["direction"], in_dir_light.direction);
-			to_json(out_dir_light["rgb"], in_dir_light.rgb);
+			levk::to_json(out_dir_light["direction"], in_dir_light.direction);
+			levk::to_json(out_dir_light["rgb"], in_dir_light.rgb);
 		}
 	}
 }
@@ -483,7 +375,7 @@ void asset::from_json(dj::Json const& json, Level& out) {
 	from_json(json["camera"], out.camera);
 	from_json(json["lights"], out.lights);
 	auto add_instances = [](dj::Json const& json, std::vector<Transform>& out_instances) {
-		for (auto const& instance : json.array_view()) { asset::from_json(instance, out_instances.emplace_back()); }
+		for (auto const& instance : json.array_view()) { levk::from_json(instance, out_instances.emplace_back()); }
 	};
 	for (auto const& [node_id_str, in_attachment] : json["attachments"].object_view()) {
 		auto const get_node_id = [](std::string_view const in) -> Id<Node>::id_type {
@@ -511,7 +403,7 @@ void asset::to_json(dj::Json& out, Level const& level) {
 	to_json(out["lights"], level.lights);
 	if (!level.attachments.empty()) {
 		auto add_instances = [](dj::Json& out_json, std::span<Transform const> instances) {
-			for (auto const& transform : instances) { asset::to_json(out_json.push_back({}), transform); }
+			for (auto const& transform : instances) { levk::to_json(out_json.push_back({}), transform); }
 		};
 		auto& out_attachments = out["attachments"];
 		for (auto const& [node_id, attachment] : level.attachments) {
@@ -528,11 +420,11 @@ void asset::to_json(dj::Json& out, Level const& level) {
 void asset::from_json(dj::Json const& json, asset::Material& out) {
 	assert(json["asset_type"].as_string() == "Material");
 	out.textures.deserialize(json["textures"]);
-	from_json(json["albedo"], out.albedo);
-	out.emissive_factor = glm_vec_from_json<3>(json["emissive_factor"], out.emissive_factor);
+	levk::from_json(json["albedo"], out.albedo);
+	levk::from_json(json["emissive_factor"], out.emissive_factor);
 	out.metallic = json["metallic"].as<float>(out.metallic);
 	out.roughness = json["roughness"].as<float>(out.roughness);
-	from_json(json["render_mode"], out.render_mode);
+	levk::from_json(json["render_mode"], out.render_mode);
 	out.alpha_cutoff = json["alpha_cutoff"].as<float>(out.alpha_cutoff);
 	out.alpha_mode = to_alpha_mode(json["alpha_mode"].as_string());
 	out.vertex_shader = json["vertex_shader"].as_string(out.vertex_shader);
@@ -544,11 +436,11 @@ void asset::to_json(dj::Json& out, asset::Material const& asset) {
 	out["type_name"] = asset.vertex_shader.find("skinned") != std::string_view::npos ? SkinnedMaterial{}.type_name() : LitMaterial{}.type_name();
 	out["asset_type"] = "Material";
 	asset.textures.serialize(out["textures"]);
-	to_json(out["albedo"], asset.albedo);
-	to_json(out["emissive_factor"], asset.emissive_factor);
+	levk::to_json(out["albedo"], asset.albedo);
+	levk::to_json(out["emissive_factor"], asset.emissive_factor);
 	out["metallic"] = asset.metallic;
 	out["roughness"] = asset.roughness;
-	to_json(out["render_mode"], asset.render_mode);
+	levk::to_json(out["render_mode"], asset.render_mode);
 	out["alpha_cutoff"] = asset.alpha_cutoff;
 	out["alpha_mode"] = from(asset.alpha_mode);
 	out["vertex_shader"] = asset.vertex_shader;
@@ -589,7 +481,7 @@ void asset::from_json(dj::Json const& json, Mesh3D& out) {
 		primitive.material = std::string{in_primitive["material"].as_string()};
 		out.primitives.push_back(std::move(primitive));
 	}
-	for (auto const& in_ibm : json["inverse_bind_matrices"].array_view()) { from_json(in_ibm, out.inverse_bind_matrices.emplace_back()); }
+	for (auto const& in_ibm : json["inverse_bind_matrices"].array_view()) { levk::from_json(in_ibm, out.inverse_bind_matrices.emplace_back()); }
 	out.name = json["name"].as_string();
 }
 
@@ -607,7 +499,7 @@ void asset::to_json(dj::Json& out, Mesh3D const& asset) {
 		out["skeleton"] = asset.skeleton.value();
 		assert(!asset.inverse_bind_matrices.empty());
 		auto& ibm = out["inverse_bind_matrices"];
-		for (auto const& in_ibm : asset.inverse_bind_matrices) { to_json(ibm.push_back({}), in_ibm); }
+		for (auto const& in_ibm : asset.inverse_bind_matrices) { levk::to_json(ibm.push_back({}), in_ibm); }
 	}
 	out["name"] = asset.name;
 }

@@ -1,6 +1,5 @@
 #pragma once
 #include <gltf2cpp/gltf2cpp.hpp>
-#include <levk/asset/common.hpp>
 #include <levk/graphics/render_device.hpp>
 #include <levk/level/level.hpp>
 #include <levk/util/logger.hpp>
@@ -15,8 +14,6 @@ class Serializer;
 } // namespace levk
 
 namespace legsmi {
-namespace asset = levk::asset;
-
 using Logger = levk::Logger;
 
 template <typename Type>
@@ -76,7 +73,7 @@ struct MeshImporter {
 	std::string dir_uri{};
 	bool overwrite_existing{};
 
-	levk::Uri<asset::Mesh3D> try_import(Mesh const& mesh, ImportMap& out_imported) const;
+	levk::Uri<levk::Mesh> try_import(Mesh const& mesh, ImportMap& out_imported) const;
 
 	explicit operator bool() const { return !!root && serializer != nullptr; }
 };

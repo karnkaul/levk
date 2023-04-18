@@ -1,4 +1,4 @@
-#include <levk/asset/common.hpp>
+#include <levk/asset/asset_io.hpp>
 #include <levk/asset/skeleton_provider.hpp>
 
 namespace levk {

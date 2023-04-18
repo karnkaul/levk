@@ -1,5 +1,6 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <legsmi/legsmi.hpp>
+#include <levk/asset/asset_io.hpp>
 #include <levk/io/serializer.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/scene/skeleton_controller.hpp>
@@ -17,6 +18,7 @@
 
 namespace legsmi {
 namespace fs = std::filesystem;
+namespace asset = levk::asset;
 
 template <typename T>
 using Ptr = levk::Ptr<T>;
@@ -364,7 +366,7 @@ struct Exporter {
 		return uri;
 	}
 
-	levk::Uri<asset::Mesh3D> operator()(Resource const& resource) {
+	levk::Uri<levk::Mesh> operator()(Resource const& resource) {
 		auto uri = (dir_uri / fmt::format("{}.json", resource.name.out)).generic_string();
 		auto dst = uri_prefix / uri;
 		if (!should_overwrite(dst.generic_string())) { return uri; }
@@ -624,7 +626,7 @@ SceneImporter AssetList::scene_importer(std::string root_path, std::string dir_u
 	return ret;
 }
 
-levk::Uri<asset::Mesh3D> MeshImporter::try_import(Mesh const& mesh, ImportMap& out_imported) const {
+levk::Uri<levk::Mesh> MeshImporter::try_import(Mesh const& mesh, ImportMap& out_imported) const {
 	auto const dst_dir = fs::path{uri_prefix} / dir_uri;
 	try {
 		if (!fs::exists(dst_dir)) { fs::create_directories(dst_dir); }

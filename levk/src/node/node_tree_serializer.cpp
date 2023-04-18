@@ -1,4 +1,4 @@
-#include <levk/asset/common.hpp>
+#include <levk/io/common.hpp>
 #include <levk/node/node_tree_serializer.hpp>
 
 namespace levk {
@@ -7,7 +7,7 @@ void NodeTree::Serializer::serialize(dj::Json& out, NodeTree const& tree) {
 	for (auto const& [id, in_node] : tree.m_nodes) {
 		auto out_node = dj::Json{};
 		out_node["name"] = in_node.name;
-		asset::to_json(out_node["transform"], in_node.transform);
+		to_json(out_node["transform"], in_node.transform);
 		out_node["id"] = in_node.id().value();
 		out_node["parent"] = in_node.parent().value();
 		if (!in_node.children().empty()) {
@@ -25,7 +25,7 @@ void NodeTree::Serializer::serialize(dj::Json& out, NodeTree const& tree) {
 void NodeTree::Serializer::deserialize(dj::Json const& json, NodeTree& out) {
 	for (auto const& in_node : json["nodes"].array_view()) {
 		auto transform = Transform{};
-		asset::from_json(in_node["transform"], transform);
+		from_json(in_node["transform"], transform);
 		auto nci = Node::CreateInfo{
 			.transform = transform,
 			.name = in_node["name"].as<std::string>(),

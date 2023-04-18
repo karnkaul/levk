@@ -1,5 +1,5 @@
+#include <levk/asset/asset_io.hpp>
 #include <levk/asset/asset_providers.hpp>
-#include <levk/asset/common.hpp>
 #include <levk/scene/scene_manager.hpp>
 #include <levk/scene/skeleton_controller.hpp>
 #include <levk/scene/skinned_mesh_renderer.hpp>

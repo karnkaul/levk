@@ -1,4 +1,4 @@
-#include <levk/asset/common.hpp>
+#include <levk/asset/asset_io.hpp>
 #include <levk/node/node_tree.hpp>
 #include <levk/util/error.hpp>
 #include <levk/util/logger.hpp>

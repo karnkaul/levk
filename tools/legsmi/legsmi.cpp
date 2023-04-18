@@ -1,5 +1,6 @@
 #include <fmt/format.h>
 #include <legsmi/legsmi.hpp>
+#include <levk/graphics/material.hpp>
 #include <levk/io/serializer.hpp>
 #include <levk/level/level.hpp>
 #include <levk/service.hpp>

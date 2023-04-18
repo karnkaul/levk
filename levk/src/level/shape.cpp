@@ -1,5 +1,5 @@
 #include <imgui.h>
-#include <levk/asset/common.hpp>
+#include <levk/asset/asset_io.hpp>
 #include <levk/imcpp/drag_drop.hpp>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/io/serializer.hpp>

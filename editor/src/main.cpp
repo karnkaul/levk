@@ -1,7 +1,7 @@
 #include <imgui.h>
 #include <gltf_import_wizard.hpp>
+#include <levk/asset/asset_io.hpp>
 #include <levk/asset/asset_list_loader.hpp>
-#include <levk/asset/common.hpp>
 #include <levk/context.hpp>
 #include <levk/engine.hpp>
 #include <levk/graphics/render_device.hpp>
