@@ -26,6 +26,7 @@ void Shape::inspect(imcpp::OpenWindow) {
 		imcpp::TreeNode::leaf(label);
 		if (material_uri) {
 			if (auto drag = imcpp::DragDrop::Source{}) { imcpp::DragDrop::set_string("material", material_uri.value()); }
+			if (ImGui::SmallButton("Unset")) { material_uri = {}; }
 		}
 		if (auto drop = imcpp::DragDrop::Target{}) {
 			if (auto mat = imcpp::DragDrop::accept_string("material"); !mat.empty()) { material_uri = mat; }

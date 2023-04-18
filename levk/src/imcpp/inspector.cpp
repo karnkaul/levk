@@ -228,7 +228,8 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 		if (!entity) { return; }
 		auto* node = scene.node_locator().find(entity->node_id());
 		if (!node) { return; }
-		imcpp::TreeNode::leaf(node->name.c_str());
+		auto& entity_name = get_entity_name(target.entity, node->name);
+		if (entity_name("Name")) { node->name = entity_name.view(); }
 		ImGui::Checkbox("Active", &entity->is_active);
 		if (auto tn = imcpp::TreeNode("Transform", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) {
 			auto unified_scaling = Bool{true};
@@ -253,5 +254,13 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 		close |= attach_selectable<FreecamController>("FreecamController", *entity);
 		if (close) { popup.close_current(); }
 	}
+}
+
+InputText<>& Inspector::get_entity_name(Id<Entity> id, std::string_view name) {
+	if (m_entity_name.previous != id) {
+		m_entity_name.previous = id;
+		m_entity_name.input_text.set(name);
+	}
+	return m_entity_name.input_text;
 }
 } // namespace levk::imcpp

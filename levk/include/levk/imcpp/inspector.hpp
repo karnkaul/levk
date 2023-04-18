@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/imcpp/common.hpp>
+#include <levk/imcpp/input_text.hpp>
 #include <levk/scene/entity.hpp>
 
 namespace levk::imcpp {
@@ -23,6 +24,14 @@ class Inspector {
 	void display(Scene& scene);
 
   private:
+	struct EntityName {
+		Id<Entity> previous{};
+		imcpp::InputText<> input_text{};
+	};
+
 	void draw_to(NotClosed<Window> w, Scene& scene);
+	imcpp::InputText<>& get_entity_name(Id<Entity> id, std::string_view name);
+
+	EntityName m_entity_name{};
 };
 } // namespace levk::imcpp

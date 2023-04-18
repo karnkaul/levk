@@ -33,7 +33,7 @@ bool SceneManager::load_and_spawn(Uri<Mesh> const& uri, std::string name) {
 bool SceneManager::load_and_spawn(Uri<StaticMesh> const& uri, std::string name) {
 	auto* mesh = asset_providers().static_mesh().load(uri);
 	if (!mesh) { return false; }
-	if (name.empty()) { name = fs::path{name}.stem().string(); }
+	if (name.empty()) { name = fs::path{uri.value()}.stem().stem().string(); }
 	auto& entity = active_scene().spawn(NodeCreateInfo{.name = std::move(name)});
 	auto mesh_renderer = std::make_unique<StaticMeshRenderer>();
 	mesh_renderer->mesh_uri = uri;
@@ -44,7 +44,7 @@ bool SceneManager::load_and_spawn(Uri<StaticMesh> const& uri, std::string name) 
 bool SceneManager::load_and_spawn(Uri<SkinnedMesh> const& uri, std::string name) {
 	auto* mesh = asset_providers().skinned_mesh().load(uri);
 	if (!mesh) { return false; }
-	if (name.empty()) { name = fs::path{name}.stem().string(); }
+	if (name.empty()) { name = fs::path{uri.value()}.stem().stem().string(); }
 	auto& entity = active_scene().spawn(NodeCreateInfo{.name = std::move(name)});
 	auto enabled = std::optional<Id<SkeletalAnimation>>{};
 	if (mesh->skeleton) {

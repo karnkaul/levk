@@ -66,4 +66,6 @@ void DrawList::add(Drawable drawable) {
 	if (drawable.skin_index) { assert(*drawable.skin_index < m_skins.size()); }
 	m_drawables.push_back(drawable);
 }
+
+void DrawList::merge(DrawList const& rhs) { std::copy(rhs.m_drawables.begin(), rhs.m_drawables.end(), std::back_inserter(m_drawables)); }
 } // namespace levk

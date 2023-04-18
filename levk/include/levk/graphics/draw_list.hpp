@@ -50,7 +50,7 @@ class DrawList {
 		std::sort(m_drawables.begin(), m_drawables.end(), func);
 	}
 
-	void merge(DrawList const& rhs) { std::copy(rhs.m_drawables.begin(), rhs.m_drawables.end(), std::back_inserter(m_drawables)); }
+	void merge(DrawList const& rhs);
 
   protected:
 	std::vector<Drawable> m_drawables{};
