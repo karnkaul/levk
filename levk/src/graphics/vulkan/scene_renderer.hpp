@@ -1,14 +1,43 @@
 #pragma once
 #include <graphics/vulkan/device.hpp>
 #include <graphics/vulkan/framebuffer.hpp>
+#include <graphics/vulkan/primitive.hpp>
 #include <graphics/vulkan/render_object.hpp>
 #include <levk/graphics/lights.hpp>
+#include <levk/graphics/material.hpp>
 
 namespace levk {
 class Scene;
+class Collision;
 
 namespace vulkan {
 struct PipelineBuilder;
+
+class CollisionRenderer {
+  public:
+	CollisionRenderer(DeviceView device);
+
+	void update(Collision const& collision);
+	void render(DrawList& out) const;
+
+  private:
+	struct Entry {
+		mutable vulkan::HostPrimitive primitive;
+		Ptr<levk::Material const> material{};
+	};
+
+	struct Pool {
+		DeviceView device{};
+		std::vector<Entry> entries{};
+		std::size_t current_index{};
+
+		Entry& next();
+	};
+
+	Pool m_pool;
+	UnlitMaterial m_red{};
+	UnlitMaterial m_green{};
+};
 
 struct SceneRenderer : Device::Renderer {
 	struct GlobalLayout {
@@ -44,6 +73,7 @@ struct SceneRenderer : Device::Renderer {
 		std::vector<RenderObject> opaque{};
 		std::vector<RenderObject> transparent{};
 		std::vector<RenderObject> ui{};
+		std::vector<RenderObject> overlay{};
 	};
 
 	DeviceView device{};
@@ -54,6 +84,7 @@ struct SceneRenderer : Device::Renderer {
 	HostBuffer dir_lights_ssbo{};
 	GlobalLayout global_layout{};
 
+	CollisionRenderer collision_renderer;
 	Frame frame{};
 	Ptr<Scene const> scene{};
 	Ptr<RenderList const> render_list{};
@@ -61,6 +92,8 @@ struct SceneRenderer : Device::Renderer {
 	ScopedDeviceBlocker device_block{};
 
 	SceneRenderer(DeviceView const& device);
+
+	void update(Scene const& scene);
 
 	void next_frame() final;
 	void render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer, glm::vec2 map_size) final;

@@ -1,4 +1,5 @@
 #pragma once
+#include <levk/collision.hpp>
 #include <levk/graphics/lights.hpp>
 #include <levk/node/node_tree.hpp>
 #include <levk/scene/entity.hpp>
@@ -31,6 +32,8 @@ class Scene : public Pinned {
 
 	NodeTree const& node_tree() const { return m_nodes; }
 	NodeLocator node_locator() { return m_nodes; }
+	glm::mat4 global_transform(Entity const& entity) const { return m_nodes.global_transform(entity.node_id()); }
+	glm::mat4 global_transform(Id<Entity> id) const;
 
 	Level export_level() const;
 	bool import_level(Level const& level);
@@ -46,6 +49,7 @@ class Scene : public Pinned {
 	ui::View ui_root{};
 	SceneCamera camera{};
 	Lights lights{};
+	Collision collision{};
 	std::string name{};
 
   protected:

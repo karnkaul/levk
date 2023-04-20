@@ -43,6 +43,12 @@ void Scene::destroy_entity(Id<Entity> id) {
 	if (auto* entity = find_entity(id)) { entity->set_destroyed(); }
 }
 
+glm::mat4 Scene::global_transform(Id<Entity> id) const {
+	auto* entity = find_entity(id);
+	if (!entity) { return glm::identity<glm::mat4>(); }
+	return global_transform(*entity);
+}
+
 void Scene::clear() {
 	m_entities.clear();
 	m_nodes.clear();
@@ -100,6 +106,8 @@ WindowState const& Scene::window_state() const { return Service<Engine>::locate(
 Input const& Scene::input() const { return Service<Engine>::locate().window().state().input; }
 
 void Scene::tick(Time dt) {
+	collision.update();
+
 	auto entities = std::vector<Ptr<Entity>>{};
 	for (auto& [_, entity] : m_entities) {
 		if (entity.is_active) { entities.push_back(&entity); }

@@ -41,6 +41,11 @@ class DrawList {
 	void import_skins(std::span<Skin const> skins) { m_skins = {skins.begin(), skins.end()}; }
 	void add(Drawable drawable);
 
+	void clear() {
+		m_drawables.clear();
+		m_skins.clear();
+	}
+
 	std::span<Drawable const> drawables() const { return m_drawables; }
 	std::span<Skin const> skins() const { return m_skins; }
 

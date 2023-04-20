@@ -26,12 +26,12 @@ void SkinnedMeshRenderer::set_mesh_uri(Uri<SkinnedMesh> uri) {
 
 glm::mat4 SkinnedMeshRenderer::global_transform(Id<Node> node_id) const {
 	auto* node = m_skeleton.joint_tree.find(node_id);
-	if (!node) { return glm::mat4{1.0f}; }
+	if (!node) { return glm::identity<glm::mat4>(); }
 	auto const* entity = owning_entity();
 	auto const* scene = owning_scene();
 	auto const node_transform = m_skeleton.joint_tree.global_transform(*node);
 	if (!entity || !scene) { return node_transform; }
-	return scene->node_tree().global_transform(scene->node_tree().get(entity->node_id())) * node_transform;
+	return scene->global_transform(*entity) * node_transform;
 }
 
 void SkinnedMeshRenderer::render(DrawList& out) const {
@@ -43,10 +43,8 @@ void SkinnedMeshRenderer::render(DrawList& out) const {
 	auto const* m = asset_providers->skinned_mesh().find(m_mesh);
 	if (!m || m->primitives.empty()) { return; }
 	assert(m_joint_matrices.size() == m_skeleton.ordered_joints_ids.size());
-	for (auto const [id, index] : enumerate(m_skeleton.ordered_joints_ids)) {
-		m_joint_matrices[index] = m_skeleton.joint_tree.global_transform(m_skeleton.joint_tree.get(id));
-	}
-	auto const parent_mat = scene->node_tree().global_transform(scene->node_tree().get(entity->node_id()));
+	for (auto const [id, index] : enumerate(m_skeleton.ordered_joints_ids)) { m_joint_matrices[index] = m_skeleton.joint_tree.global_transform(id); }
+	auto const parent_mat = scene->global_transform(*entity);
 	out.add(m, m_joint_matrices.span(), DrawList::Instances{parent_mat, instances}, asset_providers->material());
 }
 

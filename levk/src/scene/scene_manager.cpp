@@ -103,6 +103,7 @@ void SceneManager::tick(Time dt) {
 		m_next_level.reset();
 	}
 	m_active_scene->tick(dt);
+	m_renderer.update(*m_active_scene);
 }
 
 void SceneManager::render() const {

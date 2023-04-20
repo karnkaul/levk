@@ -14,6 +14,7 @@ add_subdirectory(impl)
 
 target_sources(${PROJECT_NAME} PRIVATE
   camera.cpp
+  collision.cpp
   context.cpp
   engine.cpp
   runtime.cpp

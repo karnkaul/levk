@@ -35,6 +35,8 @@ struct MaterialTextures : Serializable {
 class Material : public Serializable, public Inspectable {
   public:
 	virtual ~Material() = default;
+	Material(Material&&) = default;
+	Material& operator=(Material&&) = default;
 
 	Material();
 

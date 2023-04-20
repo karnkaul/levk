@@ -11,6 +11,8 @@ WindowState const& Component::window_state() const { return Service<Engine>::loc
 
 Ptr<Entity> Component::owning_entity() const { return m_scene ? m_scene->find_entity(m_entity) : nullptr; }
 
+Ptr<Collision> Component::scene_collision() const { return m_scene ? &m_scene->collision : nullptr; }
+
 Input const& Component::input() const { return window_state().input; }
 
 Window const& Component::window() const { return Service<Engine>::locate().window(); }

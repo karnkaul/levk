@@ -16,6 +16,7 @@ struct WindowState;
 struct Input;
 class Window;
 class RenderDevice;
+class Collision;
 
 class Component {
   public:
@@ -28,6 +29,7 @@ class Component {
 	Id<Component> id() const { return m_id; }
 	Ptr<Scene> owning_scene() const { return m_scene; }
 	Ptr<Entity> owning_entity() const;
+	Ptr<Collision> scene_collision() const;
 
 	WindowState const& window_state() const;
 	Input const& input() const;

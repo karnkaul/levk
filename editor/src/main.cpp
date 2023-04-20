@@ -11,6 +11,7 @@
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/level/level.hpp>
 #include <levk/runtime.hpp>
+#include <levk/scene/collider_aabb.hpp>
 #include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/shape_renderer.hpp>
 #include <levk/scene/skeleton_controller.hpp>
@@ -134,6 +135,16 @@ struct TestScene : Scene {
 		auto& cube_entity = get_entity(test.entity);
 		auto& cube_renderer = cube_entity.attach(std::make_unique<ShapeRenderer>());
 		cube_renderer.set_shape(std::make_unique<CubeShape>());
+		cube_entity.attach(std::make_unique<ColliderAabb>());
+
+		{
+
+			auto& cube_entity = spawn({.name = "shape1"});
+			auto& cube_renderer = cube_entity.attach(std::make_unique<ShapeRenderer>());
+			cube_renderer.set_shape(std::make_unique<CubeShape>());
+			cube_entity.attach(std::make_unique<ColliderAabb>());
+			cube_entity.transform().set_position({-2.0f, 0.0f, 0.0f});
+		}
 
 		auto& freecam = spawn({.name = "Freecam"});
 		freecam.attach(std::make_unique<FreecamController>());

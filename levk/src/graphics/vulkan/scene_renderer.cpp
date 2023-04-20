@@ -58,6 +58,11 @@ SceneRenderer::Frame build_render_frame(SceneRenderer& scene_renderer, Scene con
 
 	ret.ui = RenderObject::build_objects(render_list.ui, buffer_pool);
 
+	opaque.clear();
+	scene_renderer.collision_renderer.render(opaque);
+	opaque.sort_by([](Drawable const& a, Drawable const& b) { return a.material.get() < b.material.get(); });
+	ret.overlay = RenderObject::build_objects(opaque, buffer_pool);
+
 	return ret;
 }
 
@@ -99,6 +104,21 @@ SceneRenderer::GlobalLayout make_global_layout(vk::Device device) {
 	plci.pSetLayouts = &*ret.global_set_layout;
 	ret.global_pipeline_layout = device.createPipelineLayoutUnique(plci);
 	return ret;
+}
+
+Geometry make_wire_cube(glm::vec3 const& size, glm::vec3 const& origin) {
+	auto geometry = Geometry::from(Cube{.size = size, .origin = origin});
+	// clang-format off
+	geometry.indices = {
+		0, 1, 1, 2, 2, 3, 3, 0,
+		4, 5, 5, 6, 6, 7, 7, 4,
+		8, 9, 9, 10, 10, 11, 11, 8,
+		12, 13, 13, 14, 14, 15, 15, 12,
+		16, 17, 17, 18, 18, 19, 19, 16,
+		20, 21, 21, 22, 22, 23, 23, 20,
+	};
+	// clang-format on
+	return geometry;
 }
 
 struct Drawer {
@@ -155,7 +175,46 @@ struct Drawer {
 };
 } // namespace
 
-SceneRenderer::SceneRenderer(DeviceView const& device) : device(device), global_layout(make_global_layout(device.device)), device_block(device.device) {
+CollisionRenderer::CollisionRenderer(DeviceView device) : m_pool{device} {
+	static constexpr RenderMode render_mode_v{
+		.line_width = 3.0,
+		.type = RenderMode::Type::eLine,
+		.depth_test = false,
+	};
+	m_red.render_mode = m_green.render_mode = render_mode_v;
+	m_red.tint = red_v;
+	m_green.tint = green_v;
+}
+
+auto CollisionRenderer::Pool::next() -> Entry& {
+	if (current_index >= entries.size()) { entries.push_back(Entry{.primitive = device}); }
+	return entries[current_index++];
+}
+
+void CollisionRenderer::update(Collision const& collision) {
+	m_pool.current_index = {};
+	if (collision.draw_aabbs) {
+		for (auto const& [id, in] : collision.entries()) {
+			auto& out = m_pool.next();
+			out.primitive.geometry = make_wire_cube(in.aabb.size, in.aabb.origin);
+			out.material = in.colliding_with ? &m_red : &m_green;
+		}
+	}
+}
+
+void CollisionRenderer::render(DrawList& out) const {
+	for (std::size_t i = 0; i < m_pool.current_index; ++i) {
+		auto const& render_entry = m_pool.entries[i];
+		out.add(Drawable{
+			.primitive = &render_entry.primitive,
+			.material = render_entry.material,
+			.topology = Topology::eLineList,
+		});
+	}
+}
+
+SceneRenderer::SceneRenderer(DeviceView const& device)
+	: device(device), global_layout(make_global_layout(device.device)), collision_renderer(device), device_block(device.device) {
 	for (auto& buffer_pool : buffer_pools) { buffer_pool = HostBuffer::Pool::make(device); }
 
 	view_ubo_3d = HostBuffer::make(device, vk::BufferUsageFlagBits::eUniformBuffer);
@@ -164,6 +223,8 @@ SceneRenderer::SceneRenderer(DeviceView const& device) : device(device), global_
 
 	for (auto& pool : buffer_pools) { pool.device = device; }
 }
+
+void SceneRenderer::update(Scene const& scene) { collision_renderer.update(scene.collision); }
 
 void SceneRenderer::next_frame() {
 	assert(scene && render_list);
@@ -211,7 +272,7 @@ void SceneRenderer::render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer
 }
 
 void SceneRenderer::render_3d(vk::CommandBuffer cb, Framebuffer& framebuffer, ImageView const& shadow_map) {
-	if (frame.opaque.empty() && frame.transparent.empty()) { return; }
+	if (frame.opaque.empty() && frame.transparent.empty() && frame.overlay.empty()) { return; }
 
 	auto const format = framebuffer.pipeline_format();
 	auto pipeline_builder = PipelineBuilder{*device.pipeline_storage, asset_providers->shader(), device.device, format};
@@ -220,6 +281,7 @@ void SceneRenderer::render_3d(vk::CommandBuffer cb, Framebuffer& framebuffer, Im
 
 	for (auto const& object : frame.opaque) { drawer_3d.draw(object); }
 	for (auto const& object : frame.transparent) { drawer_3d.draw(object); }
+	for (auto const& object : frame.overlay) { drawer_3d.draw(object); }
 }
 
 void SceneRenderer::render_ui(vk::CommandBuffer cb, Framebuffer& framebuffer, ImageView const& output_3d) {

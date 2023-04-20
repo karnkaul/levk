@@ -21,9 +21,9 @@ void SkeletonController::change_animation(std::optional<Id<Animation>> index) {
 
 glm::mat4 SkeletonController::global_transform(Id<Node> node_id) const {
 	auto* entity = owning_entity();
-	if (!entity) { return glm::mat4{1.0f}; }
+	if (!entity) { return glm::identity<glm::mat4>(); }
 	auto* renderer = entity->find<SkinnedMeshRenderer>();
-	if (!renderer) { return glm::mat4{1.0f}; }
+	if (!renderer) { return glm::identity<glm::mat4>(); }
 	return renderer->global_transform(node_id);
 }
 

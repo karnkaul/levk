@@ -54,6 +54,12 @@ glm::mat4 NodeTree::global_transform(Node const& node) const {
 	return ret;
 }
 
+glm::mat4 NodeTree::global_transform(Id<Node> id) const {
+	auto* node = find(id);
+	if (!node) { return glm::identity<glm::mat4>(); }
+	return global_transform(*node);
+}
+
 void NodeTree::clear() {
 	m_nodes.clear();
 	m_roots.clear();

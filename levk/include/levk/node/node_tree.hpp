@@ -23,6 +23,7 @@ class NodeTree {
 
 	void reparent(Node& out, Id<Node> new_parent);
 	glm::mat4 global_transform(Node const& node) const;
+	glm::mat4 global_transform(Id<Node> id) const;
 
 	Id<Node> find_by_name(std::string_view name) const;
 

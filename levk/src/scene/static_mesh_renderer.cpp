@@ -15,7 +15,7 @@ void StaticMeshRenderer::render(DrawList& out) const {
 	if (!m || m->primitives.empty()) { return; }
 
 	auto* scene = owning_scene();
-	auto const mat = scene ? scene->node_tree().global_transform(scene->node_tree().get(entity->node_id())) : glm::mat4{1.0f};
+	auto const mat = scene ? scene->global_transform(*entity) : glm::identity<glm::mat4>();
 	out.add(m, DrawList::Instances{mat, instances}, asset_providers->material());
 }
 

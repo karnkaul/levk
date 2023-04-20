@@ -11,6 +11,11 @@ SceneRenderer::SceneRenderer(NotNull<AssetProviders const*> asset_providers)
 	: m_impl(new vulkan::SceneRenderer{asset_providers->render_device().vulkan_device().view()}), m_render_device(&asset_providers->render_device()),
 	  m_asset_providers(asset_providers) {}
 
+void SceneRenderer::update(Scene const& scene) {
+	assert(m_impl);
+	m_impl->update(scene);
+}
+
 void SceneRenderer::render(Scene const& scene) const {
 	assert(m_impl);
 	auto render_list = RenderList{};

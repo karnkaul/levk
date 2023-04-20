@@ -15,6 +15,7 @@ class SceneRenderer {
   public:
 	SceneRenderer(NotNull<AssetProviders const*> asset_providers);
 
+	void update(Scene const& scene);
 	void render(Scene const& scene) const;
 
   private:
