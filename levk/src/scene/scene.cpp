@@ -57,16 +57,15 @@ Level Scene::export_level() const {
 	ret.camera = camera;
 	ret.lights = lights;
 	ret.name = name;
-	auto func = [&](Id<Entity>, Entity const& e) {
+	for (auto const& [_, entity] : m_entities) {
 		auto attachments = std::vector<dj::Json>{};
-		for (auto const& [_, component] : e.m_components) {
+		for (auto const& [_, component] : entity.m_components) {
 			if (auto attachment = component->to_attachment()) {
 				if (auto json = serializer->serialize(*attachment)) { attachments.push_back(std::move(json)); }
 			}
 		}
-		if (!attachments.empty()) { ret.attachments_map.insert_or_assign(e.node_id(), std::move(attachments)); }
+		if (!attachments.empty()) { ret.attachments_map.insert_or_assign(entity.node_id(), std::move(attachments)); }
 	};
-	for_each(m_entities, func);
 	return ret;
 }
 
@@ -102,9 +101,9 @@ Input const& Scene::input() const { return Service<Engine>::locate().window().st
 
 void Scene::tick(Time dt) {
 	auto entities = std::vector<Ptr<Entity>>{};
-	for_each(m_entities, [&entities](Id<Entity>, Entity& e) {
-		if (e.is_active) { entities.push_back(&e); }
-	});
+	for (auto& [_, entity] : m_entities) {
+		if (entity.is_active) { entities.push_back(&entity); }
+	}
 	std::ranges::sort(entities, [](Ptr<Entity const> a, Ptr<Entity const> b) { return a->id() < b->id(); });
 
 	std::ranges::for_each(entities, [dt](Ptr<Entity> e) { e->tick(dt); });
@@ -125,9 +124,9 @@ void Scene::tick(Time dt) {
 
 void Scene::render(RenderList& out) const {
 	auto entities = std::vector<Ptr<Entity const>>{};
-	for_each(m_entities, [&entities](Id<Entity>, Entity const& e) {
-		if (e.is_active) { entities.push_back(&e); }
-	});
+	for (auto const& [_, entity] : m_entities) {
+		if (entity.is_active) { entities.push_back(&entity); }
+	}
 
 	for (auto const& entity : entities) { entity->render(out.scene); }
 	ui_root.render(out.ui);
