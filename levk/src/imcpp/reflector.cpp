@@ -152,4 +152,13 @@ bool Reflector::operator()(UvRect& out_uv) const {
 	}
 	return ret.value;
 }
+
+bool Reflector::operator()(Aabb& out_aabb) const {
+	auto ret = Modified{};
+	if (auto tn = TreeNode{"Aabb"}) {
+		ret((*this)("Size", out_aabb.size, 0.25f));
+		ret((*this)("Origin", out_aabb.origin, 0.25f));
+	}
+	return ret.value;
+}
 } // namespace levk::imcpp

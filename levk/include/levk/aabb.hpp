@@ -31,5 +31,7 @@ struct Aabb {
 	}
 
 	static constexpr bool intersects(Aabb const& a, Aabb const& b) { return a.contains(b) || b.contains(a); }
+
+	bool operator==(Aabb const&) const = default;
 };
 } // namespace levk

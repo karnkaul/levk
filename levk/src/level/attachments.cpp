@@ -3,6 +3,7 @@
 #include <levk/asset/mesh_provider.hpp>
 #include <levk/io/common.hpp>
 #include <levk/level/attachments.hpp>
+#include <levk/scene/collider_aabb.hpp>
 #include <levk/scene/entity.hpp>
 #include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/scene.hpp>
@@ -13,36 +14,6 @@
 #include <levk/service.hpp>
 
 namespace levk {
-// std::unique_ptr<Attachment> AttachmentFactory::make(Component const& component) const {
-// 	if (auto* smr = dynamic_cast<StaticMeshRenderer const*>(&component)) {
-// 		auto ret = std::make_unique<MeshAttachment>();
-// 		ret->uri = smr->mesh_uri;
-// 		ret->instances = smr->instances;
-// 		return ret;
-// 	} else if (auto* sc = dynamic_cast<SkeletonController const*>(&component)) {
-// 		auto ret = std::make_unique<SkeletonAttachment>();
-// 		ret->enabled_index = sc->enabled;
-// 		return ret;
-// 	} else if (auto* smr = dynamic_cast<SkinnedMeshRenderer const*>(&component)) {
-// 		auto ret = std::make_unique<MeshAttachment>();
-// 		ret->uri = smr->mesh_uri();
-// 		ret->instances = smr->instances;
-// 		return ret;
-// 	} else if (auto* sr = dynamic_cast<ShapeRenderer const*>(&component)) {
-// 		auto* serializer = Service<Serializer>::find();
-// 		if (auto* shape = sr->shape(); shape && serializer) {
-// 			auto ret = std::make_unique<ShapeAttachment>();
-// 			ret->shape = serializer->serialize(*shape);
-// 			ret->instances = sr->instances;
-// 			ret->material_uri = shape->material_uri;
-// 			return ret;
-// 		}
-// 	} else if (dynamic_cast<FreecamController const*>(&component)) {
-// 		return std::make_unique<FreecamAttachment>();
-// 	}
-// 	return {};
-// }
-
 bool ShapeAttachment::serialize(dj::Json& out) const {
 	out["shape"] = shape;
 	if (!instances.empty()) {
@@ -144,5 +115,20 @@ bool FreecamAttachment::deserialize(dj::Json const& json) {
 void FreecamAttachment::attach(Entity& out) {
 	out.attach(std::make_unique<FreecamController>());
 	if (auto* scene = out.owning_scene()) { scene->camera.target = out.id(); }
+}
+
+bool ColliderAttachment::serialize(dj::Json& out) const {
+	to_json(out["aabb"], aabb);
+	return true;
+}
+
+bool ColliderAttachment::deserialize(dj::Json const& json) {
+	from_json(json["aabb"], aabb);
+	return true;
+}
+
+void ColliderAttachment::attach(Entity& out) {
+	auto& collider = out.attach(std::make_unique<ColliderAabb>());
+	collider.set_aabb(aabb);
 }
 } // namespace levk

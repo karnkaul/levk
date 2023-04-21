@@ -1,4 +1,5 @@
 #pragma once
+#include <levk/aabb.hpp>
 #include <levk/level/attachment.hpp>
 #include <levk/transform.hpp>
 #include <levk/uri.hpp>
@@ -16,31 +17,31 @@ struct ShapeAttachment : Attachment {
 	Uri<Material> material_uri{};
 	std::vector<Transform> instances{};
 
-	std::string_view type_name() const override { return "ShapeAttachment"; }
-	bool serialize(dj::Json& out) const override;
-	bool deserialize(dj::Json const& json) override;
-	void attach(Entity& out) override;
-	void add_assets(AssetList& out) const override;
+	std::string_view type_name() const final { return "ShapeAttachment"; }
+	bool serialize(dj::Json& out) const final;
+	bool deserialize(dj::Json const& json) final;
+	void attach(Entity& out) final;
+	void add_assets(AssetList& out) const final;
 };
 
 struct MeshAttachment : Attachment {
 	Uri<Mesh> uri{};
 	std::vector<Transform> instances{};
 
-	std::string_view type_name() const override { return "MeshAttachment"; }
-	bool serialize(dj::Json& out) const override;
-	bool deserialize(dj::Json const& json) override;
-	void attach(Entity& out) override;
-	void add_assets(AssetList& out) const override;
+	std::string_view type_name() const final { return "MeshAttachment"; }
+	bool serialize(dj::Json& out) const final;
+	bool deserialize(dj::Json const& json) final;
+	void attach(Entity& out) final;
+	void add_assets(AssetList& out) const final;
 };
 
 struct SkeletonAttachment : Attachment {
 	std::optional<std::size_t> enabled_index{};
 
-	std::string_view type_name() const override { return "SkeletonAttachment"; }
-	bool serialize(dj::Json& out) const override;
-	bool deserialize(dj::Json const& json) override;
-	void attach(Entity& out) override;
+	std::string_view type_name() const final { return "SkeletonAttachment"; }
+	bool serialize(dj::Json& out) const final;
+	bool deserialize(dj::Json const& json) final;
+	void attach(Entity& out) final;
 };
 
 struct FreecamAttachment : Attachment {
@@ -49,9 +50,18 @@ struct FreecamAttachment : Attachment {
 	float pitch{};
 	float yaw{};
 
-	std::string_view type_name() const override { return "FreecamAttachment"; }
-	bool serialize(dj::Json& out) const override;
-	bool deserialize(dj::Json const& json) override;
-	void attach(Entity& out) override;
+	std::string_view type_name() const final { return "FreecamAttachment"; }
+	bool serialize(dj::Json& out) const final;
+	bool deserialize(dj::Json const& json) final;
+	void attach(Entity& out) final;
+};
+
+struct ColliderAttachment : Attachment {
+	Aabb aabb{};
+
+	std::string_view type_name() const final { return "ColliderAttachment"; }
+	bool serialize(dj::Json& out) const final;
+	bool deserialize(dj::Json const& json) final;
+	void attach(Entity& out) final;
 };
 } // namespace levk

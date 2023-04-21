@@ -118,3 +118,13 @@ void levk::to_json(dj::Json& out, RenderMode const& render_mode) {
 	out["type"] = from(render_mode.type);
 	out["depth_test"] = dj::Boolean{render_mode.depth_test};
 }
+
+void levk::from_json(dj::Json const& json, Aabb& out) {
+	from_json(json, out.origin, out.origin);
+	from_json(json, out.size, out.size);
+}
+
+void levk::to_json(dj::Json& out, Aabb const& aabb) {
+	to_json(out["origin"], aabb.origin);
+	to_json(out["size"], aabb.size);
+}

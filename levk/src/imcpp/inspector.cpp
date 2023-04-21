@@ -4,6 +4,7 @@
 #include <levk/imcpp/inspector.hpp>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/io/serializer.hpp>
+#include <levk/scene/collider_aabb.hpp>
 #include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/scene/shape_renderer.hpp>
@@ -125,6 +126,11 @@ void inspect(OpenWindow w, FreecamController& freecam_controller) {
 	if (ImGui::DragFloat("Yaw", &degrees.value, 0.25f, 10.0f, 75.0f)) { freecam_controller.yaw = degrees; }
 }
 
+void inspect(OpenWindow w, ColliderAabb& collider) {
+	auto aabb = collider.get_aabb();
+	if (Reflector{w}("Size", aabb.size, 0.25f)) { collider.set_aabb(aabb); }
+}
+
 template <typename Type>
 bool detach(Entity& entity) {
 	ImGui::Separator();
@@ -160,6 +166,11 @@ bool inspect_component(OpenWindow w, Entity& entity, Component& component) {
 		if (auto tn = imcpp::TreeNode{"FreecamController", ImGuiTreeNodeFlags_Framed}) {
 			inspect(w, *freecam_controller);
 			return detach<FreecamController>(entity);
+		}
+	} else if (auto* collider = dynamic_cast<ColliderAabb*>(&component)) {
+		if (auto tn = imcpp::TreeNode{"ColliderAabb", ImGuiTreeNodeFlags_Framed}) {
+			inspect(w, *collider);
+			return detach<ColliderAabb>(entity);
 		}
 	}
 	return true;
@@ -267,6 +278,7 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 		close |= attach_selectable<SkinnedMeshRenderer>("SkinnedMeshRenderer", *entity);
 		close |= attach_selectable<SkeletonController>("SkeletonController", *entity);
 		close |= attach_selectable<FreecamController>("FreecamController", *entity);
+		close |= attach_selectable<ColliderAabb>("FreecamController", *entity);
 		if (close) { popup.close_current(); }
 	}
 }

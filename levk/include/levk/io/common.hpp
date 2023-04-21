@@ -1,6 +1,7 @@
 #pragma once
 #include <djson/json.hpp>
 #include <glm/mat4x4.hpp>
+#include <levk/aabb.hpp>
 #include <levk/graphics/common.hpp>
 #include <levk/graphics/rgba.hpp>
 #include <levk/rect.hpp>
@@ -59,4 +60,7 @@ void to_json(dj::Json& out, Transform const& transform);
 
 void from_json(dj::Json const& json, RenderMode& out);
 void to_json(dj::Json& out, RenderMode const& render_mode);
+
+void from_json(dj::Json const& json, Aabb& out);
+void to_json(dj::Json& out, Aabb const& aabb);
 } // namespace levk

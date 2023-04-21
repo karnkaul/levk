@@ -1,5 +1,6 @@
 #pragma once
 #include <glm/gtc/quaternion.hpp>
+#include <levk/aabb.hpp>
 #include <levk/graphics/camera.hpp>
 #include <levk/graphics/rgba.hpp>
 #include <levk/imcpp/common.hpp>
@@ -41,5 +42,6 @@ class Reflector {
 	bool operator()(Transform& out_transform, Bool& out_unified_scaling, Bool scaling_toggle) const;
 	bool operator()(Camera& out_camera) const;
 	bool operator()(UvRect& out_uv) const;
+	bool operator()(Aabb& out_aabb) const;
 };
 } // namespace levk::imcpp
