@@ -48,10 +48,7 @@ class Entity final {
 
 	template <ComponentT T>
 	void detach() {
-		if (auto it = m_components.find(TypeId::make<T>().value()); it != m_components.end()) {
-			m_render_components.erase(it->second.get());
-			m_components.erase(it);
-		}
+		m_to_detach.push_back(TypeId::make<T>());
 	}
 
 	Id<Entity> id() const { return m_id; }

@@ -14,7 +14,7 @@ auto const g_log{Logger{"SceneManager"}};
 namespace fs = std::filesystem;
 
 SceneManager::SceneManager(NotNull<AssetProviders*> asset_providers)
-	: m_asset_providers(asset_providers), m_renderer(asset_providers), m_active_scene(std::make_unique<Scene>()), m_scene_type(TypeId::make<Scene>()) {
+	: m_asset_providers(asset_providers), m_renderer(asset_providers), m_active_scene(std::make_unique<Scene>()) {
 	m_on_mount_point_changed = m_asset_providers->data_source().on_mount_point_changed().connect([this](std::string_view) {
 		active_scene().clear();
 		g_log.info("Scene cleared");
@@ -65,29 +65,18 @@ Scene& SceneManager::active_scene() const {
 	return *m_active_scene;
 }
 
-bool SceneManager::load_level(Uri<Level> uri) {
-	auto text = asset_providers().data_source().read_text(uri);
-	if (text.empty()) { return false; }
-	auto json = dj::Json::parse(text);
+bool SceneManager::load(Uri<Level> const& uri) {
+	auto json = asset_providers().data_source().read_json(uri);
 	if (!json) { return false; }
 	auto level = Level{};
 	asset::from_json(json, level);
 	m_next_level.emplace(std::move(level));
-	if (auto* monitor = asset_providers().uri_monitor()) {
-		m_on_modified = monitor->on_modified(uri).connect([this](Uri<Scene> const& uri) {
-			if (asset_providers().data_source().read_text(uri) != m_json_cache) { load_level(uri); }
-		});
-	}
-	m_json_cache = std::move(text);
 	return true;
 }
 
-bool SceneManager::set_next(std::unique_ptr<Scene> scene, TypeId scene_type) {
-	if (!scene) { return false; }
+void SceneManager::activate(std::unique_ptr<Scene> scene) {
+	if (!scene) { return; }
 	m_next_scene = std::move(scene);
-	m_scene_type = scene_type;
-	m_on_modified = {};
-	return true;
 }
 
 void SceneManager::tick(Time dt) {

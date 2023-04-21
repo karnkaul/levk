@@ -78,7 +78,7 @@ struct LoadRequest {
 		auto ret = Uri<Scene>{};
 		auto const visitor = Visitor{
 			[&scene_manager, &ret](Uri<Level> const& uri) {
-				if (scene_manager.load_level(uri)) { ret = uri; }
+				if (scene_manager.load(uri)) { ret = uri; }
 			},
 			[&scene_manager](Uri<Mesh> const& uri) { scene_manager.load_and_spawn(uri); },
 		};
@@ -176,7 +176,7 @@ struct TestScene : Scene {
 			}
 		}
 		auto on_ready = [this] {
-			if (Service<SceneManager>::locate().load_level(test.to_load)) {
+			if (Service<SceneManager>::locate().load(test.to_load)) {
 				log.debug("loading [{}]", test.to_load.value());
 			} else {
 				log.debug("Could not load [{}]", test.to_load.value());
@@ -232,7 +232,7 @@ struct Editor : Runtime {
 
 		set_window_title();
 		context().render_device().set_clear(Rgba::from({0.05f, 0.05f, 0.05f, 1.0f}));
-		context().scene_manager.get().set_active<TestScene>();
+		context().scene_manager.get().activate(std::make_unique<TestScene>());
 
 		auto new_level = [this] {
 			context().active_scene().clear();
