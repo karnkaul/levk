@@ -133,15 +133,13 @@ struct TestScene : Scene {
 
 		test.entity = spawn({.name = "shape"}).id();
 		auto& cube_entity = get_entity(test.entity);
-		auto& cube_renderer = cube_entity.attach(std::make_unique<ShapeRenderer>());
-		cube_renderer.set_shape(std::make_unique<CubeShape>());
+		cube_entity.attach(std::make_unique<ShapeRenderer>());
 		cube_entity.attach(std::make_unique<ColliderAabb>());
 
 		{
 
 			auto& cube_entity = spawn({.name = "shape1"});
-			auto& cube_renderer = cube_entity.attach(std::make_unique<ShapeRenderer>());
-			cube_renderer.set_shape(std::make_unique<CubeShape>());
+			cube_entity.attach(std::make_unique<ShapeRenderer>());
 			cube_entity.attach(std::make_unique<ColliderAabb>());
 			cube_entity.transform().set_position({-2.0f, 0.0f, 0.0f});
 		}

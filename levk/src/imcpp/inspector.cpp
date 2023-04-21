@@ -35,15 +35,24 @@ void inspect(OpenWindow w, std::vector<Transform>& out_instances) {
 }
 
 void inspect(OpenWindow w, ShapeRenderer& shape_renderer) {
-	if (auto tn = TreeNode{"Shape"}) {
-		if (auto* shape = const_cast<Shape*>(shape_renderer.shape())) {
-			shape->inspect(w);
-			if (ImGui::SmallButton("Refresh")) { shape_renderer.refresh_geometry(); }
-		} else {
-			imcpp::TreeNode::leaf("[None]");
+	auto& shape = const_cast<Shape&>(shape_renderer.shape());
+	if (auto tn = TreeNode{FixedString{"{}###Shape", shape.type_name()}.c_str()}) {
+		shape.inspect(w);
+		if (ImGui::SmallButton("Refresh")) { shape_renderer.refresh_geometry(); }
+	}
+	inspect(w, shape_renderer.instances);
+	if (ImGui::Button("Change Shape")) { imcpp::Popup::open("shape_renderer.set_shape"); }
+
+	auto* serializer = Service<Serializer>::find();
+	if (serializer) {
+		if (auto popup = Popup{"shape_renderer.set_shape"}) {
+			for (auto const type_name : serializer->shape_types()) {
+				if (ImGui::Selectable(type_name.data())) {
+					auto shape = serializer->try_make<Shape>(std::string{type_name});
+					if (shape) { shape_renderer.set_shape(std::move(shape)); }
+				}
+			}
 		}
-		inspect(w, shape_renderer.instances);
-		// TODO: set shape popup
 	}
 }
 
@@ -142,7 +151,8 @@ bool detach(Entity& entity) {
 }
 
 bool inspect_component(OpenWindow w, Entity& entity, Component& component) {
-	if (auto* shape_renderer = dynamic_cast<ShapeRenderer*>(&component)) {
+	auto shape_renderer = Ptr<ShapeRenderer>{};
+	if (shape_renderer = dynamic_cast<ShapeRenderer*>(&component); shape_renderer) {
 		if (auto tn = imcpp::TreeNode{"ShapeRenderer", ImGuiTreeNodeFlags_Framed}) {
 			inspect(w, *shape_renderer);
 			return detach<ShapeRenderer>(entity);
@@ -173,6 +183,7 @@ bool inspect_component(OpenWindow w, Entity& entity, Component& component) {
 			return detach<ColliderAabb>(entity);
 		}
 	}
+
 	return true;
 }
 

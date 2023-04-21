@@ -1,5 +1,6 @@
 #pragma once
 #include <levk/io/serializable.hpp>
+#include <levk/level/shape.hpp>
 #include <levk/util/type_id.hpp>
 #include <functional>
 #include <string>
@@ -49,10 +50,8 @@ class Serializer {
 
 	template <std::derived_from<Serializable> Type>
 	bool bind_to(std::string type_name, Factory<Type> factory) {
-		return bind_to(std::move(type_name), TypeId::make<Type>(), std::move(factory));
+		return bind_to(std::move(type_name), TypeId::make<Type>(), std::move(factory), std::derived_from<Type, Shape>);
 	}
-
-	bool bind_to(std::string type_name, TypeId type_id, Factory<Serializable> factory);
 
 	template <typename Type>
 	std::unique_ptr<Type> try_make(std::string const& type_name) const {
@@ -61,7 +60,7 @@ class Serializer {
 	}
 
 	TypeId type_id(std::string const& type_name) const;
-	std::unordered_set<std::string> const& type_names() const { return m_type_names; }
+	std::unordered_set<std::string_view> const& shape_types() const { return m_shape_types; }
 
 	dj::Json serialize(Serializable const& serializable) const;
 	Result<Serializable> deserialize(dj::Json const& json) const;
@@ -72,13 +71,15 @@ class Serializer {
 		return {dynamic_unique_cast<To>(std::move(result.value)), result.type_name, result.type_id};
 	}
 
-  protected:
+  private:
+	bool bind_to(std::string type_name, TypeId type_id, Factory<Serializable> factory, bool is_shape);
+
 	struct Entry {
 		Factory<Serializable> factory{};
 		TypeId type_id{};
 	};
 
 	std::unordered_map<std::string, Entry> m_entries{};
-	std::unordered_set<std::string> m_type_names{};
+	std::unordered_set<std::string_view> m_shape_types{};
 };
 } // namespace levk

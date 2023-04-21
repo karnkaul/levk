@@ -9,7 +9,7 @@ namespace levk {
 class ShapeRenderer : public RenderComponent {
   public:
 	void set_shape(std::unique_ptr<Shape> shape);
-	Ptr<Shape const> shape() const { return m_shape.get(); }
+	Shape const& shape() const;
 
 	void refresh_geometry();
 
@@ -21,6 +21,6 @@ class ShapeRenderer : public RenderComponent {
 
   protected:
 	std::optional<DynamicPrimitive> m_primitive{};
-	std::unique_ptr<Shape> m_shape{};
+	std::unique_ptr<Shape> m_shape{std::make_unique<CubeShape>()};
 };
 } // namespace levk

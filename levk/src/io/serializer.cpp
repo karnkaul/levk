@@ -7,24 +7,6 @@ namespace {
 auto const g_log{Logger{"Serializer"}};
 }
 
-bool Serializer::bind_to(std::string type_name, TypeId type_id, Factory<Serializable> factory) {
-	if (type_name.empty()) {
-		g_log.warn("Ignoring attempt to bind empty type_name");
-		return false;
-	}
-	if (!factory) {
-		g_log.warn("Ignoring attempt to bind null Factory to type_name [{}]", type_name);
-		return false;
-	}
-	if (type_id == TypeId{}) {
-		g_log.warn("Ignoring attempt to bind null TypeId to type_name [{}]", type_name);
-		return false;
-	}
-	m_entries.insert_or_assign(type_name, Entry{std::move(factory), type_id});
-	m_type_names.insert(type_name);
-	return true;
-}
-
 TypeId Serializer::type_id(std::string const& type_name) const {
 	if (auto it = m_entries.find(type_name); it != m_entries.end()) { return it->second.type_id; }
 	return {};
@@ -62,5 +44,23 @@ Serializer::Result<Serializable> Serializer::deserialize(dj::Json const& json) c
 	}
 	ret.value = std::move(value);
 	return ret;
+}
+
+bool Serializer::bind_to(std::string type_name, TypeId type_id, Factory<Serializable> factory, bool is_shape) {
+	if (type_name.empty()) {
+		g_log.warn("Ignoring attempt to bind empty type_name");
+		return false;
+	}
+	if (!factory) {
+		g_log.warn("Ignoring attempt to bind null Factory to type_name [{}]", type_name);
+		return false;
+	}
+	if (type_id == TypeId{}) {
+		g_log.warn("Ignoring attempt to bind null TypeId to type_name [{}]", type_name);
+		return false;
+	}
+	auto [it, _] = m_entries.insert_or_assign(std::move(type_name), Entry{std::move(factory), type_id});
+	if (is_shape) { m_shape_types.insert(it->first); }
+	return true;
 }
 } // namespace levk

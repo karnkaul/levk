@@ -14,12 +14,21 @@ void ShapeRenderer::set_shape(std::unique_ptr<Shape> shape) {
 	m_primitive->set_geometry(m_shape->make_geometry());
 }
 
+Shape const& ShapeRenderer::shape() const {
+	assert(m_shape);
+	return *m_shape;
+}
+
 void ShapeRenderer::refresh_geometry() {
 	if (!m_primitive) { return; }
 	m_primitive->set_geometry(m_shape->make_geometry());
 }
 
-void ShapeRenderer::setup() { m_primitive = DynamicPrimitive{render_device().vulkan_device()}; }
+void ShapeRenderer::setup() {
+	m_primitive = DynamicPrimitive{render_device().vulkan_device()};
+	if (!m_shape) { m_shape = std::make_unique<CubeShape>(); }
+	refresh_geometry();
+}
 
 void ShapeRenderer::render(DrawList& out) const {
 	if (!m_primitive || !m_shape) { return; }
