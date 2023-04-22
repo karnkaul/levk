@@ -6,7 +6,7 @@ This project is a revamp of the original [`LittleEngineVk`](https://github.com/k
 
 [![Build Status](https://github.com/karnkaul/levk/actions/workflows/ci.yml/badge.svg)](https://github.com/karnkaul/levk/actions/workflows/ci.yml)
 
-https://user-images.githubusercontent.com/16272243/229443455-b124a865-aa82-425b-bb46-3b2e3b815fe6.mp4
+![Sponza](https://user-images.githubusercontent.com/16272243/233755056-45e54fba-14e6-45c8-9136-88a80fb723c3.png)
 
 ## Features
 
@@ -72,6 +72,14 @@ Link to `levk` via CMake: `target_link_libraries(foo PRIVATE levk::lib)`.
 - [SPIR-V Cross](https://github.com/KhronosGroup/SPIRV-Cross)
 - [Freetype](https://github.com/freetype/freetype)
 - [Portable File Dialogs](https://github.com/samhocevar/portable-file-dialogs)
+
+## Screenshots
+
+![Damaged Helmet and Water Bottle](https://user-images.githubusercontent.com/16272243/233755061-c1cbfe62-a89e-4696-869a-2baf4205755e.png)
+
+![Lantern and BrainStem](https://user-images.githubusercontent.com/16272243/233755065-4c5d6981-e54c-40f3-b8fc-375b9458bad3.png)
+
+## Misc
 
 [Original repository](https://github.com/karnkaul/levk)
 
