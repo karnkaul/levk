@@ -66,7 +66,6 @@ class MonotonicMap {
 
   private:
 	std::unordered_map<id_underlying_t, Type> m_map{};
-	mutable std::mutex m_mutex{};
 	id_underlying_t m_prev_id{};
 };
 } // namespace levk

@@ -1,4 +1,6 @@
+#include <fmt/format.h>
 #include <levk/io/common.hpp>
+#include <sstream>
 
 namespace {
 template <glm::length_t Dim>

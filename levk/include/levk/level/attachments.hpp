@@ -5,6 +5,7 @@
 #include <levk/uri.hpp>
 #include <levk/util/id.hpp>
 #include <optional>
+#include <vector>
 
 namespace levk {
 class Material;
