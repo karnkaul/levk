@@ -130,9 +130,9 @@ void inspect(OpenWindow w, FreecamController& freecam_controller) {
 	Reflector{w}("Move Speed", freecam_controller.move_speed);
 	ImGui::DragFloat("Look Speed", &freecam_controller.look_speed);
 	auto degrees = freecam_controller.pitch.to_degrees();
-	if (ImGui::DragFloat("Pitch", &degrees.value, 0.25f, 10.0f, 75.0f)) { freecam_controller.pitch = degrees; }
+	if (ImGui::DragFloat("Pitch", &degrees.value, 0.25f, -89.0f, 89.0f)) { freecam_controller.pitch = degrees; }
 	degrees = freecam_controller.yaw.to_degrees();
-	if (ImGui::DragFloat("Yaw", &degrees.value, 0.25f, 10.0f, 75.0f)) { freecam_controller.yaw = degrees; }
+	if (ImGui::DragFloat("Yaw", &degrees.value, 0.25f, -180.0f, 180.0f)) { freecam_controller.yaw = degrees; }
 }
 
 void inspect(OpenWindow w, ColliderAabb& collider) {
