@@ -7,6 +7,7 @@ struct FrameProfile {
 	enum class Type {
 		eTick,
 		eAcquireFrame,
+		eRenderShadowMap,
 		eRender3D,
 		eRenderUI,
 		eRenderSubmit,
@@ -17,7 +18,7 @@ struct FrameProfile {
 	};
 
 	static constexpr EnumArray<Type, std::string_view> to_string_v{
-		"tick", "acquire-frame", "render-3d", "render-ui", "render-submit", "render-present", "frame-time",
+		"tick", "acquire-frame", "render-shadow-map", "render-3d", "render-ui", "render-submit", "render-present", "frame-time",
 	};
 
 	EnumArray<Type, Time> profile{};

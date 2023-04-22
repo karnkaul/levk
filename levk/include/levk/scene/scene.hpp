@@ -1,65 +1,65 @@
 #pragma once
-#include <levk/graphics/camera.hpp>
+#include <levk/collision.hpp>
 #include <levk/graphics/lights.hpp>
-#include <levk/graphics/renderer.hpp>
-#include <levk/graphics/skeleton.hpp>
-#include <levk/io/serializable.hpp>
-#include <levk/node.hpp>
+#include <levk/node/node_tree.hpp>
 #include <levk/scene/entity.hpp>
+#include <levk/scene/scene_camera.hpp>
 #include <levk/ui/view.hpp>
+#include <levk/util/logger.hpp>
 #include <levk/util/monotonic_map.hpp>
+#include <levk/util/pinned.hpp>
 #include <levk/util/time.hpp>
-#include <levk/window/window_state.hpp>
-#include <unordered_set>
+#include <levk/util/type_id.hpp>
+#include <unordered_map>
 
 namespace levk {
-class Serializer;
+struct RenderList;
+struct Level;
 
-class Scene : public Renderer, public Serializable {
+class Scene : public Pinned {
   public:
-	static AssetList peek_assets(Serializer const& serializer, dj::Json const& json);
+	virtual ~Scene() = default;
 
-	Node& spawn(Node::CreateInfo const& node_create_info = {});
-	void tick(WindowState const& window_state, Time dt);
-	bool destroy(Id<Entity> entity);
+	Entity& spawn(NodeCreateInfo create_info);
 
-	Ptr<Entity const> find(Id<Entity> id) const { return m_entities.find(id); }
-	Ptr<Entity> find(Id<Entity> id) { return m_entities.find(id); }
-	Entity const& get(Id<Entity> id) const { return m_entities.get(id); }
-	Entity& get(Id<Entity> id) { return m_entities.get(id); }
+	Ptr<Entity const> find_entity(Id<Entity> id) const;
+	Ptr<Entity> find_entity(Id<Entity> id);
 
-	Node::Tree const& nodes() const { return m_nodes; }
-	Node::Locator node_locator() { return m_nodes; }
+	Entity const& get_entity(Id<Entity> id) const;
+	Entity& get_entity(Id<Entity> id);
 
-	bool detach_from(Entity& out_entity, TypeId::value_type component_type) const;
+	void destroy_entity(Id<Entity> id);
 
-	bool empty() const { return m_entities.empty(); }
+	NodeTree const& node_tree() const { return m_nodes; }
+	NodeLocator node_locator() { return m_nodes; }
+	glm::mat4 global_transform(Entity const& entity) const { return m_nodes.global_transform(entity.node_id()); }
+	glm::mat4 global_transform(Id<Entity> id) const;
+
+	Level export_level() const;
+	bool import_level(Level const& level);
+
+	WindowState const& window_state() const;
+	Input const& input() const;
 
 	virtual void setup() {}
-	void render(RenderList& out) const override;
+	virtual void tick(Time dt);
+	virtual void render(RenderList& out) const;
+	virtual void clear();
 
-	Skeleton::Instance instantiate_skeleton(Skeleton const& source, Id<Node> root);
-
-	std::string_view type_name() const override { return "Scene"; }
-	bool serialize(dj::Json& out) const override;
-	bool deserialize(dj::Json const& json) override;
-
-	Lights lights{};
-	Camera camera{};
-	std::string name{};
 	ui::View ui_root{};
+	SceneCamera camera{};
+	Lights lights{};
+	Collision collision{};
+
+	glm::vec3 shadow_frustum{100.0f};
+
+	std::string name{};
 
   protected:
-	virtual void tick(Time /*dt*/) {}
+	Entity make_entity(Id<Node> node_id);
 
-	WindowState const& window_state() const { return m_window_state; }
-	Input const& input() const { return window_state().input; }
-
-  private:
-	Node::Tree m_nodes{};
 	MonotonicMap<Entity> m_entities{};
-
-	WindowState m_window_state{};
-	std::unordered_set<Id<Entity>::id_type> m_to_destroy{};
+	NodeTree m_nodes{};
+	Logger m_logger{"Scene"};
 };
 } // namespace levk

@@ -2,23 +2,43 @@
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
+#include <levk/graphics/rgba.hpp>
 #include <levk/rect.hpp>
 #include <span>
 #include <vector>
 
 namespace levk {
+struct Quad {
+	glm::vec2 size{1.0f, 1.0f};
+	UvRect uv{uv_rect_v};
+	Rgba rgb{white_v};
+	glm::vec3 origin{};
+
+	bool operator==(Quad const&) const = default;
+};
+
+struct Cube {
+	glm::vec3 size{1.0f, 1.0f, 1.0f};
+	Rgba rgb{white_v};
+	glm::vec3 origin{};
+
+	bool operator==(Cube const&) const = default;
+};
+
+struct Sphere {
+	float diameter{1.0f};
+	std::uint32_t resolution{16u};
+	Rgba rgb{white_v};
+	glm::vec3 origin{};
+
+	bool operator==(Sphere const&) const = default;
+};
+
 struct Vertex {
 	glm::vec3 position{};
 	glm::vec3 rgb{1.0f};
 	glm::vec3 normal{0.0f, 0.0f, 1.0f};
 	glm::vec2 uv{};
-};
-
-struct QuadCreateInfo {
-	glm::vec2 size{100.0f, 100.0f};
-	glm::vec3 rgb{1.0f};
-	glm::vec3 origin{};
-	UvRect uv{uv_rect_v};
 };
 
 struct Geometry {
@@ -28,8 +48,17 @@ struct Geometry {
 	std::vector<std::uint32_t> indices{};
 
 	Geometry& append(std::span<Vertex const> vs, std::span<std::uint32_t const> is);
-	Geometry& append_quad(QuadCreateInfo const& create_info);
-	Geometry& append_cube(glm::vec3 size, glm::vec3 rgb = glm::vec3{1.0f}, glm::vec3 origin = {});
+
+	Geometry& append(Quad const& quad);
+	Geometry& append(Cube const& cube);
+	Geometry& append(Sphere const& sphere);
+
+	template <typename ShapeT>
+	static Geometry from(ShapeT const& shape) {
+		auto ret = Geometry{};
+		ret.append(shape);
+		return ret;
+	}
 
 	Packed pack() const;
 	operator Packed() const;
@@ -55,9 +84,6 @@ struct MeshJoints {
 	std::span<glm::vec4 const> weights{};
 };
 
-Geometry make_quad(QuadCreateInfo const& create_info = {});
-Geometry make_cube(glm::vec3 size, glm::vec3 rgb = glm::vec3{1.0f}, glm::vec3 origin = {});
-Geometry make_cubed_sphere(float diam, std::uint32_t quads_per_side, glm::vec3 rgb = glm::vec3{1.0f});
 Geometry make_cone(float xz_diam, float y_height, std::uint32_t xz_points, glm::vec3 rgb = glm::vec3{1.0f});
 Geometry make_cylinder(float xz_diam, float y_height, std::uint32_t xz_points, glm::vec3 rgb = glm::vec3{1.0f});
 Geometry make_arrow(float stalk_diam, float stalk_height, std::uint32_t xz_points, glm::vec3 rgb = glm::vec3{1.0f});

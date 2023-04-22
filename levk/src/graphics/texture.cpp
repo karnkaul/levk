@@ -8,7 +8,8 @@
 namespace levk {
 namespace {
 constexpr auto white_image_v = FixedPixelMap<1, 1>{{white_v}};
-}
+auto const g_log{Logger{"Texture"}};
+} // namespace
 
 void Texture::Deleter::operator()(vulkan::Texture const* ptr) const { delete ptr; }
 
@@ -20,12 +21,12 @@ Texture::Texture(vulkan::Device& device, Image::View image, CreateInfo const& cr
 	m_impl->create_info.format = create_info.colour_space == ColourSpace::eLinear ? vk::Format::eR8G8B8A8Unorm : vk::Format::eR8G8B8A8Srgb;
 	bool mip_mapped = create_info.mip_mapped;
 	if (image.extent.x == 0 || image.extent.y == 0) {
-		logger::warn("[Texture] invalid image extent: [0x0]");
+		g_log.warn("invalid image extent: [0x0]");
 		image = magenta_pixmap_v.view();
 		mip_mapped = false;
 	}
 	if (image.storage.empty()) {
-		logger::warn("[Texture] invalid image bytes: [empty]");
+		g_log.warn("invalid image bytes: [empty]");
 		image = magenta_pixmap_v.view();
 		mip_mapped = false;
 	}

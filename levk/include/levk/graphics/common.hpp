@@ -28,6 +28,8 @@ inline constexpr std::size_t max_sets_v{16};
 inline constexpr std::size_t max_bindings_v{16};
 inline constexpr std::size_t max_lights_v{4};
 inline constexpr float render_scale_limit_v[] = {0.2f, 8.0f};
+inline constexpr Extent2D shadow_resolution_limit_v[] = {{256, 256}, {8192, 8192}};
+inline constexpr glm::vec2 shadow_frustum_limit_v[] = {{1.0f, 1.0f}, {1024.0f, 1024.0f}};
 
 enum class AntiAliasing : std::uint8_t {
 	e1x = 1 << 0,

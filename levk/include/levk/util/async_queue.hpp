@@ -67,8 +67,18 @@ class AsyncQueue {
 		auto lock = std::unique_lock{m_mutex};
 		auto ret = std::move(m_queue);
 		lock.unlock();
-		m_cv.notify_all();
+		ping();
 		return ret;
+	}
+
+	bool empty() const {
+		auto lock = std::scoped_lock{m_mutex};
+		return m_queue.empty();
+	}
+
+	std::size_t size() const {
+		auto lock = std::scoped_lock{m_mutex};
+		return m_queue.size();
 	}
 
   private:
@@ -80,6 +90,6 @@ class AsyncQueue {
 
 	std::deque<Type> m_queue{};
 	std::condition_variable m_cv{};
-	std::mutex m_mutex{};
+	mutable std::mutex m_mutex{};
 };
 } // namespace levk

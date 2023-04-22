@@ -1,14 +1,16 @@
 #pragma once
 #include <levk/engine.hpp>
 #include <levk/imcpp/common.hpp>
-#include <levk/imcpp/ring_buffer.hpp>
+#include <vector>
 
 namespace levk::imcpp {
 class EngineStatus {
   public:
-	void draw_to(NotClosed<Window> w, Engine& engine);
+	void draw_to(NotClosed<Window> w, Engine& engine, Time dt);
 
   private:
-	RingBuffer<float> m_dts{};
+	std::vector<float> m_dts{};
+	std::size_t m_offset{};
+	int m_capacity{100};
 };
 } // namespace levk::imcpp

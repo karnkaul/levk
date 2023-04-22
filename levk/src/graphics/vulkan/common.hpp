@@ -1,5 +1,6 @@
 #pragma once
 #include <vk_mem_alloc.h>
+#include <levk/graphics/common.hpp>
 #include <levk/graphics/image.hpp>
 #include <levk/graphics/shader_code.hpp>
 #include <levk/graphics/texture_sampler.hpp>
@@ -22,6 +23,8 @@ inline constexpr vk::Format linear_formats_v[] = {vk::Format::eR8G8B8A8Unorm, vk
 
 template <std::integral Type = std::size_t>
 constexpr auto buffering_v = Type{1};
+
+using DeferQueue = levk::DeferQueue<buffering_v<>>;
 
 struct Index {
 	std::size_t value{};
@@ -143,15 +146,6 @@ struct Vma {
 	[[nodiscard]] Unique<Buffer, Deleter> copy_to_image(vk::CommandBuffer cb, Image const& out, std::span<levk::Image::View const> images,
 														glm::ivec2 const offset = {}) const;
 	[[nodiscard]] Unique<Buffer, Deleter> write_images(vk::CommandBuffer cb, Image const& out, std::span<ImageWrite const> writes) const;
-
-	void* map_memory(Buffer& out) const;
-	void unmap_memory(Buffer& out) const;
-
-	template <typename F>
-	void with_mapped(Buffer& out, F func) const {
-		func(map_memory(out));
-		unmap_memory(out);
-	}
 
 	void full_blit(vk::CommandBuffer cb, Blit src, Blit dst, vk::Filter filter = vk::Filter::eLinear) const;
 };
@@ -299,8 +293,6 @@ struct MappedPool {
 struct SetAllocator {
 	static vk::UniqueDescriptorPool make_descriptor_pool(vk::Device device, std::uint32_t max_sets = 32);
 
-	static SetAllocator make(vk::Device device) { return {.device = device}; }
-
 	vk::Device device{};
 	MappedPool<vk::DescriptorSetLayout, vk::UniqueDescriptorPool> pools{};
 
@@ -332,6 +324,10 @@ struct VertexInput {
 		if (hash == 0) { make_hash(); }
 		return {attributes.span(), bindings.span(), hash};
 	}
+
+	static VertexInput for_shadow();
+	static VertexInput for_static();
+	static VertexInput for_skinned();
 
 	operator View() const { return view(); }
 };
@@ -372,24 +368,14 @@ struct SamplerStorage {
 	vk::Sampler get(vk::Device device, TextureSampler const& sampler);
 };
 
-struct GlobalLayout {
-	struct Storage {
-		vk::UniqueDescriptorSetLayout global_set_layout{};
-		vk::UniquePipelineLayout global_pipeline_layout{};
-	};
-
-	vk::DescriptorSetLayout global_set_layout{};
-	vk::PipelineLayout global_pipeline_layout{};
-};
-
 struct DeviceView {
 	vk::Instance instance{};
 	vk::SurfaceKHR surface{};
 	vk::Device device{};
-	Gpu gpu{};
+	Ptr<Gpu const> gpu{};
 
 	Vma vma{};
-	GlobalLayout global_layout{};
+	RenderMode default_render_mode{};
 	Ptr<Queue> queue{};
 	Ptr<DeferQueue> defer{};
 	Ptr<SetAllocator> set_allocator{};
@@ -397,16 +383,17 @@ struct DeviceView {
 	Ptr<PipelineStorage> pipeline_storage{};
 	Ptr<SamplerStorage> sampler_storage{};
 	Ptr<Index const> buffered_index{};
+	Ptr<std::uint64_t> draw_calls{};
 
 	CommandAllocator make_command_allocator(vk::CommandPoolCreateFlags flags = CommandAllocator::flags_v) const {
-		return CommandAllocator::make(device, gpu.queue_family, flags);
+		return CommandAllocator::make(device, gpu->queue_family, flags);
 	}
 
 	vk::Result wait(vk::ArrayProxy<vk::Fence> const& fences) const { return device.waitForFences(fences, true, std::numeric_limits<std::uint64_t>::max()); }
 
 	bool can_mip(vk::Format const format) const {
 		static constexpr vk::FormatFeatureFlags flags_v{vk::FormatFeatureFlagBits::eBlitDst | vk::FormatFeatureFlagBits::eBlitSrc};
-		auto const fsrc = gpu.device.getFormatProperties(format);
+		auto const fsrc = gpu->device.getFormatProperties(format);
 		return (fsrc.optimalTilingFeatures & flags_v) != vk::FormatFeatureFlags{};
 	}
 
@@ -426,9 +413,8 @@ struct GeometryOffsets {
 struct GeometryLayout {
 	VertexInput vertex_input{};
 	GeometryOffsets offsets{};
-	std::optional<std::uint32_t> instance_binding{};
+	std::optional<std::uint32_t> instances_binding{};
 	std::optional<std::uint32_t> joints_binding{};
-	std::optional<std::uint32_t> joints_set{};
 	std::uint32_t vertices{};
 	std::uint32_t indices{};
 	std::uint32_t joints{};
@@ -479,6 +465,18 @@ struct HostBuffer::Pool {
 	}
 
 	void reset_all() { pages.reset_all(); }
+};
+
+struct ScopedDeviceBlocker {
+	vk::Device device{};
+
+	ScopedDeviceBlocker& operator=(ScopedDeviceBlocker&&) = delete;
+
+	ScopedDeviceBlocker(vk::Device device = {}) : device(device) {}
+
+	~ScopedDeviceBlocker() {
+		if (device) { device.waitIdle(); }
+	}
 };
 
 template <typename Type, typename BufferT, typename Func>

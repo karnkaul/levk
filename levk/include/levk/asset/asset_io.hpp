@@ -1,55 +1,46 @@
 #pragma once
 #include <djson/json.hpp>
+#include <levk/asset/asset_type.hpp>
+#include <levk/graphics/camera.hpp>
 #include <levk/graphics/common.hpp>
 #include <levk/graphics/geometry.hpp>
+#include <levk/graphics/lights.hpp>
 #include <levk/graphics/material.hpp>
 #include <levk/graphics/skeleton.hpp>
 #include <levk/graphics/texture.hpp>
-#include <levk/transform.hpp>
+#include <levk/level/level.hpp>
 #include <levk/uri.hpp>
 #include <variant>
 
 namespace levk::asset {
-template <glm::length_t Dim, typename T = float>
-glm::vec<Dim, T> glm_vec_from_json(dj::Json const& json, glm::vec<Dim, T> const& fallback = {}, std::size_t offset = 0) {
-	auto ret = glm::vec<Dim, T>{};
-	ret.x = json[offset + 0].as<T>(fallback.x);
-	if constexpr (Dim > 1) { ret.y = json[offset + 1].as<T>(fallback.y); }
-	if constexpr (Dim > 2) { ret.z = json[offset + 2].as<T>(fallback.z); }
-	if constexpr (Dim > 3) { ret.w = json[offset + 3].as<T>(fallback.w); }
-	return ret;
-}
+Type get_type(std::string_view str);
 
-template <glm::length_t Dim, typename T = float>
-void from_json(dj::Json const& json, glm::vec<Dim, T>& out, glm::vec<Dim, T> const& fallback = {}) {
-	out = glm_vec_from_json(json, fallback);
-}
+void from_json(dj::Json const& json, Type& out);
+void to_json(dj::Json& out, Type const& type);
 
-template <glm::length_t Dim, typename T = float>
-void to_json(dj::Json& out, glm::vec<Dim, T> const& vec) {
-	out.push_back(vec.x);
-	if constexpr (Dim > 1) { out.push_back(vec.y); }
-	if constexpr (Dim > 2) { out.push_back(vec.z); }
-	if constexpr (Dim > 3) { out.push_back(vec.w); }
-}
+void from_json(dj::Json const& json, Quad& out);
+void to_json(dj::Json& out, Quad const& quad);
 
-void from_json(dj::Json const& json, glm::quat& out, glm::quat const& fallback = glm::identity<glm::quat>());
-void to_json(dj::Json& out, glm::quat const& quat);
+void from_json(dj::Json const& json, Cube& out);
+void to_json(dj::Json& out, Cube const& cube);
 
-void from_json(dj::Json const& json, glm::mat4& out);
-void to_json(dj::Json& out, glm::mat4 const& mat);
+void from_json(dj::Json const& json, Sphere& out);
+void to_json(dj::Json& out, Sphere const& sphere);
 
-void from_json(dj::Json const& json, Rgba& out);
-void to_json(dj::Json& out, Rgba const& rgba);
+void from_json(dj::Json const& json, ViewPlane& out);
+void to_json(dj::Json& out, ViewPlane const& view_plane);
 
-void from_json(dj::Json const& json, HdrRgba& out);
-void to_json(dj::Json& out, HdrRgba const& rgba);
+void from_json(dj::Json const& json, Camera& out);
+void to_json(dj::Json& out, Camera const& camera);
 
-void from_json(dj::Json const& json, Transform& out);
-void to_json(dj::Json& out, Transform const& transform);
+void from_json(dj::Json const& json, Lights& out);
+void to_json(dj::Json& out, Lights const& lights);
 
-void from_json(dj::Json const& json, RenderMode& out);
-void to_json(dj::Json& out, RenderMode const& render_mode);
+void from_json(dj::Json const& json, NodeTree& out);
+void to_json(dj::Json& out, NodeTree const& node_tree);
+
+void from_json(dj::Json const& json, Level& out);
+void to_json(dj::Json& out, Level const& level);
 
 struct Material {
 	MaterialTextures textures{};
@@ -112,14 +103,6 @@ struct BinSkeletalAnimation {
 	bool write(char const* path) const;
 	bool read(char const* path);
 	bool read(std::span<std::byte const> bytes);
-};
-
-struct Skeleton {
-	using Joint = levk::Skeleton::Joint;
-
-	std::vector<Joint> joints{};
-	std::vector<Uri<BinSkeletalAnimation>> animations{};
-	std::string name{};
 };
 
 void from_json(dj::Json const& json, Skeleton& out);

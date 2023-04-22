@@ -7,22 +7,7 @@ namespace levk {
 namespace fs = std::filesystem;
 
 namespace {
-fs::path find_dir(fs::path exe, std::span<std::string_view const> patterns) {
-	auto check = [patterns](fs::path const& prefix) {
-		for (auto const pattern : patterns) {
-			auto path = prefix / pattern;
-			if (fs::is_directory(path)) { return path; }
-		}
-		return fs::path{};
-	};
-	while (!exe.empty()) {
-		if (auto ret = check(exe); !ret.empty()) { return ret; }
-		auto parent = exe.parent_path();
-		if (exe == parent) { break; }
-		exe = std::move(parent);
-	}
-	return {};
-}
+auto const g_log{Logger{"DataSource"}};
 } // namespace
 
 std::string DataSource::read_text(Uri<> const& uri) const {
@@ -33,7 +18,7 @@ std::string DataSource::read_text(Uri<> const& uri) const {
 
 dj::Json DataSource::read_json(Uri<> const& uri, std::string_view const extension) const {
 	if (auto const ext = fs::path{uri.value()}.extension(); ext != extension) {
-		logger::error("[DataSource] Invalid JSON URI [{}]", uri.value());
+		g_log.error("Invalid JSON URI [{}]", uri.value());
 		return {};
 	}
 	auto const bytes = read(uri);
@@ -50,8 +35,3 @@ Uri<> DataSource::trim_to_uri(std::string_view path) const {
 	return ret;
 }
 } // namespace levk
-
-std::string levk::find_directory(char const* exe_path, std::span<std::string_view const> uri_patterns) {
-	if (uri_patterns.empty()) { return {}; }
-	return find_dir(exe_path, uri_patterns).generic_string();
-}

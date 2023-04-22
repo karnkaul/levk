@@ -37,9 +37,11 @@ bool match(GLFWwindow* in) { return g_storage.instance && g_storage.instance->wi
 } // namespace
 
 void Window::Deleter::operator()(glfw::Window const* ptr) const {
-	glfwDestroyWindow(ptr->window);
-	glfwTerminate();
-	g_storage.instance = {};
+	if (ptr) {
+		glfwDestroyWindow(ptr->window);
+		glfwTerminate();
+		g_storage.instance = {};
+	}
 	delete ptr;
 }
 

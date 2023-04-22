@@ -14,14 +14,15 @@ Geometry& Geometry::append(std::span<Vertex const> vs, std::span<std::uint32_t c
 	return *this;
 }
 
-Geometry& Geometry::append_quad(QuadCreateInfo const& create_info) {
-	auto const h = 0.5f * create_info.size;
-	auto const& o = create_info.origin;
+Geometry& Geometry::append(Quad const& quad) {
+	auto const h = 0.5f * quad.size;
+	auto const& o = quad.origin;
+	glm::vec3 const rgb = quad.rgb.to_vec4();
 	Vertex const vs[] = {
-		{{o.x - h.x, o.y + h.y, 0.0f}, create_info.rgb, front_v, create_info.uv.top_left()},
-		{{o.x + h.x, o.y + h.y, 0.0f}, create_info.rgb, front_v, create_info.uv.top_right()},
-		{{o.x + h.x, o.y - h.y, 0.0f}, create_info.rgb, front_v, create_info.uv.bottom_right()},
-		{{o.x - h.x, o.y - h.y, 0.0f}, create_info.rgb, front_v, create_info.uv.bottom_left()},
+		{{o.x - h.x, o.y + h.y, 0.0f}, rgb, front_v, quad.uv.top_left()},
+		{{o.x + h.x, o.y + h.y, 0.0f}, rgb, front_v, quad.uv.top_right()},
+		{{o.x + h.x, o.y - h.y, 0.0f}, rgb, front_v, quad.uv.bottom_right()},
+		{{o.x - h.x, o.y - h.y, 0.0f}, rgb, front_v, quad.uv.bottom_left()},
 	};
 	std::uint32_t const is[] = {
 		0, 1, 2, 2, 3, 0,
@@ -29,8 +30,10 @@ Geometry& Geometry::append_quad(QuadCreateInfo const& create_info) {
 	return append(vs, is);
 }
 
-Geometry& Geometry::append_cube(glm::vec3 size, glm::vec3 rgb, glm::vec3 const o) {
-	auto const h = 0.5f * size;
+Geometry& Geometry::append(Cube const& cube) {
+	auto const h = 0.5f * cube.size;
+	auto const& o = cube.origin;
+	glm::vec3 const rgb = cube.rgb.to_vec4();
 	Vertex const vs[] = {
 		// front
 		{{o.x - h.x, o.y + h.y, o.z + h.z}, rgb, front_v, {0.0f, 0.0f}},
@@ -82,6 +85,67 @@ Geometry& Geometry::append_cube(glm::vec3 size, glm::vec3 rgb, glm::vec3 const o
 	return append(vs, is);
 }
 
+Geometry& Geometry::append(Sphere const& sphere) {
+	struct {
+		std::vector<Vertex> vertices{};
+		std::vector<std::uint32_t> indices{};
+	} scratch{};
+
+	scratch.vertices.reserve(sphere.resolution * 4 * 6);
+	scratch.indices.reserve(sphere.resolution * 6 * 6);
+
+	auto const bl = glm::vec3{-1.0f, -1.0f, 1.0f};
+	auto points = std::vector<std::pair<glm::vec3, glm::vec2>>{};
+	points.reserve(4 * sphere.resolution);
+	auto const s = 2.0f / static_cast<float>(sphere.resolution);
+	auto const duv = 1.0f / static_cast<float>(sphere.resolution);
+	float u = 0.0f;
+	float v = 0.0f;
+	for (std::uint32_t row = 0; row < sphere.resolution; ++row) {
+		v = static_cast<float>(row) * duv;
+		for (std::uint32_t col = 0; col < sphere.resolution; ++col) {
+			u = static_cast<float>(col) * duv;
+			auto const o = s * glm::vec3{static_cast<float>(col), static_cast<float>(row), 0.0f};
+			points.push_back({glm::vec3(bl + o), glm::vec2{u, 1.0f - v}});
+			points.push_back({glm::vec3(bl + glm::vec3{s, 0.0f, 0.0f} + o), glm::vec2{u + duv, 1.0 - v}});
+			points.push_back({glm::vec3(bl + glm::vec3{s, s, 0.0f} + o), glm::vec2{u + duv, 1.0f - v - duv}});
+			points.push_back({glm::vec3(bl + glm::vec3{0.0f, s, 0.0f} + o), glm::vec2{u, 1.0f - v - duv}});
+		}
+	}
+
+	glm::vec3 const rgb = sphere.rgb.to_vec4();
+	auto add_side = [&sphere, &scratch, rgb](std::vector<std::pair<glm::vec3, glm::vec2>>& out_points, nvec3 (*transform)(glm::vec3 const&)) {
+		auto indices = FlexArray<std::uint32_t, 4>{};
+		auto update_indices = [&] {
+			if (indices.size() == 4) {
+				auto const span = indices.span();
+				std::array const arr = {span[0], span[1], span[2], span[2], span[3], span[0]};
+				std::copy(arr.begin(), arr.end(), std::back_inserter(scratch.indices));
+				indices.clear();
+			}
+		};
+		for (auto const& p : out_points) {
+			update_indices();
+			auto const pt = transform(p.first).value() * sphere.diameter * 0.5f;
+			indices.insert(static_cast<std::uint32_t>(scratch.vertices.size()));
+			scratch.vertices.push_back({pt, rgb, pt, p.second});
+		}
+		update_indices();
+	};
+	add_side(points, [](glm::vec3 const& p) { return nvec3(p); });
+	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(180.0f), up_v)); });
+	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(90.0f), up_v)); });
+	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(-90.0f), up_v)); });
+	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(90.0f), right_v)); });
+	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(-90.0f), right_v)); });
+
+	for (auto& vertex : scratch.vertices) { vertex.position = sphere.origin + vertex.position; }
+
+	append(scratch.vertices, scratch.indices);
+
+	return *this;
+}
+
 Geometry::Packed Geometry::pack() const { return Packed::from(*this); }
 
 Geometry::operator Packed() const { return pack(); }
@@ -98,66 +162,6 @@ Geometry::Packed Geometry::Packed::from(Geometry const& geometry) {
 	return ret;
 }
 } // namespace levk
-
-auto levk::make_quad(QuadCreateInfo const& create_info) -> Geometry {
-	auto ret = Geometry{};
-	return ret.append_quad(create_info);
-}
-
-auto levk::make_cube(glm::vec3 size, glm::vec3 rgb, glm::vec3 const origin) -> Geometry {
-	auto ret = Geometry{};
-	return ret.append_cube(size, rgb, origin);
-}
-
-auto levk::make_cubed_sphere(float diam, std::uint32_t quads_per_side, glm::vec3 rgb) -> Geometry {
-	Geometry ret;
-	auto quad_count = static_cast<std::uint32_t>(quads_per_side * quads_per_side);
-	ret.vertices.reserve(quad_count * 4 * 6);
-	ret.indices.reserve(quad_count * 6 * 6);
-	auto const bl = glm::vec3{-1.0f, -1.0f, 1.0f};
-	auto points = std::vector<std::pair<glm::vec3, glm::vec2>>{};
-	points.reserve(4 * quad_count);
-	auto const s = 2.0f / static_cast<float>(quads_per_side);
-	auto const duv = 1.0f / static_cast<float>(quads_per_side);
-	float u = 0.0f;
-	float v = 0.0f;
-	for (std::uint32_t row = 0; row < quads_per_side; ++row) {
-		v = static_cast<float>(row) * duv;
-		for (std::uint32_t col = 0; col < quads_per_side; ++col) {
-			u = static_cast<float>(col) * duv;
-			auto const o = s * glm::vec3{static_cast<float>(col), static_cast<float>(row), 0.0f};
-			points.push_back({glm::vec3(bl + o), glm::vec2{u, 1.0f - v}});
-			points.push_back({glm::vec3(bl + glm::vec3{s, 0.0f, 0.0f} + o), glm::vec2{u + duv, 1.0 - v}});
-			points.push_back({glm::vec3(bl + glm::vec3{s, s, 0.0f} + o), glm::vec2{u + duv, 1.0f - v - duv}});
-			points.push_back({glm::vec3(bl + glm::vec3{0.0f, s, 0.0f} + o), glm::vec2{u, 1.0f - v - duv}});
-		}
-	}
-	auto add_side = [rgb, diam, &ret](std::vector<std::pair<glm::vec3, glm::vec2>>& out_points, nvec3 (*transform)(glm::vec3 const&)) {
-		auto indices = FlexArray<std::uint32_t, 4>{};
-		auto update_indices = [&] {
-			if (indices.size() == 4) {
-				auto const span = indices.span();
-				std::array const arr = {span[0], span[1], span[2], span[2], span[3], span[0]};
-				std::copy(arr.begin(), arr.end(), std::back_inserter(ret.indices));
-				indices.clear();
-			}
-		};
-		for (auto const& p : out_points) {
-			update_indices();
-			auto const pt = transform(p.first).value() * diam * 0.5f;
-			indices.insert(static_cast<std::uint32_t>(ret.vertices.size()));
-			ret.vertices.push_back({pt, rgb, pt, p.second});
-		}
-		update_indices();
-	};
-	add_side(points, [](glm::vec3 const& p) { return nvec3(p); });
-	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(180.0f), up_v)); });
-	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(90.0f), up_v)); });
-	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(-90.0f), up_v)); });
-	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(90.0f), right_v)); });
-	add_side(points, [](glm::vec3 const& p) { return nvec3(glm::rotate(p, glm::radians(-90.0f), right_v)); });
-	return ret;
-}
 
 auto levk::make_cone(float xz_diam, float y_height, std::uint32_t xz_points, glm::vec3 rgb) -> Geometry {
 	auto ret = Geometry{};

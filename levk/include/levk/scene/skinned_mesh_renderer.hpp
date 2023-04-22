@@ -1,23 +1,27 @@
 #pragma once
 #include <levk/graphics/skeleton.hpp>
-#include <levk/scene/render_component.hpp>
+#include <levk/scene/component.hpp>
+#include <levk/util/dyn_array.hpp>
 
 namespace levk {
+struct SkinnedMesh;
+
 class SkinnedMeshRenderer : public RenderComponent {
   public:
-	void set_mesh(Uri<SkinnedMesh> uri, Skeleton::Instance skeleton);
+	void set_mesh_uri(Uri<SkinnedMesh> uri);
+	Uri<SkinnedMesh> const& mesh_uri() const { return m_mesh; }
 
-	Skeleton::Instance const& skeleton() const { return m_skeleton; }
+	NodeLocator joint_locator() { return {m_skeleton.joint_tree}; }
+	Skeleton const& skeleton() const { return m_skeleton; }
+	glm::mat4 global_transform(Id<Node> node_id) const;
 
-	std::string_view type_name() const override { return "SkinnedMeshRenderer"; }
-	bool serialize(dj::Json& out) const override;
-	bool deserialize(dj::Json const& json) override;
-	void inspect(imcpp::OpenWindow) override;
-	void render(RenderList& out) const final;
-	void add_assets(AssetList& out, dj::Json const& json) const override;
+	void render(DrawList& out) const final;
+	std::unique_ptr<Attachment> to_attachment() const final;
+
+	std::vector<Transform> instances{};
 
   protected:
-	Skeleton::Instance m_skeleton{};
+	Skeleton m_skeleton{};
 	Uri<SkinnedMesh> m_mesh{};
 
 	DynArray<glm::mat4> m_joint_matrices{};

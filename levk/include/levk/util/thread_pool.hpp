@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/util/async_queue.hpp>
 #include <levk/util/unique_task.hpp>
+#include <atomic>
 #include <future>
 #include <optional>
 #include <thread>
@@ -26,13 +27,24 @@ class ThreadPool {
 	/// \returns Future of task invocation result
 	///
 	template <typename F>
-	auto enqueue(F func) -> std::future<std::invoke_result_t<F>> {
+	auto submit(F func) -> std::future<std::invoke_result_t<F>> {
 		using Ret = std::invoke_result_t<F>;
 		auto promise = std::promise<Ret>{};
 		auto ret = promise.get_future();
-		push(std::move(promise), std::move(func));
+		submit(std::move(promise), std::move(func));
 		return ret;
 	}
+
+	///
+	/// \brief Block until queue is empty and workers are idle.
+	///
+	void wait_idle();
+
+	///
+	/// \brief Check if any submitted tasks are pending execution.
+	/// \returns true if any submitted tasks are pending execution
+	///
+	bool is_idle() const;
 
 	///
 	/// \brief Obtain the number of worker threads active on the task queue.
@@ -42,7 +54,7 @@ class ThreadPool {
 
   private:
 	template <typename T, typename F>
-	void push(std::promise<T>&& promise, F func) {
+	void submit(std::promise<T>&& promise, F func) {
 		m_queue.push([p = std::move(promise), f = std::move(func)]() mutable {
 			try {
 				if constexpr (std::is_void_v<T>) {
@@ -61,31 +73,30 @@ class ThreadPool {
 
 	AsyncQueue<UniqueTask<void()>> m_queue{};
 	std::vector<std::jthread> m_threads{};
+	std::atomic<std::int32_t> m_busy{};
 };
 
-template <typename T>
-struct StoredFuture {
-	std::shared_future<T> future{};
-	std::optional<T> t{};
+template <typename Type>
+struct ScopedFuture {
+	ScopedFuture() = default;
+	ScopedFuture(ScopedFuture&&) = default;
 
-	StoredFuture() = default;
+	ScopedFuture(std::future<Type> future) : future(std::move(future).share()) {}
 
-	template <typename F>
-		requires(std::same_as<std::invoke_result_t<F>, T>)
-	StoredFuture(ThreadPool& pool, F func) : future(pool.enqueue([f = std::move(func)] { return f(); }).share()) {}
+	~ScopedFuture() { wait(); }
 
-	template <typename F>
-		requires(std::same_as<std::invoke_result_t<F>, T>)
-	explicit StoredFuture(F func) : t(func()) {}
-
-	bool active() const { return future.valid() || t.has_value(); }
-
-	T const& get() const {
-		assert(active());
-		if (future.valid()) { return future.get(); }
-		return *t;
+	ScopedFuture& operator=(ScopedFuture&& rhs) noexcept {
+		if (&rhs != this) {
+			wait();
+			future = std::move(rhs.future);
+		}
+		return *this;
 	}
 
-	T& get() { return const_cast<T&>(std::as_const(*this).get()); }
+	void wait() const {
+		if (future.valid()) { future.wait(); }
+	}
+
+	std::shared_future<Type> future{};
 };
 } // namespace levk

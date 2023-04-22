@@ -8,12 +8,15 @@ class AssetProviders;
 
 class AssetListLoader : public AsyncTask<void> {
   public:
-	AssetListLoader(NotNull<AssetProviders const*> asset_providers, AssetList list) : m_asset_providers(asset_providers), m_list(std::move(list)) {}
+	AssetListLoader(NotNull<AssetProviders const*> asset_providers, AssetList list) : m_list(std::move(list)), m_asset_providers(asset_providers) {}
 
   protected:
-	void execute() override;
+	ScopedFuture<void> const& get_future() const override { return m_future; }
+	void execute(ThreadPool& thread_pool) override;
 
-	NotNull<AssetProviders const*> m_asset_providers;
 	AssetList m_list{};
+	NotNull<AssetProviders const*> m_asset_providers;
+
+	ScopedFuture<void> m_future{};
 };
 } // namespace levk

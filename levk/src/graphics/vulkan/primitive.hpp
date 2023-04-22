@@ -29,13 +29,13 @@ struct Primitive {
 		}
 	}
 
-	void draw(Vma::Buffer const& vibo, Vma::Buffer const& jwbo, vk::CommandBuffer cb) const {
+	void draw(Vma::Buffer const& vibo, Vma::Buffer const& jwbo, vk::CommandBuffer cb, std::uint32_t instances = 1u) const {
 		if (!vibo.buffer) { return; }
 		assert(m_layout.joints_binding > 0);
 		vk::Buffer const jbos[] = {jwbo.buffer, jwbo.buffer};
 		vk::DeviceSize const jbo_offsets[] = {m_layout.offsets.joints, m_layout.offsets.weights};
 		cb.bindVertexBuffers(*m_layout.joints_binding, jbos, jbo_offsets);
-		draw(vibo, cb);
+		draw(vibo, cb, instances);
 	}
 
 	virtual void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) = 0;
@@ -53,9 +53,9 @@ class UploadedPrimitive : public Primitive {
 	UploadedPrimitive() = default;
 
 	void draw(vk::CommandBuffer cb, std::uint32_t instances = 1u) final {
-		if (m_layout.joints_binding > 0) {
+		if (m_layout.joints_binding) {
 			assert(m_jwbo.buffer.get());
-			Primitive::draw(m_vibo.buffer.get().get(), m_jwbo.buffer.get().get(), cb);
+			Primitive::draw(m_vibo.buffer.get().get(), m_jwbo.buffer.get().get(), cb, instances);
 		} else {
 			Primitive::draw(m_vibo.buffer.get().get(), cb, instances);
 		}

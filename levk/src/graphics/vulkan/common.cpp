@@ -25,6 +25,15 @@ constexpr vk::Filter from(TextureSampler::Filter const filter) {
 	}
 }
 
+constexpr vk::BorderColor from(TextureSampler::Border const border) {
+	switch (border) {
+	default:
+	case TextureSampler::Border::eOpaqueBlack: return vk::BorderColor::eFloatOpaqueBlack;
+	case TextureSampler::Border::eOpaqueWhite: return vk::BorderColor::eFloatOpaqueWhite;
+	case TextureSampler::Border::eTransparentBlack: return vk::BorderColor::eFloatTransparentBlack;
+	}
+}
+
 struct MipMapWriter {
 	ImageBarrier& ib;
 
@@ -98,10 +107,7 @@ void Vma::Deleter::operator()(Vma const& vma) const {
 
 void Vma::Deleter::operator()(Buffer const& buffer) const {
 	auto const& allocation = buffer.allocation;
-	if (buffer.buffer && allocation.allocation) {
-		if (buffer.mapped) { vmaUnmapMemory(allocation.vma.allocator, allocation.allocation); }
-		vmaDestroyBuffer(allocation.vma.allocator, buffer.buffer, allocation.allocation);
-	}
+	if (buffer.buffer && allocation.allocation) { vmaDestroyBuffer(allocation.vma.allocator, buffer.buffer, allocation.allocation); }
 }
 
 void Vma::Deleter::operator()(Image const& image) const {
@@ -129,15 +135,20 @@ UniqueVma Vma::make(vk::Instance instance, vk::PhysicalDevice gpu, vk::Device de
 UniqueBuffer Vma::make_buffer(vk::BufferUsageFlags const usage, vk::DeviceSize const size, bool host_visible) const {
 	auto vaci = VmaAllocationCreateInfo{};
 	vaci.usage = VMA_MEMORY_USAGE_AUTO;
-	if (host_visible) { vaci.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT; }
+	if (host_visible) { vaci.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT; }
 	auto const bci = vk::BufferCreateInfo{{}, size, usage};
 	auto vbci = static_cast<VkBufferCreateInfo>(bci);
 	auto buffer = VkBuffer{};
 	auto ret = Buffer{};
-	if (vmaCreateBuffer(allocator, &vbci, &vaci, &buffer, &ret.allocation.allocation, {}) != VK_SUCCESS) { throw Error{"Failed to allocate Vulkan Buffer"}; }
+	auto alloc_info = VmaAllocationInfo{};
+	if (vmaCreateBuffer(allocator, &vbci, &vaci, &buffer, &ret.allocation.allocation, &alloc_info) != VK_SUCCESS) {
+		throw Error{"Failed to allocate Vulkan Buffer"};
+	}
 	ret.buffer = buffer;
 	ret.allocation.vma = *this;
 	ret.size = bci.size;
+	ret.mapped = alloc_info.pMappedData;
+	if (host_visible) { assert(ret.mapped); }
 	return UniqueBuffer{std::move(ret)};
 }
 
@@ -212,18 +223,13 @@ UniqueBuffer Vma::copy_to_image(vk::CommandBuffer cb, Image const& out, std::spa
 	auto const accumulate_size = [](std::size_t total, levk::Image::View const& i) { return total + i.storage.size(); };
 	auto const size = std::accumulate(images.begin(), images.end(), std::size_t{}, accumulate_size);
 	auto staging = make_buffer(vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst, size, true);
-	if (!staging.get().buffer) {
-		// TODO: error
-		return {};
-	}
+	if (!staging.get().buffer || !staging.get().mapped) { throw Error{"Failed to write create Vulkan staging buffer"}; }
 
-	with_mapped(staging.get(), [&images](void* mapped) {
-		auto* ptr = static_cast<std::byte*>(mapped);
-		for (auto const& image : images) {
-			std::memcpy(ptr, image.storage.data(), image.storage.size());
-			ptr += image.storage.size();
-		}
-	});
+	auto* ptr = static_cast<std::byte*>(staging.get().mapped);
+	for (auto const& image : images) {
+		std::memcpy(ptr, image.storage.data(), image.storage.size());
+		ptr += image.storage.size();
+	}
 
 	auto const vk_extent = vk::Extent3D{images[0].extent.x, images[0].extent.y, 1u};
 	auto const vk_offset = vk::Offset3D{offset.x, offset.y, 0};
@@ -243,13 +249,14 @@ UniqueBuffer Vma::write_images(vk::CommandBuffer cb, Image const& out, std::span
 	auto const accumulate_size = [](std::size_t total, ImageWrite const& tw) { return total + tw.image.storage.size(); };
 	auto const size = std::accumulate(writes.begin(), writes.end(), std::size_t{}, accumulate_size);
 	auto staging = make_buffer(vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst, size, true);
-	with_mapped(staging.get(), [writes](void* mapped) {
-		auto* ptr = static_cast<std::byte*>(mapped);
-		for (auto const& image : writes) {
-			std::memcpy(ptr, image.image.storage.data(), image.image.storage.size());
-			ptr += image.image.storage.size();
-		}
-	});
+	if (!staging.get().buffer || !staging.get().mapped) { throw Error{"Failed to write create Vulkan staging buffer"}; }
+
+	auto* ptr = static_cast<std::byte*>(staging.get().mapped);
+	for (auto const& image : writes) {
+		std::memcpy(ptr, image.image.storage.data(), image.image.storage.size());
+		ptr += image.image.storage.size();
+	}
+
 	auto isrl = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, out.array_layers);
 	auto bics = std::vector<vk::BufferImageCopy>{};
 	bics.reserve(writes.size());
@@ -268,17 +275,6 @@ UniqueBuffer Vma::write_images(vk::CommandBuffer cb, Image const& out, std::span
 	barrier.set_full_barrier(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal).transition(cb);
 	if (out.mip_levels > 1) { MipMapWriter{barrier, out.extent, cb, out.mip_levels, out.array_layers}(); }
 	return staging;
-}
-
-void* Vma::map_memory(Buffer& out) const {
-	if (!out.mapped) { vmaMapMemory(allocator, out.allocation.allocation, &out.mapped); }
-	return out.mapped;
-}
-
-void Vma::unmap_memory(Buffer& out) const {
-	if (!out.mapped) { return; }
-	vmaUnmapMemory(allocator, out.allocation.allocation);
-	out.mapped = {};
 }
 
 void Vma::full_blit(vk::CommandBuffer cb, Blit src, Blit dst, vk::Filter filter) const {
@@ -346,8 +342,57 @@ std::size_t VertexInput::make_hash() const {
 	return hash;
 }
 
+VertexInput VertexInput::for_shadow() {
+	auto ret = VertexInput{};
+
+	// position
+	ret.bindings.insert(vk::VertexInputBindingDescription{0, sizeof(glm::vec3)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{0, 0, vk::Format::eR32G32B32Sfloat});
+
+	// instance matrix
+	ret.bindings.insert(vk::VertexInputBindingDescription{4, sizeof(glm::mat4), vk::VertexInputRate::eInstance});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{4, 4, vk::Format::eR32G32B32A32Sfloat, 0 * sizeof(glm::vec4)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{5, 4, vk::Format::eR32G32B32A32Sfloat, 1 * sizeof(glm::vec4)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{6, 4, vk::Format::eR32G32B32A32Sfloat, 2 * sizeof(glm::vec4)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{7, 4, vk::Format::eR32G32B32A32Sfloat, 3 * sizeof(glm::vec4)});
+
+	return ret;
+}
+
+VertexInput VertexInput::for_static() {
+	auto ret = for_shadow();
+
+	// rgb
+	ret.bindings.insert(vk::VertexInputBindingDescription{1, sizeof(glm::vec3)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{1, 1, vk::Format::eR32G32B32Sfloat});
+
+	// normal
+	ret.bindings.insert(vk::VertexInputBindingDescription{2, sizeof(glm::vec3)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{2, 2, vk::Format::eR32G32B32Sfloat});
+
+	// uv
+	ret.bindings.insert(vk::VertexInputBindingDescription{3, sizeof(glm::vec2)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{3, 3, vk::Format::eR32G32Sfloat});
+
+	return ret;
+}
+
+VertexInput VertexInput::for_skinned() {
+	auto ret = for_static();
+
+	// joints
+	ret.bindings.insert(vk::VertexInputBindingDescription{8, sizeof(glm::uvec4)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{8, 8, vk::Format::eR32G32B32A32Uint});
+
+	// weights
+	ret.bindings.insert(vk::VertexInputBindingDescription{9, sizeof(glm::vec4)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{9, 9, vk::Format::eR32G32B32A32Sfloat});
+
+	return ret;
+}
+
 std::size_t SamplerStorage::Hasher::operator()(TextureSampler const& sampler) const {
-	return make_combined_hash(sampler.min, sampler.mag, sampler.wrap_s, sampler.wrap_t);
+	return make_combined_hash(sampler.min, sampler.mag, sampler.wrap_s, sampler.wrap_t, sampler.border);
 }
 
 vk::Sampler SamplerStorage::get(vk::Device device, TextureSampler const& sampler) {
@@ -357,7 +402,7 @@ vk::Sampler SamplerStorage::get(vk::Device device, TextureSampler const& sampler
 	sci.magFilter = from(sampler.mag);
 	sci.anisotropyEnable = anisotropy > 0.0f;
 	sci.maxAnisotropy = anisotropy;
-	sci.borderColor = vk::BorderColor::eIntOpaqueBlack;
+	sci.borderColor = from(sampler.border);
 	sci.mipmapMode = vk::SamplerMipmapMode::eNearest;
 	sci.addressModeU = from(sampler.wrap_s);
 	sci.addressModeV = from(sampler.wrap_t);
@@ -382,7 +427,8 @@ DeviceBuffer DeviceBuffer::make(DeviceView device, vk::BufferUsageFlags usage) {
 void DeviceBuffer::write(void const* data, std::size_t size, std::size_t count) {
 	auto staging = device.vma.make_buffer(vk::BufferUsageFlagBits::eTransferSrc, size, true);
 	if (buffer.get().get().size < size) { buffer.get() = device.vma.make_buffer(vk::BufferUsageFlagBits::eTransferDst | usage, size, false); }
-	device.vma.with_mapped(staging, [&](void* mapped) { std::memcpy(mapped, data, size); });
+	if (!staging.get().buffer || !staging.get().mapped) { throw Error{"Failed to write create Vulkan staging buffer"}; }
+	std::memcpy(staging.get().mapped, data, size);
 	auto cmd = AdHocCmd{device};
 	cmd.cb.copyBuffer(staging.get().buffer, buffer.get().get().buffer, vk::BufferCopy{{}, {}, size});
 	this->count = static_cast<std::uint32_t>(count);
@@ -412,7 +458,8 @@ BufferView HostBuffer::view() {
 	if (bytes.empty()) { return {}; }
 	auto& ret = buffers.get()[*device.buffered_index];
 	if (ret.get().size < bytes.size()) { ret = device.vma.make_buffer(usage, bytes.size(), true); }
-	device.vma.with_mapped(ret.get(), [this](void* mapped) { std::memcpy(mapped, bytes.data(), bytes.size()); });
+	if (!ret.get().buffer || !ret.get().mapped) { throw Error{"Failed to write create Vulkan host buffer"}; }
+	std::memcpy(ret.get().mapped, bytes.data(), bytes.size());
 	return BufferView{.buffer = ret.get().buffer, .size = bytes.size(), .count = count};
 }
 } // namespace levk::vulkan

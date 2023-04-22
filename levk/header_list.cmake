@@ -15,6 +15,7 @@ set(util_headers
   include/levk/util/error.hpp
   include/levk/util/fixed_string.hpp
   include/levk/util/flex_array.hpp
+  include/levk/util/futopt.hpp
   include/levk/util/hash_combine.hpp
   include/levk/util/id.hpp
   include/levk/util/logger.hpp
@@ -24,6 +25,8 @@ set(util_headers
   include/levk/util/path_tree.hpp
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
+  include/levk/util/radians.hpp
+  include/levk/util/reversed.hpp
   include/levk/util/signal.hpp
   include/levk/util/thread_pool.hpp
   include/levk/util/time.hpp
@@ -77,16 +80,16 @@ set(imcpp_headers
   include/levk/imcpp/inspector.hpp
   include/levk/imcpp/log_display.hpp
   include/levk/imcpp/reflector.hpp
-  include/levk/imcpp/ring_buffer.hpp
   include/levk/imcpp/scene_graph.hpp
 )
 
 set(assets_headers
+  include/levk/asset/asset_io.hpp
   include/levk/asset/asset_list_loader.hpp
   include/levk/asset/asset_list.hpp
   include/levk/asset/asset_provider.hpp
   include/levk/asset/asset_providers.hpp
-  include/levk/asset/common.hpp
+  include/levk/asset/asset_type.hpp
   include/levk/asset/font_provider.hpp
   include/levk/asset/material_provider.hpp
   include/levk/asset/mesh_provider.hpp
@@ -103,8 +106,7 @@ set(vfs_headers
 )
 
 set(io_headers
-  include/levk/io/binding_map.hpp
-  include/levk/io/component_factory.hpp
+  include/levk/io/common.hpp
   include/levk/io/serializable.hpp
   include/levk/io/serializer.hpp
 )
@@ -118,21 +120,39 @@ set(font_headers
   include/levk/font/static_font_atlas.hpp
 )
 
-set(scene_headers
-  include/levk/scene/component.hpp
-  include/levk/scene/entity.hpp
-  include/levk/scene/primitive_renderer.hpp
-  include/levk/scene/scene_manager.hpp
-  include/levk/scene/scene.hpp
-  include/levk/scene/skeleton_controller.hpp
-  include/levk/scene/skinned_mesh_renderer.hpp
-  include/levk/scene/static_mesh_renderer.hpp
+set(node_headers
+  include/levk/node/node_tree_serializer.hpp
+  include/levk/node/node_tree.hpp
+  include/levk/node/node.hpp
+)
+
+set(level_headers
+  include/levk/level/attachment.hpp
+  include/levk/level/attachments.hpp
+  include/levk/level/inspectable.hpp
+  include/levk/level/level.hpp
+  include/levk/level/shape.hpp
 )
 
 set(ui_headers
   include/levk/ui/primitive.hpp
   include/levk/ui/text.hpp
   include/levk/ui/view.hpp
+)
+
+set(scene_headers
+  include/levk/scene/collider_aabb.hpp
+  include/levk/scene/component.hpp
+  include/levk/scene/entity.hpp
+  include/levk/scene/freecam_controller.hpp
+  include/levk/scene/scene_camera.hpp
+  include/levk/scene/scene_manager.hpp
+  include/levk/scene/scene_renderer.hpp
+  include/levk/scene/scene.hpp
+  include/levk/scene/shape_renderer.hpp
+  include/levk/scene/skeleton_controller.hpp
+  include/levk/scene/skinned_mesh_renderer.hpp
+  include/levk/scene/static_mesh_renderer.hpp
 )
 
 set(levk_headers
@@ -144,15 +164,17 @@ set(levk_headers
   ${assets_headers}
   ${vfs_headers}
   ${font_headers}
-  ${scene_headers}
+  ${node_headers}
+  ${level_headers}
   ${ui_headers}
+  ${scene_headers}
 
   include/levk/context.hpp
+  include/levk/collision.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
   include/levk/frame_profile.hpp
   include/levk/interpolator.hpp
-  include/levk/node.hpp
   include/levk/rect.hpp
   include/levk/runtime.hpp
   include/levk/service.hpp

@@ -4,6 +4,10 @@
 #include <cstring>
 
 namespace levk {
+namespace {
+auto const g_log{Logger{"Image"}};
+}
+
 void Image::Storage::Deleter::operator()(Storage const& image) const {
 	if (image.data) { stbi_image_free(const_cast<std::byte*>(image.data)); }
 }
@@ -12,7 +16,7 @@ Image::Image(std::span<std::byte const> compressed, std::string name) : m_name{s
 	int x, y, channels;
 	auto ptr = stbi_load_from_memory(reinterpret_cast<stbi_uc const*>(compressed.data()), static_cast<int>(compressed.size()), &x, &y, &channels, 4);
 	if (!ptr) {
-		logger::error("[Image] Failed to decompress [{}]", m_name);
+		g_log.error("Failed to decompress [{}]", m_name);
 		return;
 	}
 	m_storage = Storage{static_cast<std::size_t>(x * y * 4), reinterpret_cast<std::byte const*>(ptr)};
@@ -23,7 +27,7 @@ Image::Image(char const* file_path, std::string name) : m_name{std::move(name)} 
 	int x, y, channels;
 	auto ptr = stbi_load(file_path, &x, &y, &channels, 4);
 	if (!ptr) {
-		logger::error("[Image] Failed to decompress [{}]", m_name);
+		g_log.error("Failed to decompress [{}]", m_name);
 		return;
 	}
 	m_storage = Storage{static_cast<std::size_t>(x * y * 4), reinterpret_cast<std::byte const*>(ptr)};

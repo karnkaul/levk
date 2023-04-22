@@ -32,7 +32,7 @@ struct Pipeline {
 
 	explicit operator bool() const { return pipeline && layout; }
 
-	void bind(vk::CommandBuffer cb, vk::Extent2D extent, float line_width = 1.0f);
+	void bind(vk::CommandBuffer cb, vk::Extent2D extent, float line_width = 1.0f, bool negative_viewport = true);
 };
 
 struct PipelineInfo {
@@ -90,8 +90,6 @@ struct PipelineMap {
 struct PipelineStorage {
 	std::unordered_map<ShaderHash, PipelineMap, ShaderHash::Hasher> maps{};
 	bool sample_rate_shading{};
-
-	std::mutex mutex{};
 };
 
 struct PipelineBuilder {

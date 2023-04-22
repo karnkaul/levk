@@ -1,10 +1,9 @@
 #include <fmt/format.h>
 #include <legsmi/legsmi.hpp>
+#include <levk/graphics/material.hpp>
 #include <levk/io/serializer.hpp>
-#include <levk/scene/scene.hpp>
-#include <levk/scene/skeleton_controller.hpp>
-#include <levk/scene/skinned_mesh_renderer.hpp>
-#include <levk/scene/static_mesh_renderer.hpp>
+#include <levk/level/attachments.hpp>
+#include <levk/level/level.hpp>
 #include <levk/service.hpp>
 #include <levk/util/cli_args.hpp>
 #include <levk/util/logger.hpp>
@@ -159,7 +158,7 @@ struct App {
 	ImportMap imported{};
 
 	bool can_import_scene() const { return !import_list.asset_list.has_skinned_mesh; }
-	LogDispatch import_logger{};
+	Logger import_logger{};
 
 	bool run(std::span<char const* const> in) {
 		if (in.empty()) {
@@ -170,10 +169,8 @@ struct App {
 		serializer.get().bind<levk::LitMaterial>();
 		serializer.get().bind<levk::UnlitMaterial>();
 		serializer.get().bind<levk::SkinnedMaterial>();
-		serializer.get().bind<levk::StaticMeshRenderer>();
-		serializer.get().bind<levk::SkinnedMeshRenderer>();
-		serializer.get().bind<levk::SkeletonController>();
-		serializer.get().bind<levk::Scene>();
+		serializer.get().bind<levk::MeshAttachment>();
+		serializer.get().bind<levk::SkeletonAttachment>();
 
 		auto parser = Args::Parser{};
 
@@ -227,8 +224,13 @@ struct App {
 			return false;
 		}
 
+		if (args.command == Command::eScene && !can_import_scene()) {
+			std::fprintf(stderr, "Importing scenes with skinned meshes is not supported\n");
+			return false;
+		}
+
 		if (!args.verbose) {
-			for (auto& level : import_logger.silenced) { level = true; }
+			for (auto& silenced : import_logger.silent.t) { silenced = true; }
 		}
 		src_dir = args.gltf.parent_path();
 		if (args.data_root.empty()) { args.data_root = fs::current_path(); }
@@ -266,7 +268,7 @@ struct App {
 
 	bool import_scene() {
 		for (auto const index : args.asset_indices) {
-			auto make_importer = [this, uri = import_list.asset_list.make_default_scene_uri(index)] {
+			auto make_importer = [this, uri = import_list.asset_list.make_default_level_uri(index)] {
 				return import_list.asset_list.scene_importer(args.data_root.generic_string(), args.dest_dir.generic_string(), uri, import_logger, args.force);
 			};
 			if (!import_asset(std::span{import_list.asset_list.scenes}, "Scene", index, make_importer)) { return false; }
@@ -295,6 +297,6 @@ struct App {
 } // namespace legsmi
 
 int main(int argc, char** argv) {
-	levk::logger::g_format = "[{level}] {message}";
+	levk::Logger::s_format = "[{level}] [{context}] {message}";
 	if (!legsmi::App{}.run({argv + 1, static_cast<std::size_t>(argc - 1)})) { return EXIT_FAILURE; }
 }

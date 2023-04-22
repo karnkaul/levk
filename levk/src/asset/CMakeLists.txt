@@ -1,5 +1,5 @@
 target_sources(${PROJECT_NAME} PRIVATE
-  common.cpp
+  asset_io.cpp
   asset_list_loader.cpp
   asset_providers.cpp
   font_provider.cpp

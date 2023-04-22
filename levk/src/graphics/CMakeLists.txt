@@ -7,7 +7,6 @@ target_sources(${PROJECT_NAME} PRIVATE
   material.cpp
   primitive.cpp
   pixel_map.cpp
-  render_camera.cpp
   render_device.cpp
   rgba.cpp
   shader_buffer.cpp

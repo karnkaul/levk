@@ -40,6 +40,8 @@ class View {
 	virtual void tick(Input const& input, Time dt);
 	virtual void render(DrawList& out) const;
 
+	void clear_sub_views() { m_sub_views.clear(); }
+
 	glm::vec2 n_anchor{};
 	float z_index{};
 	float z_rotation{};

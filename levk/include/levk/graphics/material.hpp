@@ -3,6 +3,7 @@
 #include <levk/graphics/rgba.hpp>
 #include <levk/graphics/shader_code.hpp>
 #include <levk/io/serializable.hpp>
+#include <levk/level/inspectable.hpp>
 #include <levk/uri.hpp>
 #include <levk/util/ptr.hpp>
 #include <memory>
@@ -31,9 +32,11 @@ struct MaterialTextures : Serializable {
 	bool operator==(MaterialTextures const& rhs) const { return uris == rhs.uris; }
 };
 
-class Material : public Serializable {
+class Material : public Serializable, public Inspectable {
   public:
 	virtual ~Material() = default;
+	Material(Material&&) = default;
+	Material& operator=(Material&&) = default;
 
 	Material();
 
@@ -43,6 +46,7 @@ class Material : public Serializable {
 
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
+	void inspect(imcpp::OpenWindow w) override;
 
 	Uri<ShaderCode> vertex_shader{};
 	Uri<ShaderCode> fragment_shader{};

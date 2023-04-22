@@ -1,9 +1,12 @@
+#include <imgui.h>
 #include <graphics/vulkan/material.hpp>
-#include <levk/asset/common.hpp>
 #include <levk/asset/texture_provider.hpp>
 #include <levk/graphics/material.hpp>
 #include <levk/graphics/shader.hpp>
+#include <levk/imcpp/drag_drop.hpp>
+#include <levk/io/common.hpp>
 #include <levk/util/enumerate.hpp>
+#include <levk/util/fixed_string.hpp>
 
 namespace levk {
 namespace {
@@ -47,7 +50,7 @@ Material::Material() : m_impl(new vulkan::Material{}) {}
 
 bool Material::serialize(dj::Json& out) const {
 	textures.serialize(out["textures"]);
-	asset::to_json(out["render_mode"], render_mode);
+	to_json(out["render_mode"], render_mode);
 	out["vertex_shader"] = vertex_shader.value();
 	out["fragment_shader"] = fragment_shader.value();
 	return true;
@@ -55,10 +58,27 @@ bool Material::serialize(dj::Json& out) const {
 
 bool Material::deserialize(dj::Json const& json) {
 	textures.deserialize(json["textures"]);
-	asset::from_json(json["render_mode"], render_mode);
+	from_json(json["render_mode"], render_mode);
 	vertex_shader = json["vertex_shader"].as_string();
 	fragment_shader = json["fragment_shader"].as_string();
 	return true;
+}
+
+void Material::inspect(imcpp::OpenWindow) {
+	ImGui::Text("%s", FixedString{"Vertex Shader: {}", vertex_shader.value()}.c_str());
+	ImGui::Text("%s", FixedString{"Fragment Shader: {}", fragment_shader.value()}.c_str());
+	for (auto [texture, index] : enumerate(textures.uris)) {
+		if (auto tn = imcpp::TreeNode{FixedString{"texture[{}]", index}.c_str()}) {
+			FixedString<128> const label = texture ? texture.value() : "[None]";
+			imcpp::TreeNode::leaf(label.c_str());
+			if (texture) {
+				if (auto drag = imcpp::DragDrop::Source{}) { imcpp::DragDrop::set_string("texture", texture.value()); }
+			}
+			if (auto drop = imcpp::DragDrop::Target{}) {
+				if (auto tex = imcpp::DragDrop::accept_string("texture"); !tex.empty()) { texture = tex; }
+			}
+		}
+	}
 }
 
 UnlitMaterial::UnlitMaterial() {
@@ -73,13 +93,13 @@ void UnlitMaterial::write_sets(Shader& shader, TextureProvider const& provider) 
 
 bool UnlitMaterial::serialize(dj::Json& out) const {
 	Material::serialize(out);
-	asset::to_json(out["tint"], tint);
+	to_json(out["tint"], tint);
 	return true;
 }
 
 bool UnlitMaterial::deserialize(dj::Json const& json) {
 	Material::deserialize(json);
-	asset::from_json(json["tint"], tint);
+	from_json(json["tint"], tint);
 	return true;
 }
 
@@ -107,8 +127,8 @@ void LitMaterial::write_sets(Shader& shader, TextureProvider const& provider) co
 
 bool LitMaterial::serialize(dj::Json& out) const {
 	Material::serialize(out);
-	asset::to_json(out["albedo"], albedo);
-	asset::to_json(out["emissive_factor"], emissive_factor);
+	to_json(out["albedo"], albedo);
+	to_json(out["emissive_factor"], emissive_factor);
 	out["metallic"] = metallic;
 	out["roughness"] = roughness;
 	out["alpha_cutoff"] = alpha_cutoff;
@@ -120,8 +140,8 @@ bool LitMaterial::serialize(dj::Json& out) const {
 bool LitMaterial::deserialize(dj::Json const& json) {
 	assert(json["type_name"].as_string() == type_name());
 	Material::deserialize(json);
-	asset::from_json(json["albedo"], albedo);
-	asset::from_json(json["emissive_factor"], emissive_factor, emissive_factor);
+	from_json(json["albedo"], albedo);
+	from_json(json["emissive_factor"], emissive_factor, emissive_factor);
 	metallic = json["metallic"].as<float>(metallic);
 	roughness = json["roughness"].as<float>(roughness);
 	alpha_cutoff = json["alpha_cutoff"].as<float>(alpha_cutoff);

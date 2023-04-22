@@ -1,16 +1,21 @@
-#include <imgui.h>
 #include <levk/defines.hpp>
+#include <levk/engine.hpp>
 #include <levk/scene/component.hpp>
-#include <levk/scene/scene_manager.hpp>
+#include <levk/scene/scene.hpp>
 #include <levk/service.hpp>
+#include <levk/window/window_state.hpp>
 #include <cassert>
 
 namespace levk {
-Scene& Component::active_scene() const { return Service<SceneManager>::locate().active_scene(); }
+WindowState const& Component::window_state() const { return Service<Engine>::locate().window().state(); }
 
-Ptr<Entity> Component::owning_entity() const { return active_scene().find(m_entity); }
+Ptr<Entity> Component::owning_entity() const { return m_scene ? m_scene->find_entity(m_entity) : nullptr; }
 
-void Component::inspect(imcpp::OpenWindow) {
-	if constexpr (debug_v) { ImGui::Text("[Not customized]"); }
-}
+Ptr<Collision> Component::scene_collision() const { return m_scene ? &m_scene->collision : nullptr; }
+
+Input const& Component::input() const { return window_state().input; }
+
+Window const& Component::window() const { return Service<Engine>::locate().window(); }
+
+RenderDevice const& Component::render_device() const { return Service<Engine>::locate().render_device(); }
 } // namespace levk

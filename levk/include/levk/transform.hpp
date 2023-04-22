@@ -1,5 +1,6 @@
 #pragma once
 #include <glm/gtx/quaternion.hpp>
+#include <levk/util/nvec3.hpp>
 
 namespace levk {
 ///
@@ -27,6 +28,15 @@ class Transform {
 		glm::quat orientation{quat_identity_v};
 		glm::vec3 scale{1.0f};
 	};
+
+	///
+	/// \brief Obtain a quaternion looking at point from eye.
+	/// \param point Target point to look at
+	/// \param eye Source position to look from
+	/// \param start Starting orientation
+	/// \param up Up vector
+	///
+	static glm::quat look_at(glm::vec3 const& point, glm::vec3 const& eye, glm::quat const& start = glm::identity<glm::quat>(), nvec3 const& up = up_v);
 
 	///
 	/// \brief Obtain the transform data.

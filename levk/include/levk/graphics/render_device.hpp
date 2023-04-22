@@ -33,19 +33,13 @@ struct RenderDeviceInfo {
 	AntiAliasing current_aa{};
 	float render_scale{1.0f};
 	Rgba clear_colour{black_v};
+	Extent2D shadow_map_resolution{2048u, 2048u};
 };
 
 class RenderDevice {
   public:
 	using Info = RenderDeviceInfo;
 	using CreateInfo = RenderDeviceCreateInfo;
-
-	struct Frame {
-		NotNull<RenderList const*> render_list;
-		NotNull<AssetProviders const*> asset_providers;
-		NotNull<Lights const*> lights;
-		NotNull<Camera const*> camera_3d;
-	};
 
 	RenderDevice(Window const& window, CreateInfo const& create_info = {});
 
@@ -54,8 +48,7 @@ class RenderDevice {
 	std::uint64_t draw_calls_last_frame() const;
 	bool set_vsync(Vsync desired);
 	void set_clear(Rgba clear);
-
-	bool render(Frame const& t);
+	void set_shadow_resolution(Extent2D extent);
 
 	vulkan::Device& vulkan_device() const;
 
@@ -64,6 +57,6 @@ class RenderDevice {
 		void operator()(vulkan::Device const*) const;
 	};
 
-	std::unique_ptr<vulkan::Device, Deleter> m_vulkan_device{};
+	std::unique_ptr<vulkan::Device, Deleter> m_impl{};
 };
 } // namespace levk

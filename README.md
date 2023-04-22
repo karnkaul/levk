@@ -6,7 +6,7 @@ This project is a revamp of the original [`LittleEngineVk`](https://github.com/k
 
 [![Build Status](https://github.com/karnkaul/levk/actions/workflows/ci.yml/badge.svg)](https://github.com/karnkaul/levk/actions/workflows/ci.yml)
 
-https://user-images.githubusercontent.com/16272243/229443455-b124a865-aa82-425b-bb46-3b2e3b815fe6.mp4
+![Sponza](https://user-images.githubusercontent.com/16272243/233755056-45e54fba-14e6-45c8-9136-88a80fb723c3.png)
 
 ## Features
 
@@ -29,7 +29,7 @@ https://user-images.githubusercontent.com/16272243/229443455-b124a865-aa82-425b-
 - [x] Fonts and text
 - [x] Dynamic rendering (no render passes)
 - [ ] In-game UI
-- [ ] Shadows
+- [x] Shadow mapping
 - [ ] Audio
 - [ ] AABB collisions
 
@@ -71,6 +71,15 @@ Link to `levk` via CMake: `target_link_libraries(foo PRIVATE levk::lib)`.
 - [Vulkan Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)
 - [SPIR-V Cross](https://github.com/KhronosGroup/SPIRV-Cross)
 - [Freetype](https://github.com/freetype/freetype)
+- [Portable File Dialogs](https://github.com/samhocevar/portable-file-dialogs)
+
+## Screenshots
+
+![Damaged Helmet and Water Bottle](https://user-images.githubusercontent.com/16272243/233755061-c1cbfe62-a89e-4696-869a-2baf4205755e.png)
+
+![lantern_brainstem](https://user-images.githubusercontent.com/16272243/233755338-6b2b6e69-dc17-4de0-a68f-5b624333c70c.png)
+
+## Misc
 
 [Original repository](https://github.com/karnkaul/levk)
 

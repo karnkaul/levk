@@ -2,6 +2,7 @@
 **/.vscode/*
 build/*
 out/*
+screenshots
 .cache
 .DS_Store
 

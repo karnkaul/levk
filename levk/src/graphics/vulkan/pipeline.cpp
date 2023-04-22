@@ -130,8 +130,10 @@ vk::UniquePipeline make_pipeline(vk::Device device, PipelineCreateInfo const& in
 	gpci.pMultisampleState = &pmssci;
 
 	auto prci = vk::PipelineRenderingCreateInfo{};
-	prci.colorAttachmentCount = 1u;
-	prci.pColorAttachmentFormats = &info.format.colour;
+	if (info.format.colour != vk::Format{}) {
+		prci.colorAttachmentCount = 1u;
+		prci.pColorAttachmentFormats = &info.format.colour;
+	}
 	prci.depthAttachmentFormat = info.format.depth;
 	gpci.pNext = &prci;
 
@@ -148,11 +150,15 @@ SpirV SpirV::from(ShaderProvider& provider, Uri<ShaderCode> const& uri) {
 	return {data->spir_v.span(), data->hash};
 }
 
-void Pipeline::bind(vk::CommandBuffer cb, vk::Extent2D extent, float line_width) {
+void Pipeline::bind(vk::CommandBuffer cb, vk::Extent2D extent, float line_width, bool negative_viewport) {
 	cb.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 	glm::vec2 const fextent = glm::uvec2{extent.width, extent.height};
 	auto viewport = vk::Viewport{0.0f, fextent.y, fextent.x, -fextent.y, 0.0f, 1.0f};
-	auto scissor = vk::Rect2D{{}, extent};
+	if (!negative_viewport) {
+		viewport.y = {};
+		viewport.height = fextent.y;
+	}
+	auto const scissor = vk::Rect2D{{}, extent};
 	cb.setViewport(0u, viewport);
 	cb.setScissor(0u, scissor);
 	cb.setLineWidth(line_width);

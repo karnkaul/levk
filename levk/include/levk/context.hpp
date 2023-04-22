@@ -1,12 +1,11 @@
 #pragma once
 #include <levk/asset/asset_providers.hpp>
 #include <levk/engine.hpp>
-#include <levk/io/component_factory.hpp>
+#include <levk/io/serializer.hpp>
 #include <levk/scene/scene_manager.hpp>
 #include <levk/service.hpp>
 
 namespace levk {
-struct Reader;
 class Scene;
 
 class Context {
@@ -17,7 +16,7 @@ class Context {
 	void hide() { return engine.get().window().hide(); }
 	void shutdown() { return engine.get().window().close(); }
 	bool is_running() const { return engine.get().window().is_open(); }
-	Frame next_frame() { return engine.get().next_frame(); }
+	void next_frame() { return engine.get().next_frame(); }
 	void render() const;
 
 	DataSource const& data_source() const { return asset_providers.get().data_source(); }
@@ -27,8 +26,6 @@ class Context {
 	Scene const& active_scene() const { return scene_manager.get().active_scene(); }
 
 	Service<Serializer>::Instance serializer{};
-	Service<ComponentFactory>::Instance component_factory{};
-	Service<UriMonitor>::Instance uri_monitor;
 	Service<Engine>::Instance engine;
 	Service<AssetProviders>::Instance asset_providers;
 	Service<SceneManager>::Instance scene_manager;

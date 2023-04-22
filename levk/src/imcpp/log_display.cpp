@@ -3,64 +3,48 @@
 #include <levk/imcpp/log_display.hpp>
 #include <levk/util/fixed_string.hpp>
 #include <levk/util/logger.hpp>
+#include <levk/util/reversed.hpp>
 #include <algorithm>
+#include <vector>
 
 namespace levk::imcpp {
 namespace {
-struct Access : logger::Accessor {
-	LogDisplay& out;
+using Level = Logger::Level;
 
-	Access(LogDisplay& out) : out(out) {}
-
-	static constexpr ImVec4 colour_for(logger::Level const level) {
-		switch (level) {
-		case logger::Level::eError: return {0.7f, 0.0f, 0.0f, 1.0f};
-		case logger::Level::eWarn: return {0.7f, 0.7f, 0.0f, 1.0f};
-		case logger::Level::eInfo: return {0.7f, 0.7f, 0.7f, 1.0f};
-		default:
-		case logger::Level::eDebug: return {0.5f, 0.5f, 0.5f, 1.0f};
-		}
+constexpr ImVec4 colour_for(Level const level) {
+	switch (level) {
+	case Level::eError: return {0.7f, 0.0f, 0.0f, 1.0f};
+	case Level::eWarn: return {0.7f, 0.7f, 0.0f, 1.0f};
+	case Level::eInfo: return {0.7f, 0.7f, 0.7f, 1.0f};
+	default:
+	case Level::eDebug: return {0.5f, 0.5f, 0.5f, 1.0f};
 	}
-
-	void operator()(std::span<logger::Entry const> entries) override {
-		if (auto style = StyleVar{ImGuiStyleVar_ItemSpacing, glm::vec2{}}) {
-			out.cache.clear();
-			for (auto const& entry : entries) {
-				if (!out.show_levels[entry.level]) { continue; }
-				if (!out.filter.empty() && entry.message.find(out.filter) == std::string::npos) { continue; }
-				out.cache.push(entry);
-			}
-			for (auto const& entry : out.cache.span()) { ImGui::TextColored(colour_for(entry.level), "%s", entry.message.c_str()); }
-			if (out.auto_scroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) { ImGui::SetScrollHereY(1.0f); }
-		}
-	}
-};
+}
 } // namespace
 
-LogDisplay::LogDisplay() noexcept {
+LogDisplay::LogDisplay() {
 	for (auto& level : show_levels.t) { level = true; }
 }
 
 void LogDisplay::draw_to(NotClosed<Window> w) {
-	ImGui::Checkbox("Error", &show_levels[logger::Level::eError]);
+	ImGui::Checkbox("Error", &show_levels[Level::eError]);
 	ImGui::SameLine();
-	ImGui::Checkbox("Warn", &show_levels[logger::Level::eWarn]);
+	ImGui::Checkbox("Warn", &show_levels[Level::eWarn]);
 	ImGui::SameLine();
-	ImGui::Checkbox("Info", &show_levels[logger::Level::eInfo]);
+	ImGui::Checkbox("Info", &show_levels[Level::eInfo]);
 	ImGui::SameLine();
-	ImGui::Checkbox("Debug", &show_levels[logger::Level::eDebug]);
+	ImGui::Checkbox("Debug", &show_levels[Level::eDebug]);
 
 	ImGui::SameLine();
 	ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
 	ImGui::SameLine();
 	ImGui::Checkbox("Auto-scroll", &auto_scroll);
 
-	if (ImGui::ArrowButton("##log_decrement", ImGuiDir_Left)) { entries = std::clamp(entries - 10, 10, 1000); }
+	if (ImGui::ArrowButton("##log_decrement", ImGuiDir_Left)) { display_count = std::clamp(display_count - 10, 10, 1000); }
 	ImGui::SameLine();
-	if (ImGui::ArrowButton("##log_increment", ImGuiDir_Right)) { entries = std::clamp(entries + 10, 10, 1000); }
+	if (ImGui::ArrowButton("##log_increment", ImGuiDir_Right)) { display_count = std::clamp(display_count + 10, 10, 1000); }
 	ImGui::SameLine();
-	ImGui::Text("%s", FixedString{"Max: {}", entries}.c_str());
-	cache.set_capacity(static_cast<std::size_t>(entries));
+	ImGui::Text("%s", FixedString{"Max: {}", display_count}.c_str());
 	ImGui::SetNextItemWidth(200.0f);
 	ImGui::SameLine();
 	filter("Filter");
@@ -70,8 +54,27 @@ void LogDisplay::draw_to(NotClosed<Window> w) {
 	ImGui::Separator();
 	int flags = ImGuiWindowFlags_HorizontalScrollbar;
 	if (auto child = Window{w, "Entries", {}, {}, flags}) {
-		auto access_log = Access{*this};
-		logger::access_buffer(access_log);
+		auto display_list = std::vector<Logger::Entry>{};
+		display_list.reserve(static_cast<std::size_t>(display_count));
+		for (auto const& entry : entries_stack) {
+			if (!show_levels[entry.level]) { continue; }
+			if (!filter.empty() && entry.formatted_message.find(filter) == std::string::npos) { continue; }
+			display_list.push_back(entry);
+			if (static_cast<int>(display_list.size()) >= display_count) { break; }
+		}
+		for (auto const& entry : reversed(display_list)) {
+			ImGui::TextColored(colour_for(entry.level), "%s", entry.formatted_message.c_str());
+			if (auto_scroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) { ImGui::SetScrollHereY(1.0f); }
+		}
 	}
+}
+
+void LogDisplay::init(std::span<Logger::Entry const> in) {
+	for (auto const& entry : in) { on_log(entry); }
+}
+
+void LogDisplay::on_log(Logger::Entry const& entry) {
+	entries_stack.push_front(entry);
+	while (entries_stack.size() > max_entries_v) { entries_stack.pop_back(); }
 }
 } // namespace levk::imcpp

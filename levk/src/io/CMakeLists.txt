@@ -1,4 +1,4 @@
 target_sources(${PROJECT_NAME} PRIVATE
-  component_factory.cpp
+  common.cpp
   serializer.cpp
 )

@@ -81,6 +81,15 @@ bool Reflector::operator()(char const* label, glm::quat& out_quat) const {
 	return ret;
 }
 
+bool Reflector::operator()(char const* label, Radians& out_as_degrees, float speed, float lo, float hi) const {
+	auto deg = Degrees{out_as_degrees};
+	if (ImGui::DragFloat(label, &deg.value, speed, lo, hi)) {
+		out_as_degrees = deg;
+		return true;
+	}
+	return false;
+}
+
 bool Reflector::operator()(char const* label, AsRgb out_rgb) const {
 	float arr[3] = {out_rgb.out.x, out_rgb.out.y, out_rgb.out.z};
 	if (ImGui::ColorEdit3(label, arr)) {
@@ -92,7 +101,11 @@ bool Reflector::operator()(char const* label, AsRgb out_rgb) const {
 
 bool Reflector::operator()(Rgba& out_rgba, Bool show_alpha) const {
 	auto hdr = HdrRgba{out_rgba, 1.0f};
-	return (*this)(hdr, show_alpha, {false});
+	if ((*this)(hdr, show_alpha, {false})) {
+		out_rgba = hdr;
+		return true;
+	}
+	return false;
 }
 
 bool Reflector::operator()(HdrRgba& out_rgba, Bool show_alpha, Bool show_intensity) const {
@@ -130,4 +143,22 @@ bool Reflector::operator()(Transform& out_transform, Bool& out_unified_scaling, 
 }
 
 bool Reflector::operator()(Camera& out_camera) const { return ImGui::DragFloat("Exposure", &out_camera.exposure, 0.1f, 0.0f, 10.0f); }
+
+bool Reflector::operator()(UvRect& out_uv) const {
+	auto ret = Modified{};
+	if (auto tn = TreeNode{"UV Rect"}) {
+		ret((*this)("Left-top", out_uv.lt));
+		ret((*this)("Right-bottom", out_uv.rb));
+	}
+	return ret.value;
+}
+
+bool Reflector::operator()(Aabb& out_aabb) const {
+	auto ret = Modified{};
+	if (auto tn = TreeNode{"Aabb"}) {
+		ret((*this)("Size", out_aabb.size, 0.25f));
+		ret((*this)("Origin", out_aabb.origin, 0.25f));
+	}
+	return ret.value;
+}
 } // namespace levk::imcpp

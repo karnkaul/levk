@@ -25,6 +25,8 @@ struct Rect2D {
 	constexpr glm::tvec2<Type> extent() const { return {rb.x - lt.x, lt.y - rb.y}; }
 
 	constexpr bool contains(glm::vec2 const point) const { return lt.x <= point.x && point.x <= rb.x && rb.y <= point.y && point.y <= lt.y; }
+
+	bool operator==(Rect2D const&) const = default;
 };
 
 using UvRect = Rect2D<float>;

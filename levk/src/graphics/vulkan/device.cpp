@@ -8,13 +8,13 @@
 #include <graphics/vulkan/material.hpp>
 #include <graphics/vulkan/pipeline.hpp>
 #include <graphics/vulkan/primitive.hpp>
-#include <graphics/vulkan/render_camera.hpp>
-#include <graphics/vulkan/render_scene.hpp>
 #include <graphics/vulkan/render_target.hpp>
+#include <graphics/vulkan/shader.hpp>
 #include <graphics/vulkan/texture.hpp>
 #include <impl/frame_profiler.hpp>
 #include <levk/asset/asset_providers.hpp>
 #include <levk/asset/shader_provider.hpp>
+#include <levk/build_version.hpp>
 #include <levk/graphics/material.hpp>
 #include <levk/graphics/shader.hpp>
 #include <levk/graphics/shader_buffer.hpp>
@@ -30,8 +30,6 @@
 
 namespace levk::vulkan {
 namespace {
-constexpr std::string_view validation_layer_v = "VK_LAYER_KHRONOS_validation";
-
 constexpr Vsync from(vk::PresentModeKHR const mode) {
 	switch (mode) {
 	case vk::PresentModeKHR::eMailbox: return Vsync::eMailbox;
@@ -70,33 +68,6 @@ constexpr vk::PresentModeKHR from(Vsync const type) {
 	case Vsync::eAdaptive: return vk::PresentModeKHR::eFifoRelaxed;
 	default: return vk::PresentModeKHR::eFifo;
 	}
-}
-
-constexpr vk::PolygonMode from(RenderMode::Type const mode) {
-	switch (mode) {
-	case RenderMode::Type::ePoint: return vk::PolygonMode::ePoint;
-	case RenderMode::Type::eLine: return vk::PolygonMode::eLine;
-	default: return vk::PolygonMode::eFill;
-	}
-}
-
-constexpr vk::PrimitiveTopology from(Topology const topo) {
-	switch (topo) {
-	case Topology::ePointList: return vk::PrimitiveTopology::ePointList;
-	case Topology::eLineList: return vk::PrimitiveTopology::eLineList;
-	case Topology::eLineStrip: return vk::PrimitiveTopology::eLineStrip;
-	case Topology::eTriangleStrip: return vk::PrimitiveTopology::eTriangleStrip;
-	default: return vk::PrimitiveTopology::eTriangleList;
-	}
-}
-
-constexpr RenderMode combine(RenderMode const in, RenderMode def) {
-	if (in.type != RenderMode::Type::eDefault) {
-		def.type = in.type;
-		def.line_width = in.line_width;
-	}
-	def.depth_test = in.depth_test;
-	return def;
 }
 
 constexpr vk::Extent2D scaled(vk::Extent2D const extent, float scale) {
@@ -155,6 +126,8 @@ constexpr AntiAliasingFlags make_aa(vk::PhysicalDeviceProperties const& props) {
 	return ret;
 }
 
+auto const g_log{Logger{"RenderDevice"}};
+
 vk::Format depth_format(vk::PhysicalDevice const gpu) {
 	static constexpr auto target{vk::Format::eD32Sfloat};
 	auto const props = gpu.getFormatProperties(target);
@@ -163,6 +136,7 @@ vk::Format depth_format(vk::PhysicalDevice const gpu) {
 }
 
 vk::UniqueInstance make_instance(std::vector<char const*> extensions, RenderDeviceCreateInfo const& gdci, RenderDeviceInfo& out) {
+	static constexpr std::string_view validation_layer_v = "VK_LAYER_KHRONOS_validation";
 	auto dl = vk::DynamicLoader{};
 	VULKAN_HPP_DEFAULT_DISPATCHER.init(dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr"));
 	if (gdci.validation) {
@@ -172,12 +146,12 @@ vk::UniqueInstance make_instance(std::vector<char const*> extensions, RenderDevi
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 			out.validation = true;
 		} else {
-			logger::warn("[RenderDevice] Validation layer requested but not found");
+			g_log.warn("Validation layer requested but not found");
 			out.validation = false;
 		}
 	}
 
-	auto const version = VK_MAKE_VERSION(0, 1, 0);
+	auto const version = VK_MAKE_VERSION(version_v.major, version_v.minor, version_v.patch);
 	auto const ai = vk::ApplicationInfo{"levk", version, "levk", version, VK_API_VERSION_1_3};
 	auto ici = vk::InstanceCreateInfo{};
 	ici.pApplicationInfo = &ai;
@@ -197,7 +171,7 @@ vk::UniqueInstance make_instance(std::vector<char const*> extensions, RenderDevi
 	try {
 		ret = vk::createInstanceUnique(ici);
 	} catch (vk::LayerNotPresentError const& e) {
-		logger::error("[RenderDevice] {}", e.what());
+		g_log.error("{}", e.what());
 		ici.enabledLayerCount = 0;
 		ret = vk::createInstanceUnique(ici);
 	}
@@ -206,13 +180,14 @@ vk::UniqueInstance make_instance(std::vector<char const*> extensions, RenderDevi
 }
 
 vk::UniqueDebugUtilsMessengerEXT make_debug_messenger(vk::Instance instance) {
+	static auto const s_log{Logger{"vk"}};
 	auto validationCallback = [](VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT,
 								 VkDebugUtilsMessengerCallbackDataEXT const* pCallbackData, void*) -> vk::Bool32 {
-		auto const msg = fmt::format("[vk] {}", pCallbackData && pCallbackData->pMessage ? pCallbackData->pMessage : "UNKNOWN");
+		auto const msg = pCallbackData && pCallbackData->pMessage ? pCallbackData->pMessage : "UNKNOWN";
 		switch (messageSeverity) {
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT: logger::error("{}", msg); break;
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: logger::warn("{}", msg); break;
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT: logger::info("{}", msg); break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT: s_log.error("{}", msg); break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: s_log.warn("{}", msg); break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT: s_log.info("{}", msg); break;
 		default: break;
 		}
 		return false;
@@ -224,7 +199,12 @@ vk::UniqueDebugUtilsMessengerEXT make_debug_messenger(vk::Instance instance) {
 	using vktype = vk::DebugUtilsMessageTypeFlagBitsEXT;
 	dumci.messageType = vktype::eGeneral | vktype::ePerformance | vktype::eValidation;
 	dumci.pfnUserCallback = validationCallback;
-	return instance.createDebugUtilsMessengerEXTUnique(dumci, nullptr);
+	try {
+		return instance.createDebugUtilsMessengerEXTUnique(dumci, nullptr);
+	} catch (std::exception const& e) {
+		s_log.error("{}", e.what());
+		return {};
+	}
 }
 
 Gpu select_gpu(vk::Instance const instance, vk::SurfaceKHR const surface) {
@@ -259,7 +239,7 @@ Gpu select_gpu(vk::Instance const instance, vk::SurfaceKHR const surface) {
 	return std::move(entries.front().gpu);
 }
 
-vk::UniqueDevice make_device(std::span<char const* const> layers, Gpu const& gpu) {
+vk::UniqueDevice make_device(Gpu const& gpu) {
 	static constexpr float priority_v = 1.0f;
 	static constexpr std::array required_extensions_v = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -301,8 +281,6 @@ vk::UniqueDevice make_device(std::span<char const* const> layers, Gpu const& gpu
 
 	dci.queueCreateInfoCount = 1;
 	dci.pQueueCreateInfos = &qci;
-	dci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-	dci.ppEnabledLayerNames = layers.data();
 	dci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
 	dci.ppEnabledExtensionNames = extensions.span().data();
 	dci.pEnabledFeatures = &enabled;
@@ -364,10 +342,10 @@ struct Swapchain {
 
 	static Swapchain make(CreateInfo const& create_info) {
 		auto ret = Swapchain{};
-		auto const supported_modes = create_info.device.gpu.device.getSurfacePresentModesKHR(create_info.device.surface);
+		auto const supported_modes = create_info.device.gpu->device.getSurfacePresentModesKHR(create_info.device.surface);
 		ret.device = create_info.device;
 		ret.modes = {supported_modes.begin(), supported_modes.end()};
-		ret.formats = Formats::make(create_info.device.gpu.device.getSurfaceFormatsKHR(create_info.device.surface));
+		ret.formats = Formats::make(create_info.device.gpu->device.getSurfaceFormatsKHR(create_info.device.surface));
 		auto const present_mode = ideal_present_mode(ret.modes, from(create_info.vsync));
 		ret.info = ret.make_swci(create_info.colour_space, present_mode);
 		return ret;
@@ -385,7 +363,7 @@ struct Swapchain {
 		ret.presentMode = mode;
 		ret.imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst;
 		ret.queueFamilyIndexCount = 1u;
-		ret.pQueueFamilyIndices = &device.gpu.queue_family;
+		ret.pQueueFamilyIndices = &device.gpu->queue_family;
 		ret.imageColorSpace = format.colorSpace;
 		ret.imageArrayLayers = 1u;
 		ret.imageFormat = format.format;
@@ -393,7 +371,7 @@ struct Swapchain {
 	}
 
 	void refresh(std::optional<glm::uvec2> extent = {}, std::optional<Vsync> vsync = {}) {
-		auto const caps = device.gpu.device.getSurfaceCapabilitiesKHR(device.surface);
+		auto const caps = device.gpu->device.getSurfaceCapabilitiesKHR(device.surface);
 		if (extent) {
 			info.imageExtent = image_extent(caps, vk::Extent2D{extent->x, extent->y});
 			storage.extent = {info.imageExtent.width, info.imageExtent.height};
@@ -429,8 +407,8 @@ struct Swapchain {
 			});
 		}
 
-		logger::info("[RenderDevice] Swapchain extent: [{}x{}] | images: [{}] | colour space: [{}] | vsync: [{}]", create_info.imageExtent.width,
-					 create_info.imageExtent.height, storage.images.size(), is_srgb(info.imageFormat) ? "sRGB" : "linear", vsync_status(info.presentMode));
+		g_log.info("Swapchain extent: [{}x{}] | images: [{}] | colour space: [{}] | vsync: [{}]", create_info.imageExtent.width, create_info.imageExtent.height,
+				   storage.images.size(), is_srgb(info.imageFormat) ? "sRGB" : "linear", vsync_status(info.presentMode));
 	}
 
 	std::optional<ImageView> acquire(glm::uvec2 extent, vk::Semaphore semaphore, vk::Fence fence = {}) {
@@ -498,90 +476,6 @@ struct RenderSync {
 	}
 };
 
-struct Shader : levk::Shader {
-	DeviceView device{};
-	std::span<SetLayout const> set_layouts{};
-	std::span<vk::DescriptorSetLayout const> descriptor_set_layouts{};
-	std::array<vk::DescriptorSet, max_sets_v> sets{};
-
-	Shader(DeviceView device, Pipeline const& pipeline)
-		: device(device), set_layouts(pipeline.set_layouts), descriptor_set_layouts(pipeline.descriptor_set_layouts) {}
-
-	void update(std::uint32_t set, std::uint32_t binding, levk::Texture const& texture) final {
-		auto* vtex = texture.vulkan_texture();
-		if (!vtex) { return; }
-		return update(set, binding, vtex->image.get().get().image_view(), texture.sampler);
-	}
-
-	void write(std::uint32_t set, std::uint32_t binding, void const* data, std::size_t size) final {
-		if (set >= sets.size() || set >= descriptor_set_layouts.size()) { return; }
-		if (binding >= set_layouts[set].bindings.size()) { return; }
-		auto& layout_binding = set_layouts[set].bindings.span()[binding];
-		auto const usage = [layout_binding] {
-			switch (layout_binding.descriptorType) {
-			case vk::DescriptorType::eStorageBuffer: return vk::BufferUsageFlagBits::eStorageBuffer;
-			default: return vk::BufferUsageFlagBits::eUniformBuffer;
-			}
-		}();
-		auto& descriptor_set = sets[set];
-		if (!descriptor_set) { descriptor_set = device.set_allocator->allocate(descriptor_set_layouts[set]); }
-		auto& buffer = device.scratch_buffer_allocator->allocate(size, usage);
-		device.vma.with_mapped(buffer, [data, size](void* mapped) { std::memcpy(mapped, data, size); });
-		auto wds = vk::WriteDescriptorSet{descriptor_set};
-		auto const buffer_info = vk::DescriptorBufferInfo{buffer.buffer, 0u, size};
-		wds.descriptorCount = layout_binding.descriptorCount;
-		wds.descriptorType = layout_binding.descriptorType;
-		wds.dstBinding = binding;
-		wds.pBufferInfo = &buffer_info;
-		device.device.updateDescriptorSets(wds, {});
-	}
-
-	void update(std::uint32_t set, std::uint32_t binding, ShaderBuffer const& buffer) {
-		if (set >= sets.size()) { return; }
-		auto* host_buffer = buffer.vulkan_buffer();
-		if (!host_buffer) { return; }
-		update(set, binding, host_buffer->view());
-	}
-
-	void update(std::uint32_t set, std::uint32_t binding, ImageView const& image, TextureSampler const& sampler) {
-		if (set >= sets.size() || set >= descriptor_set_layouts.size()) { return; }
-		if (binding >= set_layouts[set].bindings.size()) { return; }
-		auto& descriptor_set = sets[set];
-		if (!descriptor_set) { descriptor_set = device.set_allocator->allocate(descriptor_set_layouts[set]); }
-		auto wds = vk::WriteDescriptorSet{descriptor_set};
-		auto const vk_sampler = device.sampler_storage->get(device.device, sampler);
-		if (!vk_sampler) { return; }
-		auto const image_info = vk::DescriptorImageInfo{vk_sampler, image.view, vk::ImageLayout::eReadOnlyOptimal};
-		wds.descriptorCount = 1u;
-		wds.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-		wds.dstBinding = binding;
-		wds.pImageInfo = &image_info;
-		device.device.updateDescriptorSets(wds, {});
-	}
-
-	void update(std::uint32_t set, std::uint32_t binding, BufferView const& buffer_view) {
-		if (!buffer_view.buffer) { return; }
-		auto& descriptor_set = sets[set];
-		if (!descriptor_set) { descriptor_set = device.set_allocator->allocate(descriptor_set_layouts[set]); }
-		if (binding >= set_layouts[set].bindings.size()) { return; }
-		auto& layout_binding = set_layouts[set].bindings.span()[binding];
-		auto wds = vk::WriteDescriptorSet{descriptor_set};
-		auto const buffer_info = vk::DescriptorBufferInfo{buffer_view.buffer, buffer_view.offset, buffer_view.size};
-		wds.descriptorCount = layout_binding.descriptorCount;
-		wds.descriptorType = layout_binding.descriptorType;
-		wds.dstBinding = binding;
-		wds.pBufferInfo = &buffer_info;
-		device.device.updateDescriptorSets(wds, {});
-	}
-
-	void bind(vk::PipelineLayout layout, vk::CommandBuffer cb) const {
-		for (auto const& [descriptor_set, number] : enumerate<std::uint32_t>(sets)) {
-			if (!descriptor_set) { continue; }
-			cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, number, descriptor_set, {});
-		}
-	}
-};
-
 struct DearImGui {
 	enum class State { eNewFrame, eEndFrame };
 
@@ -631,9 +525,9 @@ struct DearImGui {
 		ImGui_ImplGlfw_InitForVulkan(window.window, true);
 		ImGui_ImplVulkan_InitInfo init_info = {};
 		init_info.Instance = device.instance;
-		init_info.PhysicalDevice = device.gpu.device;
+		init_info.PhysicalDevice = device.gpu->device;
 		init_info.Device = device.device;
-		init_info.QueueFamily = device.gpu.queue_family;
+		init_info.QueueFamily = device.gpu->queue_family;
 		init_info.Queue = device.queue->queue;
 		init_info.DescriptorPool = *ret.pool;
 		init_info.Subpass = 0;
@@ -668,18 +562,34 @@ struct DearImGui {
 	}
 
 	void render(vk::CommandBuffer cb) {
+		if (state == State::eEndFrame) { end_frame(); }
 		if (auto* data = ImGui::GetDrawData()) { ImGui_ImplVulkan_RenderDrawData(data, cb); }
 	}
 };
 
 struct RenderCb {
+	vk::CommandBuffer cb_shadow{};
 	vk::CommandBuffer cb_3d{};
 	vk::CommandBuffer cb_ui{};
+};
+
+struct Waiter {
+	DeviceView device{};
+	~Waiter() {
+		device.device.waitIdle();
+		device.defer->clear();
+		ImGui_ImplVulkan_Shutdown();
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
+	}
+
+	Waiter& operator=(Waiter&&) = delete;
 };
 } // namespace
 
 struct Device::Impl {
 	Ptr<glfw::Window> window{};
+	Gpu gpu{};
 	Swapchain swapchain{};
 	std::array<RenderSync, buffering_v<>> render_sync{};
 	PipelineStorage pipeline_storage{};
@@ -690,74 +600,21 @@ struct Device::Impl {
 	Buffered<SetAllocator> set_allocators{};
 	Buffered<ScratchBufferAllocator> scratch_buffer_allocators{};
 
-	Buffered<HostBuffer::Pool> buffer_pools{};
-
 	Buffered<RenderCb> render_cbs{};
-	RenderCamera camera_3d{};
-	RenderCamera camera_ui{};
-	RenderScene scene{};
-	Lights lights{};
+	DepthTarget rt_shadow{};
+	RenderTarget rt_3d{};
+	RenderTarget rt_ui{};
 
 	DearImGui dear_imgui{};
+	DeferQueue defer{};
+
+	Index buffered_index{};
+	RenderMode default_render_mode{};
+	std::uint64_t draw_calls{};
+	Waiter waiter{};
 };
 
 void Device::Deleter::operator()(Impl const* ptr) const { delete ptr; }
-
-Device::Waiter::~Waiter() {
-	device.device.waitIdle();
-	device.defer->clear();
-	ImGui_ImplVulkan_Shutdown();
-	ImGui_ImplGlfw_Shutdown();
-	ImGui::DestroyContext();
-}
-
-void Device::Drawer::draw(Drawable const& drawable) {
-	auto* primitive = drawable.primitive.get();
-	auto* material = drawable.material->vulkan_material();
-	if (!primitive || !material) { return; }
-	if (!material->shader_layout.hash && !material->build_layout(pipeline_builder, drawable.material->vertex_shader, drawable.material->fragment_shader)) {
-		return;
-	}
-	auto rm = combine(drawable.material->render_mode, device.default_render_mode);
-	auto const pipeline_state = PipelineState{
-		.mode = from(rm.type),
-		.topology = from(drawable.topology),
-		.depth_test = rm.depth_test,
-	};
-	auto write_per_mat_sets = [&](Shader& shader) {
-		shader.update(Lights::set_v, DirLight::binding_v, dir_lights_ssbo);
-		drawable.material->write_sets(shader, asset_providers.texture());
-	};
-	if (auto pipeline = pipeline_builder.try_build(primitive->layout().vertex_input, pipeline_state, material->shader_layout.hash)) {
-		pipeline.bind(cb, extent);
-		auto shader = Shader{device.view(), pipeline};
-		if (material != previous_material) {
-			write_per_mat_sets(shader);
-			previous_material = material;
-		}
-		if (primitive->layout().instance_binding) {
-			auto instances = drawable.instances;
-			if (instances.empty()) {
-				static auto const default_instance{Transform{}};
-				instances = {&default_instance, 1};
-			}
-			auto& instance_buffer = device.impl->buffer_pools[device.buffered_index].next(vk::BufferUsageFlagBits::eVertexBuffer);
-			auto const write_instances = [&](glm::mat4& out, std::size_t i) { out = drawable.parent * instances[i].matrix(); };
-			write_array<glm::mat4>(instances.size(), instance_buffer, write_instances);
-			cb.bindVertexBuffers(*primitive->layout().instance_binding, instance_buffer.view().buffer, vk::DeviceSize{0});
-		}
-		if (primitive->layout().joints_binding) {
-			assert(primitive->layout().joints > 0);
-			auto& joints_buffer = device.impl->buffer_pools[device.buffered_index].next(vk::BufferUsageFlagBits::eStorageBuffer);
-			auto const write_joints = [&](glm::mat4& out, std::size_t index) { out = drawable.joints[index] * drawable.inverse_bind_matrices[index]; };
-			write_array<glm::mat4>(drawable.joints.size(), joints_buffer, write_joints);
-			shader.update(*primitive->layout().joints_set, 0, joints_buffer.view());
-		}
-		shader.bind(pipeline.layout, cb);
-		primitive->draw(cb);
-		++device.draw_calls;
-	}
-}
 
 Device::Device(Window const& window, RenderDeviceCreateInfo const& create_info) {
 	auto* glfw_window = window.glfw_window();
@@ -770,17 +627,13 @@ Device::Device(Window const& window, RenderDeviceCreateInfo const& create_info) 
 	surface = glfw_window->make_surface(*instance);
 	if (!surface) { throw Error{"Failed to create Vulkan Surface"}; }
 
-	gpu = select_gpu(*instance, *surface);
-
-	auto layers = FlexArray<char const*, 2>{};
-	if (create_info.validation) { layers.insert(validation_layer_v.data()); }
-	device = make_device(layers.span(), gpu);
-	Queue::make(queue, *device, gpu.queue_family);
-
-	vma = Vma::make(*instance, gpu.device, *device);
-	global_layout = RenderCamera::make_layout(*device);
-
 	impl = std::unique_ptr<Impl, Deleter>(new Impl{.window = glfw_window});
+	impl->gpu = select_gpu(*instance, *surface);
+
+	device = make_device(impl->gpu);
+	Queue::make(queue, *device, impl->gpu.queue_family);
+
+	vma = Vma::make(*instance, impl->gpu.device, *device);
 
 	auto const view_ = view();
 	auto const sci = Swapchain::CreateInfo{
@@ -793,45 +646,45 @@ Device::Device(Window const& window, RenderDeviceCreateInfo const& create_info) 
 
 	for (auto& sync : impl->render_sync) { sync = RenderSync::make(view_); }
 	for (auto& buffer : impl->scratch_buffer_allocators) { buffer.vma = vma.get(); }
-	for (auto& set_allocator : impl->set_allocators) { set_allocator = SetAllocator::make(*device); }
+	for (auto& set_allocator : impl->set_allocators) { set_allocator.device = *device; }
 
-	auto rtci = RenderTarget::CreateInfo{
+	auto const dtci = DepthTarget::CreateInfo{
+		.extent = {device_info.shadow_map_resolution.x, device_info.shadow_map_resolution.y},
+		.format = depth_format(impl->gpu.device),
+	};
+	impl->rt_shadow = DepthTarget::make(view_, dtci);
+
+	auto const rtci = RenderTarget::CreateInfo{
 		.extent = impl->swapchain.info.imageExtent,
 		.colour = impl->swapchain.info.imageFormat,
-		.depth = depth_format(gpu.device),
+		.depth = dtci.format,
 		.samples = from(device_info.current_aa),
 	};
-	impl->camera_3d = RenderCamera::make(view_);
-	impl->camera_3d.render_target = RenderTarget::make_off_screen(view_, rtci);
-	impl->camera_3d.camera.transform.set_position({0.0f, 0.0f, 5.0f});
+	impl->rt_3d = RenderTarget::make_off_screen(view_, rtci);
 
-	impl->camera_ui = RenderCamera::make(view_);
-	impl->camera_ui.camera.type = Camera::Orthographic{};
-
-	impl->scene = RenderScene::make(view_);
+	auto const flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer | vk::CommandPoolCreateFlagBits::eTransient;
+	impl->cmd_allocator = CommandAllocator::make(*device, impl->gpu.queue_family, flags);
+	for (auto& cb : impl->render_cbs) {
+		auto cbs = std::array<vk::CommandBuffer, 3>{};
+		impl->cmd_allocator.allocate(cbs);
+		cb.cb_shadow = cbs[0];
+		cb.cb_3d = cbs[1];
+		cb.cb_ui = cbs[2];
+	}
 
 	impl->dear_imgui = DearImGui::make(*glfw_window, view_, rtci.colour, {});
 	impl->dear_imgui.new_frame();
 
-	for (auto& buffer_pool : impl->buffer_pools) { buffer_pool = HostBuffer::Pool::make(view_); }
-
-	auto const flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer | vk::CommandPoolCreateFlagBits::eTransient;
-	impl->cmd_allocator = CommandAllocator::make(*device, gpu.queue_family, flags);
-	for (auto& cb : impl->render_cbs) {
-		auto cbs = std::array<vk::CommandBuffer, 2>{};
-		impl->cmd_allocator.allocate(cbs);
-		cb.cb_3d = cbs[0];
-		cb.cb_ui = cbs[1];
-	}
-
-	device_info.supported_vsync = make_vsync(gpu.device.getSurfacePresentModesKHR(*surface));
+	device_info.supported_vsync = make_vsync(impl->gpu.device.getSurfacePresentModesKHR(*surface));
 	device_info.current_vsync = from(impl->swapchain.info.presentMode);
-	device_info.supported_aa = make_aa(gpu.properties);
+	device_info.supported_aa = make_aa(impl->gpu.properties);
 	device_info.current_aa = get_samples(device_info.supported_aa, create_info.anti_aliasing);
-	device_info.name = gpu.properties.deviceName;
+	device_info.name = impl->gpu.properties.deviceName;
 
-	waiter.device = view_;
+	impl->waiter.device = view_;
 }
+
+std::uint64_t Device::draw_calls() const { return impl->draw_calls; }
 
 bool Device::set_vsync(Vsync desired) {
 	if (!device_info.supported_vsync.test(desired)) { return false; }
@@ -840,73 +693,63 @@ bool Device::set_vsync(Vsync desired) {
 	return true;
 }
 
-bool Device::render(RenderDevice::Frame const& frame) {
+bool Device::render(Renderer& renderer, AssetProviders const& asset_providers) {
 	assert(impl);
 
 	auto const framebuffer_extent = impl->window->framebuffer_extent();
 	if (framebuffer_extent.x == 0 || framebuffer_extent.y == 0) { return false; }
 
 	FrameProfiler::instance().profile(FrameProfile::Type::eAcquireFrame);
-	auto sync = impl->render_sync[buffered_index].view();
+	auto sync = impl->render_sync[impl->buffered_index].view();
 	auto acquired = impl->swapchain.acquire(framebuffer_extent, sync.draw);
 	if (!acquired) { return false; }
 
 	if (device->waitForFences(sync.drawn, true, std::numeric_limits<std::uint64_t>::max()) != vk::Result::eSuccess) { return false; }
 	device->resetFences(sync.drawn);
 
-	struct OnReturn {
-		Device& out;
-		Index i;
-		OnReturn(Device& out) : out(out), i(out.buffered_index) {}
+	impl->draw_calls = {};
+	impl->scratch_buffer_allocators[impl->buffered_index].clear();
+	impl->set_allocators[impl->buffered_index].reset_all();
 
-		~OnReturn() {
-			out.buffered_index.next();
-			out.impl->dear_imgui.new_frame();
-			out.defer.next();
-		}
-	} on_return{*this};
+	renderer.asset_providers = &asset_providers;
+	renderer.next_frame();
 
-	draw_calls = {};
-	impl->scratch_buffer_allocators[buffered_index].clear();
-	impl->set_allocators[buffered_index].reset_all();
-	impl->buffer_pools[buffered_index].reset_all();
+	auto render_cb = impl->render_cbs[impl->buffered_index];
 
-	if constexpr (debug_v) {
-		static constexpr auto warn_size_v{2048};
-		auto const list_size = frame.render_list->size();
-		if (list_size > warn_size_v) {
-			logger::warn("[RenderDevice] RenderList contains [{}] drawables / draw calls, consider reducing the count.", list_size);
-		}
-	}
+	FrameProfiler::instance().profile(FrameProfile::Type::eRenderShadowMap);
+	auto fb_shadow = impl->rt_shadow.depthbuffer();
+	render_cb.cb_shadow.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+	fb_shadow.undef_to_optimal(render_cb.cb_shadow);
+	fb_shadow.begin_render(render_cb.cb_shadow);
+	renderer.render_shadow(render_cb.cb_shadow, fb_shadow);
+	fb_shadow.end_render(render_cb.cb_shadow);
+	fb_shadow.optimal_to_read_only(render_cb.cb_shadow);
+	render_cb.cb_shadow.end();
 
 	FrameProfiler::instance().profile(FrameProfile::Type::eRender3D);
-	auto const dir_lights = impl->scene.build_dir_lights(frame.lights->dir_lights);
-
-	auto render_cb = impl->render_cbs[buffered_index];
+	auto fb_3d = impl->rt_3d.refresh(scaled(impl->swapchain.info.imageExtent, device_info.render_scale));
 	render_cb.cb_3d.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-
-	auto fb_3d = impl->camera_3d.render_target.refresh(scaled(impl->swapchain.info.imageExtent, device_info.render_scale));
 	fb_3d.undef_to_optimal(render_cb.cb_3d);
-
-	auto const clear_colour = device_info.clear_colour.to_vec4();
-	render_3d({clear_colour.x, clear_colour.y, clear_colour.z, clear_colour.w}, frame, fb_3d, dir_lights);
-
-	auto fb_ui = Framebuffer{.colour = *acquired};
+	fb_3d.begin_render(device_info.clear_colour.to_vec4(), render_cb.cb_3d);
+	renderer.render_3d(render_cb.cb_3d, fb_3d, fb_shadow.image);
+	fb_3d.end_render(render_cb.cb_3d);
 	fb_3d.optimal_to_read_only(render_cb.cb_3d);
-	fb_ui.undef_to_optimal(render_cb.cb_3d);
+	render_cb.cb_3d.end();
 
 	FrameProfiler::instance().profile(FrameProfile::Type::eRenderUI);
+	auto fb_ui = Framebuffer{.colour = *acquired};
 	render_cb.cb_ui.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-	render_ui(fb_3d.output(), frame, fb_ui, dir_lights);
+	fb_ui.undef_to_optimal(render_cb.cb_ui);
+	fb_ui.begin_render(device_info.clear_colour.to_vec4(), render_cb.cb_ui);
+	renderer.render_ui(render_cb.cb_ui, fb_ui, fb_3d.output());
+	impl->dear_imgui.render(render_cb.cb_ui);
+	fb_ui.end_render(render_cb.cb_ui);
+	fb_ui.optimal_to_present(render_cb.cb_ui);
 	render_cb.cb_ui.end();
-
-	fb_ui.optimal_to_present(render_cb.cb_3d);
-
-	render_cb.cb_3d.end();
 
 	FrameProfiler::instance().profile(FrameProfile::Type::eRenderSubmit);
 	auto const wsi = vk::SemaphoreSubmitInfo{sync.draw, {}, vk::PipelineStageFlagBits2::eColorAttachmentOutput};
-	auto const cbis = std::array<vk::CommandBufferSubmitInfo, 2>{render_cb.cb_3d, render_cb.cb_ui};
+	auto const cbis = std::array<vk::CommandBufferSubmitInfo, 3>{render_cb.cb_shadow, render_cb.cb_3d, render_cb.cb_ui};
 	auto const ssi = vk::SemaphoreSubmitInfo{sync.present, {}, vk::PipelineStageFlagBits2::eColorAttachmentOutput};
 	auto submit_info = vk::SubmitInfo2{{}, wsi, cbis, ssi};
 	queue.with([&](vk::Queue queue) { queue.submit2(submit_info, sync.drawn); });
@@ -915,64 +758,12 @@ bool Device::render(RenderDevice::Frame const& frame) {
 	auto const ret = impl->swapchain.present(framebuffer_extent, sync.present);
 
 	FrameProfiler::instance().finish();
+
+	impl->buffered_index.next();
+	impl->dear_imgui.new_frame();
+	impl->defer.next();
+
 	return ret;
-}
-
-void Device::render_3d(glm::vec4 clear, RenderDevice::Frame const& frame, Framebuffer& framebuffer, BufferView dir_lights) {
-	auto cb = impl->render_cbs[buffered_index].cb_3d;
-	framebuffer.begin_render(vk::ClearColorValue{std::array{clear.x, clear.y, clear.z, clear.w}}, cb);
-
-	auto const format = framebuffer.pipeline_format();
-	auto pipeline_builder = PipelineBuilder{impl->pipeline_storage, frame.asset_providers->shader(), *device, format};
-	auto drawer_3d = Drawer{*this, *frame.asset_providers, pipeline_builder, framebuffer.colour.extent, dir_lights, cb};
-	impl->camera_3d.camera = *frame.camera_3d;
-	impl->camera_3d.bind_view_set(drawer_3d.cb, {drawer_3d.extent.width, drawer_3d.extent.height});
-
-	auto opaque_list = frame.render_list->opaque;
-	opaque_list.sort_by([](Drawable const& a, Drawable const& b) { return a.material.get() < b.material.get(); });
-	for (auto const& drawable : opaque_list.drawables()) { drawer_3d.draw(drawable); }
-
-	auto transparent_list = frame.render_list->transparent;
-	transparent_list.sort_by([cp = impl->camera_3d.camera.transform.position()](Drawable const& a, Drawable const& b) {
-		auto const transform_a = Transform::from(a.parent);
-		auto const transform_b = Transform::from(b.parent);
-		auto const sqr_dist_a = glm::length2(transform_a.position() - cp);
-		auto const sqr_dist_b = glm::length2(transform_b.position() - cp);
-		return sqr_dist_a < sqr_dist_b;
-	});
-	for (auto const& drawable : transparent_list.drawables()) { drawer_3d.draw(drawable); }
-
-	framebuffer.end_render(cb);
-}
-
-void Device::render_ui(ImageView const& output_3d, RenderDevice::Frame const& frame, Framebuffer& fb_ui, BufferView dir_lights) {
-	auto cb = impl->render_cbs[buffered_index].cb_ui;
-	fb_ui.begin_render({}, cb);
-	auto const format = fb_ui.pipeline_format();
-	auto pipeline_builder = PipelineBuilder{impl->pipeline_storage, frame.asset_providers->shader(), *device, format};
-	draw_3d_to_ui(output_3d, pipeline_builder, fb_ui.output().extent);
-
-	auto drawer_ui = Drawer{*this, *frame.asset_providers, pipeline_builder, fb_ui.colour.extent, dir_lights, cb};
-	impl->camera_ui.bind_view_set(drawer_ui.cb, {drawer_ui.extent.width, drawer_ui.extent.height});
-	for (auto const& drawable : frame.render_list->ui.drawables()) { drawer_ui.draw(drawable); }
-
-	impl->dear_imgui.end_frame();
-	impl->dear_imgui.render(cb);
-
-	fb_ui.end_render(cb);
-}
-
-void Device::draw_3d_to_ui(ImageView const& output_3d, PipelineBuilder& pipeline_builder, vk::Extent2D extent) {
-	auto cb = impl->render_cbs[buffered_index].cb_ui;
-	auto layout = pipeline_builder.try_build_layout("shaders/fs_quad.vert", "shaders/fs_quad.frag");
-	assert(layout);
-	auto pipeline = pipeline_builder.try_build({}, {}, layout->hash);
-	assert(pipeline);
-	pipeline.bind(cb, extent);
-	auto shader = Shader{view(), pipeline};
-	shader.update(0, 0, output_3d, {});
-	shader.bind(pipeline.layout, cb);
-	cb.draw(6u, 1u, 0u, 0u);
 }
 
 auto Device::view() -> View {
@@ -980,16 +771,17 @@ auto Device::view() -> View {
 		.instance = *instance,
 		.surface = *surface,
 		.device = *device,
-		.gpu = gpu,
+		.gpu = &impl->gpu,
 		.vma = vma.get(),
-		.global_layout = {*global_layout.global_set_layout, *global_layout.global_pipeline_layout},
+		.default_render_mode = impl->default_render_mode,
 		.queue = &queue,
-		.defer = &defer,
-		.set_allocator = &impl->set_allocators[buffered_index],
-		.scratch_buffer_allocator = &impl->scratch_buffer_allocators[buffered_index],
+		.defer = &impl->defer,
+		.set_allocator = &impl->set_allocators[impl->buffered_index],
+		.scratch_buffer_allocator = &impl->scratch_buffer_allocators[impl->buffered_index],
 		.pipeline_storage = &impl->pipeline_storage,
 		.sampler_storage = &impl->sampler_storage,
-		.buffered_index = &buffered_index,
+		.buffered_index = &impl->buffered_index,
+		.draw_calls = &impl->draw_calls,
 	};
 }
 } // namespace levk::vulkan

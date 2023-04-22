@@ -10,6 +10,7 @@ namespace levk {
 ///
 /// Extremely low level data structure, used solely by Vulkan wrappers to defer destruction of GPU resources.
 ///
+template <std::size_t StackSize>
 class DeferQueue {
   public:
 	DeferQueue() = default;
@@ -53,11 +54,10 @@ class DeferQueue {
 		Model(T&& t) : t{std::move(t)} {};
 	};
 
-	template <std::size_t Size = 3>
 	struct Stack {
 		using Row = std::vector<std::unique_ptr<Erased>>;
 
-		Row rows[Size]{};
+		Row rows[StackSize]{};
 		std::size_t index{};
 
 		template <typename T>
@@ -66,12 +66,12 @@ class DeferQueue {
 		}
 
 		void next() {
-			index = (index + 1) % Size;
+			index = (index + 1) % StackSize;
 			rows[index].clear();
 		}
 	};
 
-	Stack<> m_stack{};
+	Stack m_stack{};
 	std::mutex m_mutex{};
 };
 } // namespace levk
