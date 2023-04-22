@@ -77,7 +77,7 @@ Link to `levk` via CMake: `target_link_libraries(foo PRIVATE levk::lib)`.
 
 ![Damaged Helmet and Water Bottle](https://user-images.githubusercontent.com/16272243/233755061-c1cbfe62-a89e-4696-869a-2baf4205755e.png)
 
-![Lantern and BrainStem](https://user-images.githubusercontent.com/16272243/233755065-4c5d6981-e54c-40f3-b8fc-375b9458bad3.png)
+![lantern_brainstem](https://user-images.githubusercontent.com/16272243/233755338-6b2b6e69-dc17-4de0-a68f-5b624333c70c.png)
 
 ## Misc
 
