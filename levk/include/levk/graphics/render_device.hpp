@@ -34,7 +34,6 @@ struct RenderDeviceInfo {
 	float render_scale{1.0f};
 	Rgba clear_colour{black_v};
 	Extent2D shadow_map_resolution{2048u, 2048u};
-	glm::vec2 shadow_frustum{64.0f, 64.0f};
 };
 
 class RenderDevice {
@@ -50,7 +49,6 @@ class RenderDevice {
 	bool set_vsync(Vsync desired);
 	void set_clear(Rgba clear);
 	void set_shadow_resolution(Extent2D extent);
-	void set_shadow_frustum(glm::vec2 size);
 
 	vulkan::Device& vulkan_device() const;
 

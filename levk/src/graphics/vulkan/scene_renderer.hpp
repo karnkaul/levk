@@ -96,7 +96,7 @@ struct SceneRenderer : Device::Renderer {
 	void update(Scene const& scene);
 
 	void next_frame() final;
-	void render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer, glm::vec2 map_size) final;
+	void render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer) final;
 	void render_3d(vk::CommandBuffer cb, Framebuffer& framebuffer, ImageView const& shadow_map) final;
 	void render_ui(vk::CommandBuffer cb, Framebuffer& framebuffer, ImageView const& output_3d) final;
 

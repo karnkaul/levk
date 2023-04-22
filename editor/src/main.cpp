@@ -146,7 +146,6 @@ struct TestScene : Scene {
 
 		auto& freecam = spawn({.name = "Freecam"});
 		freecam.attach(std::make_unique<FreecamController>());
-		camera.target = freecam.id();
 		freecam.transform().set_position({0.0f, 0.0f, 5.0f});
 	}
 

@@ -48,11 +48,6 @@ void RenderDevice::set_shadow_resolution(Extent2D extent) {
 	m_impl->device_info.shadow_map_resolution = clamp_vec(extent, shadow_resolution_limit_v);
 }
 
-void RenderDevice::set_shadow_frustum(glm::vec2 extent) {
-	assert(m_impl);
-	m_impl->device_info.shadow_map_resolution = clamp_vec(extent, shadow_frustum_limit_v);
-}
-
 vulkan::Device& RenderDevice::vulkan_device() const {
 	assert(m_impl);
 	return *m_impl;

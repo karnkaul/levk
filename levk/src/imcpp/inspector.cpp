@@ -289,7 +289,7 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 		close |= attach_selectable<SkinnedMeshRenderer>("SkinnedMeshRenderer", *entity);
 		close |= attach_selectable<SkeletonController>("SkeletonController", *entity);
 		close |= attach_selectable<FreecamController>("FreecamController", *entity);
-		close |= attach_selectable<ColliderAabb>("FreecamController", *entity);
+		close |= attach_selectable<ColliderAabb>("ColliderAabb", *entity);
 		if (close) { popup.close_current(); }
 	}
 }

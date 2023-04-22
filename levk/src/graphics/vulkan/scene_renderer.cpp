@@ -239,7 +239,7 @@ void SceneRenderer::next_frame() {
 	frame = build_render_frame(*this, *scene, *render_list);
 }
 
-void SceneRenderer::render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer, glm::vec2 const map_size) {
+void SceneRenderer::render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer) {
 	if (frame.opaque.empty()) { return; }
 
 	static auto const vertex_input = VertexInput::for_shadow();
@@ -253,10 +253,12 @@ void SceneRenderer::render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer
 	pipeline.bind(cb, depthbuffer.image.extent);
 
 	auto& view_buffer = buffer_pools[*device.buffered_index].next(vk::BufferUsageFlagBits::eUniformBuffer);
-	auto camera = Camera{.type = Camera::Orthographic{}, .face = Camera::Face::ePositiveZ};
+	assert(scene);
+	auto const view_plane = ViewPlane{.near = -0.5f * scene->shadow_frustum.z, .far = 0.5f * scene->shadow_frustum.z};
+	auto camera = Camera{.type = Camera::Orthographic{.view_plane = view_plane}, .face = Camera::Face::ePositiveZ};
 	camera.transform.set_orientation(frame.primary_light_direction);
 	camera.transform.set_position(frame.camera_3d.transform.position());
-	frame.primary_light_mat = camera.projection(map_size) * camera.view();
+	frame.primary_light_mat = camera.projection(scene->shadow_frustum) * camera.view();
 	view_buffer.write(&frame.primary_light_mat, sizeof(frame.primary_light_mat));
 	auto shader = Shader{device, pipeline};
 	shader.update(0, 0, view_buffer.view());

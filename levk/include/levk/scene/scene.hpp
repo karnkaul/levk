@@ -50,6 +50,9 @@ class Scene : public Pinned {
 	SceneCamera camera{};
 	Lights lights{};
 	Collision collision{};
+
+	glm::vec3 shadow_frustum{100.0f};
+
 	std::string name{};
 
   protected:

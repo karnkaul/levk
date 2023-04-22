@@ -5,10 +5,18 @@
 #include <levk/level/attachments.hpp>
 #include <levk/scene/entity.hpp>
 #include <levk/scene/freecam_controller.hpp>
+#include <levk/scene/scene.hpp>
 #include <levk/service.hpp>
 #include <levk/window/window.hpp>
 
 namespace levk {
+void FreecamController::setup() {
+	auto* scene = owning_scene();
+	auto* entity = owning_entity();
+	if (!scene || !entity) { return; }
+	scene->camera.target = entity->id();
+}
+
 void FreecamController::tick(Time dt) {
 	auto* entity = owning_entity();
 	if (!entity) { return; }

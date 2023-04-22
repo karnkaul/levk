@@ -24,7 +24,7 @@ struct Device {
 		Ptr<AssetProviders const> asset_providers{};
 
 		virtual void next_frame() = 0;
-		virtual void render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer, glm::vec2 map_size) = 0;
+		virtual void render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer) = 0;
 		virtual void render_3d(vk::CommandBuffer cb, Framebuffer& framebuffer, ImageView const& shadow_map) = 0;
 		virtual void render_ui(vk::CommandBuffer cb, Framebuffer& framebuffer, ImageView const& output_3d) = 0;
 	};

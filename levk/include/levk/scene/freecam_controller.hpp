@@ -7,6 +7,7 @@
 namespace levk {
 class FreecamController : public Component {
   public:
+	void setup() override;
 	void tick(Time dt) override;
 	std::unique_ptr<Attachment> to_attachment() const override;
 
