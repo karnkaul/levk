@@ -11,7 +11,7 @@ class ColliderAabb : public Component {
 	virtual void on_collision([[maybe_unused]] Id<Aabb> other) {}
 
 	void setup() override;
-	void tick(Time) override;
+	void tick(Duration) override;
 	std::unique_ptr<Attachment> to_attachment() const override;
 
   private:

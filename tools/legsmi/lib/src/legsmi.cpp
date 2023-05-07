@@ -103,7 +103,7 @@ template <typename T>
 levk::Interpolator<T> make_interpolator(std::span<float const> times, std::span<T const> values, gltf2cpp::Interpolation interpolation) {
 	assert(times.size() == values.size());
 	auto ret = levk::Interpolator<T>{};
-	for (auto [t, v] : levk::zip_ranges(times, values)) { ret.keyframes.push_back({v, levk::Time{t}}); }
+	for (auto [t, v] : levk::zip_ranges(times, values)) { ret.keyframes.push_back({v, levk::Duration{t}}); }
 	ret.interpolation = static_cast<levk::Interpolation>(interpolation);
 	return ret;
 }

@@ -16,7 +16,7 @@ void ColliderAabb::setup() {
 	if (auto* collision = scene_collision()) { m_on_collision = collision->add({}); }
 }
 
-void ColliderAabb::tick(Time) {
+void ColliderAabb::tick(Duration) {
 	auto* entity = owning_entity();
 	auto* scene = owning_scene();
 	auto* collision = scene_collision();

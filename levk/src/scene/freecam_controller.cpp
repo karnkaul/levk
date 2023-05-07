@@ -17,7 +17,7 @@ void FreecamController::setup() {
 	scene->camera.target = entity->id();
 }
 
-void FreecamController::tick(Time dt) {
+void FreecamController::tick(Duration dt) {
 	auto* entity = owning_entity();
 	if (!entity) { return; }
 	auto data = entity->transform().data();

@@ -9,7 +9,7 @@ struct SkeletalAnimation {
 	std::vector<Id<Node>> target_joints{};
 	std::string name{};
 
-	void update_nodes(NodeLocator node_locator, Time time) const;
+	void update_nodes(NodeLocator node_locator, Duration time) const;
 };
 
 struct Skeleton {

@@ -28,7 +28,7 @@ class SceneManager {
 
 	Scene& active_scene() const;
 
-	void tick(Time dt);
+	void tick(Duration dt);
 	void render() const;
 
   private:

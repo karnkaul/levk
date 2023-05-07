@@ -37,7 +37,7 @@ class View {
 
 	std::span<std::unique_ptr<View> const> sub_views() const { return m_sub_views; }
 
-	virtual void tick(Input const& input, Time dt);
+	virtual void tick(Input const& input, Duration dt);
 	virtual void render(DrawList& out) const;
 
 	void clear_sub_views() { m_sub_views.clear(); }

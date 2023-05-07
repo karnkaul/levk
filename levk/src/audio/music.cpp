@@ -8,11 +8,11 @@ Logger const g_log{"Music"};
 
 struct Music::Impl {
 	struct Transition {
-		Time duration{};
+		Duration duration{};
 		float source_gain{};
 		float target_gain{1.0f};
 
-		Time elapsed{};
+		Duration elapsed{};
 
 		explicit operator bool() const { return duration > 0s; }
 	};
@@ -35,7 +35,7 @@ void Music::Deleter::operator()(Impl const* ptr) const { delete ptr; }
 
 Music::Music(NotNull<capo::Device const*> device) : m_impl(new Impl{*device}) {}
 
-void Music::play(NotNull<capo::Pcm const*> pcm, Time crossfade, float gain) {
+void Music::play(NotNull<capo::Pcm const*> pcm, Duration crossfade, float gain) {
 	if (!m_impl) { return; }
 	if (crossfade <= 0s) {
 		m_impl->active().set_stream(pcm->clip());
@@ -52,7 +52,7 @@ void Music::play(NotNull<capo::Pcm const*> pcm, Time crossfade, float gain) {
 	};
 }
 
-void Music::tick(Time dt) {
+void Music::tick(Duration dt) {
 	if (!m_impl || !m_impl->transition) { return; }
 	m_impl->transition.elapsed += dt;
 

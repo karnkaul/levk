@@ -79,7 +79,7 @@ void SceneManager::activate(std::unique_ptr<Scene> scene) {
 	m_next_scene = std::move(scene);
 }
 
-void SceneManager::tick(Time dt) {
+void SceneManager::tick(Duration dt) {
 	if (m_next_scene) {
 		m_active_scene = std::move(m_next_scene);
 		g_log.info("Loaded Scene {}", m_active_scene->name);

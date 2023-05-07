@@ -24,23 +24,23 @@ struct Interpolator {
 
 	struct Keyframe {
 		T value{};
-		Time timestamp{};
+		Duration timestamp{};
 	};
 
 	std::vector<Keyframe> keyframes{};
 	Interpolation interpolation{};
 
-	Time duration() const { return keyframes.empty() ? Time{} : keyframes.back().timestamp; }
+	Duration duration() const { return keyframes.empty() ? Duration{} : keyframes.back().timestamp; }
 
-	std::optional<std::size_t> index_for(Time time) const {
+	std::optional<std::size_t> index_for(Duration time) const {
 		if (keyframes.empty()) { return {}; }
 
-		auto const it = std::lower_bound(keyframes.begin(), keyframes.end(), time, [](Keyframe const& k, Time time) { return k.timestamp < time; });
+		auto const it = std::lower_bound(keyframes.begin(), keyframes.end(), time, [](Keyframe const& k, Duration time) { return k.timestamp < time; });
 		if (it == keyframes.end()) { return {}; }
 		return static_cast<std::size_t>(it - keyframes.begin());
 	}
 
-	std::optional<T> operator()(Time elapsed) const {
+	std::optional<T> operator()(Duration elapsed) const {
 		if (keyframes.empty()) { return {}; }
 
 		auto const i_next = index_for(elapsed);

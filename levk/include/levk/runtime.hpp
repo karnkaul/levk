@@ -19,7 +19,7 @@ class Runtime {
   protected:
 	Runtime(NotNull<std::unique_ptr<DataSource>> data_source, Engine::CreateInfo const& create_info = {});
 
-	virtual void tick(Time dt) = 0;
+	virtual void tick(Duration dt) = 0;
 	virtual void render() const;
 
 	virtual void setup() {}

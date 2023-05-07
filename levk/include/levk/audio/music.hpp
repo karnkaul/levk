@@ -11,9 +11,9 @@ class Music {
 	Music() = default;
 	explicit Music(NotNull<capo::Device const*> device);
 
-	void play(NotNull<capo::Pcm const*> pcm, Time crossfade, float gain = 1.0f);
+	void play(NotNull<capo::Pcm const*> pcm, Duration crossfade, float gain = 1.0f);
 
-	void tick(Time dt);
+	void tick(Duration dt);
 
 	explicit operator bool() const { return m_impl != nullptr; }
 

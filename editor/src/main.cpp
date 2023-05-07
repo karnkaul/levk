@@ -38,7 +38,7 @@ struct TestUiPrimitive : ui::Primitive {
 
 	bool clicked{};
 
-	void tick(Input const& input, Time dt) override {
+	void tick(Input const& input, Duration dt) override {
 		View::tick(input, dt);
 		if (world_frame().contains(input.cursor)) {
 			tint() = yellow_v;
@@ -149,7 +149,7 @@ struct TestScene : Scene {
 		freecam.transform().set_position({0.0f, 0.0f, 5.0f});
 	}
 
-	void tick(Time dt) override {
+	void tick(Duration dt) override {
 		Scene::tick(dt);
 		if (input().chord(Key::eE, Key::eLeftControl)) {}
 
@@ -299,7 +299,7 @@ struct Editor : Runtime {
 		Logger::attach(log_display);
 	}
 
-	void tick(Time) final {
+	void tick(Duration) final {
 		auto const& state = m_context.engine.get().window().state();
 		if (!load_request && !gltf_import_wizard && !state.drops.empty()) {
 			for (auto const& drop : state.drops) {

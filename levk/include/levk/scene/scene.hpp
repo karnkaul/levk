@@ -44,7 +44,7 @@ class Scene : public Pinned {
 	Input const& input() const;
 
 	virtual void setup() {}
-	virtual void tick(Time dt);
+	virtual void tick(Duration dt);
 	virtual void render(RenderList& out) const;
 	virtual void clear();
 

@@ -32,7 +32,7 @@ void vsync_combo(RenderDevice& device, RenderDeviceInfo const& device_info) {
 }
 } // namespace
 
-void EngineStatus::draw_to(NotClosed<Window>, Engine& engine, Time dt) {
+void EngineStatus::draw_to(NotClosed<Window>, Engine& engine, Duration dt) {
 	auto const ms = dt.count() * 1000.0f;
 	auto& device = engine.render_device();
 	auto const& device_info = device.info();

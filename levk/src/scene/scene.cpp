@@ -105,7 +105,7 @@ bool Scene::import_level(Level const& level) {
 WindowState const& Scene::window_state() const { return Service<Engine>::locate().window().state(); }
 Input const& Scene::input() const { return Service<Engine>::locate().window().state().input; }
 
-void Scene::tick(Time dt) {
+void Scene::tick(Duration dt) {
 	collision.update();
 	music.tick(dt);
 

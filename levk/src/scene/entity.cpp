@@ -9,7 +9,7 @@ Transform& Entity::transform() {
 	return m_scene->node_locator().get(node_id()).transform;
 }
 
-void Entity::tick(Time dt) {
+void Entity::tick(Duration dt) {
 	auto const to_tick = sorted_components();
 	std::ranges::for_each(to_tick, [dt](Ptr<Component> component) { component->tick(dt); });
 

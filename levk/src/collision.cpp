@@ -20,7 +20,7 @@ void Collision::Scoped::disconnect() {
 }
 
 auto Collision::add(Aabb aabb) -> Handle {
-	auto [id, ret] = m_entries.add(Entry{aabb});
+	auto [id, ret] = m_entries.add(Entry{.aabb = aabb, .previous_position = aabb.origin});
 	return Handle{id, this};
 }
 

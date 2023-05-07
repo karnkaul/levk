@@ -12,12 +12,12 @@ struct TransformAnimation {
 	struct Sampler {
 		std::variant<Translate, Rotate, Scale> storage{};
 
-		void update(Transform& out, Time time) const;
-		Time duration() const;
+		void update(Transform& out, Duration time) const;
+		Duration duration() const;
 	};
 
 	std::vector<Sampler> samplers{};
 
-	Time duration() const;
+	Duration duration() const;
 };
 } // namespace levk

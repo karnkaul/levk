@@ -9,12 +9,12 @@ class SkeletonController : public Component {
 
 	std::optional<Id<Animation>> enabled{};
 	float time_scale{1.0f};
-	Time elapsed{};
+	Duration elapsed{};
 
 	void change_animation(std::optional<Id<Animation>> index);
 	glm::mat4 global_transform(Id<Node> node_id) const;
 
-	void tick(Time dt) override;
+	void tick(Duration dt) override;
 	std::unique_ptr<Attachment> to_attachment() const override;
 };
 } // namespace levk

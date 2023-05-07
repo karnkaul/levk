@@ -23,7 +23,7 @@ class Component {
 	virtual ~Component() = default;
 
 	virtual void setup() {}
-	virtual void tick(Time dt) = 0;
+	virtual void tick(Duration dt) = 0;
 	virtual std::unique_ptr<Attachment> to_attachment() const { return {}; }
 
 	Id<Component> id() const { return m_id; }
@@ -47,7 +47,7 @@ class Component {
 
 class RenderComponent : public Component {
   public:
-	void tick(Time) override {}
+	void tick(Duration) override {}
 
 	virtual void render(DrawList& out) const = 0;
 };

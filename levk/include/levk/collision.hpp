@@ -18,6 +18,7 @@ class Collision : public Pinned {
 
 	struct Entry {
 		Aabb aabb{};
+		glm::vec3 previous_position{};
 		Id<Entry> colliding_with{};
 	};
 	using Map = MonotonicMap<Entry, Id<Aabb>>;
@@ -31,6 +32,7 @@ class Collision : public Pinned {
 	Id<Aabb> colliding_with(Id<Aabb> id) const;
 
 	void update();
+	// void tick(Time dt, )
 
 	Map const& entries() const { return m_entries; }
 
