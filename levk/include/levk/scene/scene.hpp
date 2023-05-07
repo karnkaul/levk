@@ -1,9 +1,9 @@
 #pragma once
 #include <levk/audio/music.hpp>
 #include <levk/audio/sfx.hpp>
-#include <levk/collision.hpp>
 #include <levk/graphics/lights.hpp>
 #include <levk/node/node_tree.hpp>
+#include <levk/scene/collision.hpp>
 #include <levk/scene/entity.hpp>
 #include <levk/scene/scene_camera.hpp>
 #include <levk/ui/view.hpp>

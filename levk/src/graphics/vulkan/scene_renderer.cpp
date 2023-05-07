@@ -197,7 +197,7 @@ void CollisionRenderer::update(Collision const& collision) {
 		for (auto const& [id, in] : collision.entries()) {
 			auto& out = m_pool.next();
 			out.primitive.geometry = make_wire_cube(in.aabb.size, in.aabb.origin);
-			out.material = in.colliding_with ? &m_red : &m_green;
+			out.material = in.colliding ? &m_red : &m_green;
 		}
 	}
 }

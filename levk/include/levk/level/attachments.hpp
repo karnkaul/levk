@@ -58,7 +58,7 @@ struct FreecamAttachment : Attachment {
 };
 
 struct ColliderAttachment : Attachment {
-	Aabb aabb{};
+	glm::vec3 aabb_size{};
 
 	std::string_view type_name() const final { return "ColliderAttachment"; }
 	bool serialize(dj::Json& out) const final;

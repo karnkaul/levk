@@ -148,7 +148,7 @@ set(ui_headers
 )
 
 set(scene_headers
-  include/levk/scene/collider_aabb.hpp
+  include/levk/scene/collision.hpp
   include/levk/scene/component.hpp
   include/levk/scene/entity.hpp
   include/levk/scene/freecam_controller.hpp
@@ -178,7 +178,6 @@ set(levk_headers
   ${scene_headers}
 
   include/levk/context.hpp
-  include/levk/collision.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
   include/levk/frame_profile.hpp

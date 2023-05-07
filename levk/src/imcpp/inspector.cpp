@@ -4,7 +4,6 @@
 #include <levk/imcpp/inspector.hpp>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/io/serializer.hpp>
-#include <levk/scene/collider_aabb.hpp>
 #include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/scene/shape_renderer.hpp>
@@ -135,10 +134,7 @@ void inspect(OpenWindow w, FreecamController& freecam_controller) {
 	if (ImGui::DragFloat("Yaw", &degrees.value, 0.25f, -180.0f, 180.0f)) { freecam_controller.yaw = degrees; }
 }
 
-void inspect(OpenWindow w, ColliderAabb& collider) {
-	auto aabb = collider.get_aabb();
-	if (Reflector{w}("Size", aabb.size, 0.25f)) { collider.set_aabb(aabb); }
-}
+void inspect(OpenWindow w, ColliderAabb& collider) { Reflector{w}("Size", collider.aabb_size, 0.25f); }
 
 template <typename Type>
 bool detach(Entity& entity) {

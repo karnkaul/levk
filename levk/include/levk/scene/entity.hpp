@@ -60,6 +60,7 @@ class Entity final {
 
 	Transform& transform();
 	Transform const& transform() const;
+	glm::vec3 global_position() const;
 
 	void tick(Duration dt);
 	void render(DrawList& out) const;

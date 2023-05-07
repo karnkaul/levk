@@ -1,5 +1,5 @@
 target_sources(${PROJECT_NAME} PRIVATE
-  collider_aabb.cpp
+  collision.cpp
   component.cpp
   entity.cpp
   freecam_controller.cpp

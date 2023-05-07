@@ -11,7 +11,6 @@
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/level/level.hpp>
 #include <levk/runtime.hpp>
-#include <levk/scene/collider_aabb.hpp>
 #include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/shape_renderer.hpp>
 #include <levk/scene/skeleton_controller.hpp>

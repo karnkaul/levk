@@ -24,6 +24,8 @@ class NodeTree {
 	void reparent(Node& out, Id<Node> new_parent);
 	glm::mat4 global_transform(Node const& node) const;
 	glm::mat4 global_transform(Id<Node> id) const;
+	glm::vec3 global_position(Node const& node) const;
+	glm::vec3 global_position(Id<Node> id) const;
 
 	Id<Node> find_by_name(std::string_view name) const;
 
@@ -63,6 +65,8 @@ class NodeLocator {
 	Node& get(Id<Node> id) const { return m_out.get(id); }
 	void reparent(Node& out, Id<Node> new_parent) const { return m_out.reparent(out, new_parent); }
 	glm::mat4 global_transform(Node const& node) const { return m_out.global_transform(node); }
+	glm::vec3 global_position(Node const& node) const { return m_out.global_position(node); }
+	glm::vec3 global_position(Id<Node> id) const { return m_out.global_position(id); }
 	std::span<Id<Node> const> roots() const { return m_out.roots(); }
 	NodeTree::Map const& map() const { return m_out.map(); }
 

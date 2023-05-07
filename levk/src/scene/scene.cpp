@@ -106,7 +106,7 @@ WindowState const& Scene::window_state() const { return Service<Engine>::locate(
 Input const& Scene::input() const { return Service<Engine>::locate().window().state().input; }
 
 void Scene::tick(Duration dt) {
-	collision.update();
+	collision.tick(*this, dt);
 	music.tick(dt);
 
 	auto entities = std::vector<Ptr<Entity>>{};

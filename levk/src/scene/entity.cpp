@@ -9,6 +9,16 @@ Transform& Entity::transform() {
 	return m_scene->node_locator().get(node_id()).transform;
 }
 
+Transform const& Entity::transform() const {
+	assert(m_scene);
+	return m_scene->node_tree().get(node_id()).transform;
+}
+
+glm::vec3 Entity::global_position() const {
+	assert(m_scene);
+	return m_scene->node_tree().global_position(node_id());
+}
+
 void Entity::tick(Duration dt) {
 	auto const to_tick = sorted_components();
 	std::ranges::for_each(to_tick, [dt](Ptr<Component> component) { component->tick(dt); });
