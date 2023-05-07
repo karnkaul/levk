@@ -1,3 +1,4 @@
+#include <capo/device.hpp>
 #include <font/lib_wrapper.hpp>
 #include <impl/frame_profiler.hpp>
 #include <levk/engine.hpp>
@@ -31,6 +32,7 @@ auto const g_log{Logger{"Engine"}};
 struct Engine::Impl {
 	Service<Window>::Instance window;
 	Service<RenderDevice>::Instance render_device;
+	Service<capo::Device>::Instance audio_device{};
 	std::unique_ptr<FontLibrary> font_library;
 	ThreadPool thread_pool{};
 
@@ -48,11 +50,13 @@ void Engine::Deleter::operator()(Impl* ptr) const {
 
 Engine::Engine(CreateInfo const& create_info) noexcept(false) : m_impl(new Impl{create_info}) {
 	if (!m_impl->font_library->init()) { g_log.error("Failed to initialize FontLibrary!"); }
+	if (!m_impl->audio_device.get()) { g_log.error("Failed to initialize audio library"); }
 	if (create_info.autoshow) { m_impl->window.get().show(); }
 }
 
 Window& Engine::window() const { return m_impl->window.get(); }
 RenderDevice& Engine::render_device() const { return m_impl->render_device.get(); }
+capo::Device& Engine::audio_device() const { return m_impl->audio_device.get(); }
 FontLibrary const& Engine::font_library() const { return *m_impl->font_library; }
 ThreadPool& Engine::thread_pool() const { return m_impl->thread_pool; }
 

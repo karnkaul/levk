@@ -107,6 +107,7 @@ Input const& Scene::input() const { return Service<Engine>::locate().window().st
 
 void Scene::tick(Time dt) {
 	collision.update();
+	music.tick(dt);
 
 	auto entities = std::vector<Ptr<Entity>>{};
 	for (auto& [_, entity] : m_entities) {

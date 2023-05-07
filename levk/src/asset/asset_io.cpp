@@ -160,7 +160,7 @@ bool read_from(BinarySourceT&& source, asset::BinSkeletalAnimation& out) {
 	return true;
 }
 
-bool check_asset_type(asset::Type const type, dj::Json const& json) {
+[[maybe_unused]] bool check_asset_type(asset::Type const type, dj::Json const& json) {
 	if (type == asset::Type::eUnknown) { return false; }
 	auto in_type = asset::Type{};
 	from_json(json, in_type);

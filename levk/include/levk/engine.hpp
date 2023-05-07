@@ -1,4 +1,5 @@
 #pragma once
+#include <capo/device.hpp>
 #include <levk/build_version.hpp>
 #include <levk/frame_profile.hpp>
 #include <levk/graphics/render_device.hpp>
@@ -26,6 +27,7 @@ class Engine {
 
 	Window& window() const;
 	RenderDevice& render_device() const;
+	capo::Device& audio_device() const;
 	FontLibrary const& font_library() const;
 	ThreadPool& thread_pool() const;
 

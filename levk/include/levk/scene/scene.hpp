@@ -1,4 +1,6 @@
 #pragma once
+#include <levk/audio/music.hpp>
+#include <levk/audio/sfx.hpp>
 #include <levk/collision.hpp>
 #include <levk/graphics/lights.hpp>
 #include <levk/node/node_tree.hpp>
@@ -50,6 +52,8 @@ class Scene : public Pinned {
 	SceneCamera camera{};
 	Lights lights{};
 	Collision collision{};
+	Sfx sfx;
+	Music music;
 
 	glm::vec3 shadow_frustum{100.0f};
 

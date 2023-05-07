@@ -4,6 +4,7 @@
 #include <levk/asset/font_provider.hpp>
 #include <levk/asset/material_provider.hpp>
 #include <levk/asset/mesh_provider.hpp>
+#include <levk/asset/pcm_provider.hpp>
 #include <levk/asset/shader_provider.hpp>
 #include <levk/asset/skeleton_provider.hpp>
 #include <levk/asset/texture_provider.hpp>
@@ -44,6 +45,7 @@ class AssetProviders {
 	StaticMeshProvider& static_mesh() const { return *m_providers.static_mesh; }
 	SkinnedMeshProvider& skinned_mesh() const { return *m_providers.skinned_mesh; }
 	AsciiFontProvider& ascii_font() const { return *m_providers.ascii_font; }
+	PcmProvider& pcm() const { return *m_providers.pcm; }
 
 	void reload_out_of_date();
 	void clear();
@@ -77,6 +79,7 @@ class AssetProviders {
 		Ptr<StaticMeshProvider> static_mesh{};
 		Ptr<SkinnedMeshProvider> skinned_mesh{};
 		Ptr<AsciiFontProvider> ascii_font{};
+		Ptr<PcmProvider> pcm{};
 	} m_providers{};
 };
 } // namespace levk

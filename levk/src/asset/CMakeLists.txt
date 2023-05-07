@@ -6,6 +6,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   material_provider.cpp
   shader_provider.cpp
   mesh_provider.cpp
+  pcm_provider.cpp
   skeleton_provider.cpp
   texture_provider.cpp
 )

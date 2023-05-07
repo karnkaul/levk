@@ -25,6 +25,7 @@ set(util_headers
   include/levk/util/path_tree.hpp
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
+  include/levk/util/random.hpp
   include/levk/util/radians.hpp
   include/levk/util/reversed.hpp
   include/levk/util/signal.hpp
@@ -93,6 +94,7 @@ set(assets_headers
   include/levk/asset/font_provider.hpp
   include/levk/asset/material_provider.hpp
   include/levk/asset/mesh_provider.hpp
+  include/levk/asset/pcm_provider.hpp
   include/levk/asset/shader_provider.hpp
   include/levk/asset/skeleton_provider.hpp
   include/levk/asset/texture_provider.hpp
@@ -118,6 +120,11 @@ set(font_headers
   include/levk/font/font_library.hpp
   include/levk/font/glyph_slot.hpp
   include/levk/font/static_font_atlas.hpp
+)
+
+set(audio_headers
+  include/levk/audio/music.hpp
+  include/levk/audio/sfx.hpp
 )
 
 set(node_headers
@@ -164,6 +171,7 @@ set(levk_headers
   ${assets_headers}
   ${vfs_headers}
   ${font_headers}
+  ${audio_headers}
   ${node_headers}
   ${level_headers}
   ${ui_headers}

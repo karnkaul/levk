@@ -413,7 +413,7 @@ struct Editor : Runtime {
 } // namespace
 } // namespace levk
 
-int main(int argc, char** argv) {
+int main([[maybe_unused]] int argc, char** argv) {
 	assert(argc > 0);
 	try {
 		static constexpr std::array<std::string_view, 2> patterns{"data", "editor/data"};

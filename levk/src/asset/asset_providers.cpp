@@ -17,6 +17,7 @@ AssetProviders::AssetProviders(CreateInfo const& create_info) {
 	m_providers.static_mesh = &add(StaticMeshProvider{m_providers.material});
 	m_providers.skinned_mesh = &add(SkinnedMeshProvider{m_providers.skeleton, m_providers.material});
 	m_providers.ascii_font = &add(AsciiFontProvider{m_providers.texture, create_info.font_library});
+	m_providers.pcm = &add(PcmProvider{create_info.data_source});
 
 	m_on_mount_point_changed = create_info.data_source->on_mount_point_changed().connect([this](std::string_view) { clear(); });
 }

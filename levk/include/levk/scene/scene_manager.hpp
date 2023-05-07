@@ -4,6 +4,7 @@
 #include <levk/scene/scene.hpp>
 #include <levk/scene/scene_renderer.hpp>
 #include <levk/util/not_null.hpp>
+#include <levk/util/time.hpp>
 #include <levk/vfs/data_source.hpp>
 
 namespace levk {
@@ -11,7 +12,7 @@ class Serializer;
 
 class SceneManager {
   public:
-	SceneManager(NotNull<AssetProviders*> asset_providers);
+	SceneManager(NotNull<AssetProviders*> asset_providers, NotNull<capo::Device*> audio_device);
 
 	bool load_and_spawn(Uri<Mesh> const& uri, std::string name = {});
 	bool load_and_spawn(Uri<StaticMesh> const& uri, std::string name = {});
@@ -32,6 +33,7 @@ class SceneManager {
 
   private:
 	NotNull<AssetProviders*> m_asset_providers;
+	NotNull<capo::Device*> m_audio_device;
 	SceneRenderer m_renderer;
 	std::unique_ptr<Scene> m_active_scene{};
 	std::unique_ptr<Scene> m_next_scene{};

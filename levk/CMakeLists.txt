@@ -20,6 +20,7 @@ target_link_libraries(levk
   djson::djson
   fmt::fmt
   gltf2cpp::gltf2cpp
+  capo::lite
 
   PRIVATE
   levk::ext
