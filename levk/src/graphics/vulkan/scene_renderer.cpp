@@ -28,7 +28,18 @@ SceneRenderer::Frame build_render_frame(SceneRenderer& scene_renderer, Scene con
 			if (dir_lights.size() == dir_lights.capacity_v) { break; }
 		}
 	}
-	scene_renderer.dir_lights_ssbo.write(dir_lights.span().data(), dir_lights.span().size_bytes());
+	scene_renderer.xbos[SceneRenderer::Xbo::eDirLights].write(dir_lights.span().data(), dir_lights.span().size_bytes());
+
+	auto& buffer_pool = scene_renderer.buffer_pools[*scene_renderer.device.buffered_index];
+
+	if (scene.skybox) {
+		scene_renderer.skybox_material.cubemap_uri = scene.skybox;
+		auto const drawable = Drawable{
+			.primitive = &scene_renderer.skybox_cube,
+			.material = &scene_renderer.skybox_material,
+		};
+		ret.skybox.emplace(RenderObject::build(drawable, scene_renderer.skybox_cube, buffer_pool, {}));
+	}
 
 	auto opaque = DrawList{};
 	auto transparent = DrawList{};
@@ -41,8 +52,6 @@ SceneRenderer::Frame build_render_frame(SceneRenderer& scene_renderer, Scene con
 			transparent.add(drawable);
 		}
 	}
-
-	auto& buffer_pool = scene_renderer.buffer_pools[*scene_renderer.device.buffered_index];
 
 	opaque.sort_by([](Drawable const& a, Drawable const& b) { return a.material.get() < b.material.get(); });
 	ret.opaque = RenderObject::build_objects(opaque, buffer_pool);
@@ -121,6 +130,11 @@ Geometry make_wire_cube(glm::vec3 const& size, glm::vec3 const& origin) {
 	return geometry;
 }
 
+UploadedPrimitive make_skybox_cube(DeviceView const& device) {
+	static auto const geometry = Geometry::from(Cube{.size = glm::vec3{1.0f}});
+	return UploadedPrimitive::make_static(device, geometry);
+}
+
 struct Drawer {
 	DeviceView device;
 	AssetProviders const& asset_providers;
@@ -143,7 +157,7 @@ struct Drawer {
 			};
 			shader.update(Lights::set_v, RenderObject::Shadow::descriptor_binding_v, shadow_map, shadow_sampler_v);
 		}
-		object.drawable.material->write_sets(shader, asset_providers.texture());
+		object.drawable.material->write_sets(shader, asset_providers);
 	}
 
 	void draw(RenderObject const& object) {
@@ -214,12 +228,14 @@ void CollisionRenderer::render(DrawList& out) const {
 }
 
 SceneRenderer::SceneRenderer(DeviceView const& device)
-	: device(device), global_layout(make_global_layout(device.device)), collision_renderer(device), device_block(device.device) {
+	: device(device), skybox_cube(make_skybox_cube(device)), global_layout(make_global_layout(device.device)), collision_renderer(device),
+	  device_block(device.device) {
 	for (auto& buffer_pool : buffer_pools) { buffer_pool = HostBuffer::Pool::make(device); }
 
-	view_ubo_3d = HostBuffer::make(device, vk::BufferUsageFlagBits::eUniformBuffer);
-	view_ubo_ui = HostBuffer::make(device, vk::BufferUsageFlagBits::eUniformBuffer);
-	dir_lights_ssbo = HostBuffer::make(device, vk::BufferUsageFlagBits::eStorageBuffer);
+	for (Xbo xbo{}; xbo < Xbo::eCOUNT_; xbo = Xbo(int(xbo) + 1)) {
+		auto const usage = xbo == Xbo::eDirLights ? vk::BufferUsageFlagBits::eStorageBuffer : vk::BufferUsageFlagBits::eUniformBuffer;
+		xbos[xbo] = HostBuffer::make(device, usage);
+	}
 
 	for (auto& pool : buffer_pools) { pool.device = device; }
 }
@@ -274,13 +290,20 @@ void SceneRenderer::render_shadow(vk::CommandBuffer cb, Depthbuffer& depthbuffer
 }
 
 void SceneRenderer::render_3d(vk::CommandBuffer cb, Framebuffer& framebuffer, ImageView const& shadow_map) {
-	if (frame.opaque.empty() && frame.transparent.empty() && frame.overlay.empty()) { return; }
+	if (!frame.skybox && frame.opaque.empty() && frame.transparent.empty() && frame.overlay.empty()) { return; }
 
 	auto const format = framebuffer.pipeline_format();
 	auto pipeline_builder = PipelineBuilder{*device.pipeline_storage, asset_providers->shader(), device.device, format};
-	auto drawer_3d = Drawer{device, *asset_providers, pipeline_builder, framebuffer.colour.extent, cb, dir_lights_ssbo.view(), shadow_map};
-	bind_view_set(cb, view_ubo_3d, frame.camera_3d, {drawer_3d.extent.width, drawer_3d.extent.height});
+	auto drawer_3d = Drawer{device, *asset_providers, pipeline_builder, framebuffer.colour.extent, cb, xbos[Xbo::eDirLights].view(), shadow_map};
 
+	if (frame.skybox) {
+		auto skybox_camera = frame.camera_3d;
+		skybox_camera.transform.set_position({});
+		bind_view_set(cb, xbos[Xbo::eSkybox], skybox_camera, {drawer_3d.extent.width, drawer_3d.extent.height});
+		drawer_3d.draw(*frame.skybox);
+	}
+
+	bind_view_set(cb, xbos[Xbo::e3d], frame.camera_3d, {drawer_3d.extent.width, drawer_3d.extent.height});
 	for (auto const& object : frame.opaque) { drawer_3d.draw(object); }
 	for (auto const& object : frame.transparent) { drawer_3d.draw(object); }
 	for (auto const& object : frame.overlay) { drawer_3d.draw(object); }
@@ -293,7 +316,7 @@ void SceneRenderer::render_ui(vk::CommandBuffer cb, Framebuffer& framebuffer, Im
 
 	auto drawer_ui = Drawer{device, *asset_providers, pipeline_builder, framebuffer.colour.extent, cb};
 	auto camera = Camera{.type = Camera::Orthographic{}};
-	bind_view_set(drawer_ui.cb, view_ubo_ui, camera, {drawer_ui.extent.width, drawer_ui.extent.height});
+	bind_view_set(drawer_ui.cb, xbos[Xbo::eUi], camera, {drawer_ui.extent.width, drawer_ui.extent.height});
 	for (auto const& object : frame.ui) { drawer_ui.draw(object); }
 }
 

@@ -1,3 +1,5 @@
+#include <graphics/vulkan/ad_hoc_cmd.hpp>
+#include <graphics/vulkan/texture.hpp>
 #include <levk/asset/texture_provider.hpp>
 #include <levk/graphics/render_device.hpp>
 #include <levk/graphics/texture_atlas.hpp>
@@ -27,6 +29,43 @@ Texture make_texture(RenderDevice& device, Extent2D extent) {
 	sampler.min = sampler.mag = TextureSampler::Filter::eLinear;
 	return {device.vulkan_device(), image.view(), Texture::CreateInfo{.mip_mapped = false, .sampler = sampler}};
 }
+
+bool resize_canvas(vulkan::Texture& out, Extent2D new_extent, Rgba background, glm::uvec2 top_left = {}) {
+	if (new_extent.x == 0 || new_extent.y == 0) { return false; }
+	auto const extent = out.image.get().get().extent;
+	if (new_extent == Extent2D{extent.width, extent.height}) { return true; }
+	if (top_left.x + extent.width > new_extent.x || top_left.y + extent.height > new_extent.y) { return false; }
+
+	assert(out.image.get().get().type == vk::ImageViewType::e2D);
+	auto pixels = DynPixelMap{new_extent};
+	for (Rgba& rgba : pixels.span()) { rgba = background; }
+	auto const image_view = pixels.view();
+	auto new_image = out.device.vma.make_image(out.create_info, {image_view.extent.x, image_view.extent.y});
+
+	auto cmd = vulkan::AdHocCmd{out.device};
+	cmd.scratch_buffers.push_back(out.device.vma.copy_to_image(cmd.cb, new_image.get(), {&image_view, 1}));
+	auto src = vulkan::Vma::Copy{out.image.get().get(), vk::ImageLayout::eShaderReadOnlyOptimal};
+	auto dst = vulkan::Vma::Copy{new_image.get(), vk::ImageLayout::eShaderReadOnlyOptimal, top_left};
+	out.device.vma.copy_image(cmd.cb, src, dst, extent);
+	out.image = {*out.device.defer, std::move(new_image)};
+
+	return true;
+}
+
+bool write_images(vulkan::Texture& out, std::span<ImageWrite const> writes) {
+	auto const extent = out.image.get().get().extent;
+	for (auto const& write : writes) {
+		auto const bottom_right = write.offset + write.image.extent;
+		if (bottom_right.x > extent.width || bottom_right.y > extent.height) { return false; }
+	}
+
+	auto cmd = vulkan::AdHocCmd{out.device};
+	auto scratch = out.device.vma.write_images(cmd.cb, out.image.get(), writes);
+	if (!scratch.get().buffer) { return false; }
+
+	cmd.scratch_buffers.push_back(std::move(scratch));
+	return true;
+}
 } // namespace
 
 TextureAtlas::TextureAtlas(NotNull<TextureProvider*> provider, Uri<Texture> uri, CreateInfo const& create_info)
@@ -49,8 +88,8 @@ Ptr<Texture> TextureAtlas::find_texture() const { return m_provider->find(m_uri)
 TextureAtlas::Writer::~Writer() {
 	auto* texture = m_out.find_texture();
 	if (!texture) { return; }
-	if (m_new_extent.x > 0) { texture->resize_canvas(m_new_extent, blank_v); }
-	texture->write(m_writes);
+	if (m_new_extent.x > 0 && !resize_canvas(*texture->vulkan_texture(), m_new_extent, blank_v)) { return; }
+	write_images(*texture->vulkan_texture(), m_writes);
 }
 
 auto TextureAtlas::Writer::write(Image::View const image) -> Cell {

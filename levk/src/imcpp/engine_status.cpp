@@ -2,6 +2,7 @@
 #include <imgui_internal.h>
 #include <levk/imcpp/common.hpp>
 #include <levk/imcpp/engine_status.hpp>
+#include <levk/imcpp/reflector.hpp>
 #include <levk/util/fixed_string.hpp>
 
 namespace levk::imcpp {
@@ -32,7 +33,7 @@ void vsync_combo(RenderDevice& device, RenderDeviceInfo const& device_info) {
 }
 } // namespace
 
-void EngineStatus::draw_to(NotClosed<Window>, Engine& engine, Duration dt) {
+void EngineStatus::draw_to(NotClosed<Window> w, Engine& engine, Duration dt) {
 	auto const ms = dt.count() * 1000.0f;
 	auto& device = engine.render_device();
 	auto const& device_info = device.info();
@@ -48,6 +49,10 @@ void EngineStatus::draw_to(NotClosed<Window>, Engine& engine, Duration dt) {
 	vsync_combo(device, device_info);
 	float scale = device.info().render_scale;
 	if (ImGui::DragFloat("Render Scale", &scale, 0.05f, render_scale_limit_v[0], render_scale_limit_v[1])) { device.set_render_scale(scale); }
+	glm::vec3 clear_colour = engine.render_device().info().clear_colour.to_vec4();
+	if (imcpp::Reflector{w}("Clear colour", imcpp::Reflector::AsRgb{clear_colour})) {
+		engine.render_device().set_clear(Rgba::from(glm::vec4{clear_colour, 1.0f}));
+	}
 
 	ImGui::Separator();
 	ImGui::Text("%s", FixedString{"FPS: {}", engine.framerate()}.c_str());

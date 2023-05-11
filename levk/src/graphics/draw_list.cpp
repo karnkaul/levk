@@ -63,7 +63,7 @@ void DrawList::add(NotNull<SkinnedMesh const*> mesh, std::span<glm::mat4 const> 
 }
 
 void DrawList::add(Drawable drawable) {
-	if (drawable.skin_index) { assert(*drawable.skin_index < m_skins.size()); }
+	assert(!drawable.skin_index || *drawable.skin_index < m_skins.size());
 	m_drawables.push_back(drawable);
 }
 

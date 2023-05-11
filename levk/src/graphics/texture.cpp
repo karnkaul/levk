@@ -8,17 +8,55 @@
 namespace levk {
 namespace {
 constexpr auto white_image_v = FixedPixelMap<1, 1>{{white_v}};
+
+std::array<Image::View, 6> const& white_cubemap() {
+	static auto const ret = [] {
+		auto ret = std::array<Image::View, 6>{};
+		for (auto& view : ret) { view = white_image_v.view(); }
+		return ret;
+	}();
+	return ret;
+}
+
 auto const g_log{Logger{"Texture"}};
+
+bool init_texture(vulkan::Texture& out_texture, TextureCreateInfo const& create_info, std::span<Image::View const> images, bool mip_mapped) {
+	out_texture.create_info.format = create_info.colour_space == ColourSpace::eLinear ? vk::Format::eR8G8B8A8Unorm : vk::Format::eR8G8B8A8Srgb;
+	assert(!images.empty());
+	bool first{true};
+	auto extent = Extent2D{};
+	for (auto const& image : images) {
+		if (image.extent.x == 0 || image.extent.y == 0 || image.storage.empty()) { return false; }
+		if (first) {
+			extent = image.extent;
+		} else if (image.extent != extent) {
+			return false;
+		}
+	}
+	if (mip_mapped && out_texture.device.can_mip(out_texture.create_info.format)) {
+		out_texture.create_info.mip_levels = out_texture.device.compute_mip_levels({extent.x, extent.y});
+	}
+	out_texture.create_info.array_layers = static_cast<std::uint32_t>(images.size());
+	auto const image_view_type = out_texture.create_info.array_layers == 6u ? vk::ImageViewType::eCube : vk::ImageViewType::e2D;
+	auto vk_image = out_texture.device.vma.make_image(out_texture.create_info, {extent.x, extent.y}, image_view_type);
+
+	auto cmd = vulkan::AdHocCmd{out_texture.device};
+	cmd.scratch_buffers.push_back(out_texture.device.vma.copy_to_image(cmd.cb, vk_image.get(), images));
+	out_texture.image = {*out_texture.device.defer, std::move(vk_image)};
+	return true;
+}
 } // namespace
 
 void Texture::Deleter::operator()(vulkan::Texture const* ptr) const { delete ptr; }
 
+Texture::Texture() : m_impl(new vulkan::Texture{}) {}
+
 Texture::Texture(vulkan::Device& device) : Texture(device, white_image_v.view(), CreateInfo{}) {}
 
-Texture::Texture(vulkan::Device& device, Image::View image, CreateInfo const& create_info) : m_impl(new vulkan::Texture{}) {
+Texture::Texture(vulkan::Device& device, Image::View image, CreateInfo const& create_info) : Texture() {
+	assert(m_impl);
 	m_impl->device = device.view();
 	static constexpr auto magenta_pixmap_v = FixedPixelMap<1, 1>{{magenta_v}};
-	m_impl->create_info.format = create_info.colour_space == ColourSpace::eLinear ? vk::Format::eR8G8B8A8Unorm : vk::Format::eR8G8B8A8Srgb;
 	bool mip_mapped = create_info.mip_mapped;
 	if (image.extent.x == 0 || image.extent.y == 0) {
 		g_log.warn("invalid image extent: [0x0]");
@@ -30,14 +68,11 @@ Texture::Texture(vulkan::Device& device, Image::View image, CreateInfo const& cr
 		image = magenta_pixmap_v.view();
 		mip_mapped = false;
 	}
-	if (mip_mapped && m_impl->device.can_mip(m_impl->create_info.format)) {
-		m_impl->create_info.mip_levels = m_impl->device.compute_mip_levels({image.extent.x, image.extent.y});
+	if (!init_texture(*m_impl, create_info, {&image, 1u}, mip_mapped)) {
+		g_log.error("Texture creation failed!");
+		image = white_image_v.view();
+		init_texture(*m_impl, create_info, {&image, 1u}, false);
 	}
-	auto vk_image = m_impl->device.vma.make_image(m_impl->create_info, {image.extent.x, image.extent.y});
-
-	auto cmd = vulkan::AdHocCmd{m_impl->device};
-	cmd.scratch_buffers.push_back(m_impl->device.vma.copy_to_image(cmd.cb, vk_image.get(), {&image, 1}));
-	m_impl->image = {*m_impl->device.defer, std::move(vk_image)};
 }
 
 std::uint32_t Texture::mip_levels() const { return m_impl->create_info.mip_levels; }
@@ -48,39 +83,24 @@ Extent2D Texture::extent() const {
 	return {view.extent.width, view.extent.height};
 }
 
-bool Texture::resize_canvas(Extent2D new_extent, Rgba background, glm::uvec2 top_left) {
-	if (new_extent.x == 0 || new_extent.y == 0) { return false; }
-	auto const extent_ = extent();
-	if (new_extent == extent_) { return true; }
-	if (top_left.x + extent_.x > new_extent.x || top_left.y + extent_.y > new_extent.y) { return false; }
-
-	assert(m_impl->image.get().get().type == vk::ImageViewType::e2D);
-	auto pixels = DynPixelMap{new_extent};
-	for (Rgba& rgba : pixels.span()) { rgba = background; }
-	auto const image_view = pixels.view();
-	auto new_image = m_impl->device.vma.make_image(m_impl->create_info, {image_view.extent.x, image_view.extent.y});
-
-	auto cmd = vulkan::AdHocCmd{m_impl->device};
-	cmd.scratch_buffers.push_back(m_impl->device.vma.copy_to_image(cmd.cb, new_image.get(), {&image_view, 1}));
-	auto src = vulkan::Vma::Copy{m_impl->image.get().get(), vk::ImageLayout::eShaderReadOnlyOptimal};
-	auto dst = vulkan::Vma::Copy{new_image.get(), vk::ImageLayout::eShaderReadOnlyOptimal, top_left};
-	m_impl->device.vma.copy_image(cmd.cb, src, dst, {extent_.x, extent_.y});
-	m_impl->image = {*m_impl->device.defer, std::move(new_image)};
-
-	return true;
+TextureSampler const& Texture::sampler() const {
+	assert(m_impl);
+	return m_impl->sampler;
 }
 
-bool Texture::write(std::span<ImageWrite const> writes) {
-	auto const extent_ = extent();
-	for (auto const& write : writes) {
-		auto const bottom_right = write.offset + write.image.extent;
-		if (bottom_right.x > extent_.x || bottom_right.y > extent_.y) { return false; }
-	}
+void Texture::set_sampler(Sampler value) {
+	if (!m_impl) { return; }
+	m_impl->sampler = value;
+}
 
-	auto cmd = vulkan::AdHocCmd{m_impl->device};
-	auto scratch = m_impl->device.vma.write_images(cmd.cb, m_impl->image.get(), writes);
-	if (!scratch.get().buffer) { return false; }
-	cmd.scratch_buffers.push_back(std::move(scratch));
-	return true;
+Cubemap::Cubemap(vulkan::Device& device) : Cubemap(device, white_cubemap(), {}) {}
+
+Cubemap::Cubemap(vulkan::Device& device, std::array<Image::View, 6> const& images, CreateInfo const& create_info) {
+	assert(m_impl);
+	m_impl->device = device.view();
+	if (!init_texture(*m_impl, create_info, images, create_info.mip_mapped)) {
+		g_log.error("Cubemap creation failed!");
+		init_texture(*m_impl, create_info, white_cubemap(), false);
+	}
 }
 } // namespace levk

@@ -12,6 +12,7 @@
 
 namespace levk {
 struct Level;
+class ThreadPool;
 
 class AssetProviders {
   public:
@@ -20,6 +21,7 @@ class AssetProviders {
 		NotNull<FontLibrary const*> font_library;
 		NotNull<DataSource const*> data_source;
 		NotNull<Serializer const*> serializer;
+		NotNull<ThreadPool*> thread_pool;
 	};
 
 	AssetProviders(CreateInfo const& create_info);
@@ -36,11 +38,13 @@ class AssetProviders {
 	RenderDevice& render_device() const { return m_providers.texture->render_device(); }
 	Serializer const& serializer() const { return m_providers.material->serializer(); }
 	Ptr<UriMonitor> uri_monitor() const { return data_source().uri_monitor(); }
+	ThreadPool& thread_pool() const { return m_providers.cubemap->thread_pool(); }
 
 	ShaderProvider& shader() const { return *m_providers.shader; }
 	SkeletonProvider& skeleton() const { return *m_providers.skeleton; }
 	SkeletalAnimationProvider const& skeletal_animation() const { return *m_providers.skeletal_animation; }
 	TextureProvider& texture() const { return *m_providers.texture; }
+	CubemapProvider& cubemap() const { return *m_providers.cubemap; }
 	MaterialProvider& material() const { return *m_providers.material; }
 	StaticMeshProvider& static_mesh() const { return *m_providers.static_mesh; }
 	SkinnedMeshProvider& skinned_mesh() const { return *m_providers.skinned_mesh; }
@@ -75,6 +79,7 @@ class AssetProviders {
 		Ptr<SkeletonProvider> skeleton{};
 		Ptr<SkeletalAnimationProvider> skeletal_animation{};
 		Ptr<TextureProvider> texture{};
+		Ptr<CubemapProvider> cubemap{};
 		Ptr<MaterialProvider> material{};
 		Ptr<StaticMeshProvider> static_mesh{};
 		Ptr<SkinnedMeshProvider> skinned_mesh{};

@@ -36,6 +36,7 @@ void Collision::tick(Scene const& scene, Duration dt) {
 		colliders.push_back(&it->second);
 		++it;
 	}
+	if (colliders.empty()) { return; }
 
 	auto integrate = [&](Entry& out_a, Entry& out_b) {
 		if (Aabb::intersects(out_a.aabb, out_b.aabb)) { return true; }
@@ -60,4 +61,6 @@ void Collision::tick(Scene const& scene, Duration dt) {
 		a.previous_position = a.aabb.origin;
 	}
 }
+
+void Collision::clear() { m_entries.clear(); }
 } // namespace levk

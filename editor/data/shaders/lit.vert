@@ -53,5 +53,5 @@ void main() {
 	out_fpos = mat_m * vec4(vpos, 1.0);
 	out_fpos_shadow = mat_shadow * out_fpos;
 	out_shadow_dir = vec3(shadow_dir);
-	gl_Position = mat_vp * mat_m * vec4(vpos, 1.0);
+	gl_Position = mat_vp * out_fpos;
 }

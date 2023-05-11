@@ -411,6 +411,7 @@ void asset::from_json(dj::Json const& json, Level& out) {
 	from_json(json["node_tree"], out.node_tree);
 	from_json(json["camera"], out.camera);
 	from_json(json["lights"], out.lights);
+	out.skybox = json["skybox"].as<std::string>();
 	for (auto const& [node_id_str, in_attachments_map] : json["attachments"].object_view()) {
 		auto const get_node_id = [](std::string_view const in) -> Id<Node>::id_type {
 			auto ret = Id<Node>::id_type{};
@@ -431,6 +432,7 @@ void asset::to_json(dj::Json& out, Level const& level) {
 	to_json(out["node_tree"], level.node_tree);
 	to_json(out["camera"], level.camera);
 	to_json(out["lights"], level.lights);
+	if (level.skybox) { out["skybox"] = level.skybox.value(); }
 	if (!level.attachments_map.empty()) {
 		auto& out_attachments_map = out["attachments"];
 		for (auto const& [node_id, attachments] : level.attachments_map) {

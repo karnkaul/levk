@@ -15,6 +15,7 @@ AssetProviders::CreateInfo make_apci(Engine const& engine, NotNull<DataSource co
 		.font_library = &engine.font_library(),
 		.data_source = data_source,
 		.serializer = serializer,
+		.thread_pool = &engine.thread_pool(),
 	};
 }
 } // namespace

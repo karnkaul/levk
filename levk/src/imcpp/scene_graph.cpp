@@ -27,6 +27,8 @@ Inspector::Target SceneGraph::draw_to(NotClosed<Window> w, Scene& scene) {
 		m_inspector.width_pct = std::clamp(m_inspector.width_pct, 0.1f, 0.5f);
 	}
 
+	ImGui::Checkbox("Draw colliders", &scene.collision.draw_aabbs);
+
 	ImGui::Separator();
 	if (ImGui::Button("Spawn")) { Popup::open("scene_graph.spawn_entity"); }
 

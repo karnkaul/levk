@@ -7,6 +7,7 @@
 #include <levk/scene/entity.hpp>
 #include <levk/scene/scene_camera.hpp>
 #include <levk/ui/view.hpp>
+#include <levk/uri.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/monotonic_map.hpp>
 #include <levk/util/pinned.hpp>
@@ -17,6 +18,7 @@
 namespace levk {
 struct RenderList;
 struct Level;
+class Cubemap;
 
 class Scene : public Pinned {
   public:
@@ -54,6 +56,7 @@ class Scene : public Pinned {
 	Collision collision{};
 	Sfx sfx;
 	Music music;
+	Uri<Cubemap> skybox{};
 
 	glm::vec3 shadow_frustum{100.0f};
 

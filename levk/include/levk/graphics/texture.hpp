@@ -28,26 +28,33 @@ class Texture {
 	explicit Texture(vulkan::Device& device);
 	Texture(vulkan::Device& device, Image::View image, CreateInfo const& create_info);
 
+	virtual ~Texture() = default;
+	Texture(Texture&&) = default;
+	Texture& operator=(Texture&&) = default;
+
 	ColourSpace colour_space() const;
 	std::uint32_t mip_levels() const;
 	Extent2D extent() const;
 	std::string_view name() const { return m_name; }
-
-	bool resize_canvas(Extent2D new_extent, Rgba background = black_v, glm::uvec2 top_left = {});
-
-	bool write(Image::View image, glm::uvec2 offset = {});
-	bool write(std::span<ImageWrite const> writes);
+	Sampler const& sampler() const;
+	void set_sampler(Sampler value);
 
 	Ptr<vulkan::Texture> vulkan_texture() const { return m_impl.get(); }
 
-	Sampler sampler{};
+  protected:
+	Texture();
 
-  private:
 	struct Deleter {
 		void operator()(vulkan::Texture const* ptr) const;
 	};
 
 	std::unique_ptr<vulkan::Texture, Deleter> m_impl{};
 	std::string m_name{};
+};
+
+class Cubemap : public Texture {
+  public:
+	explicit Cubemap(vulkan::Device& device);
+	Cubemap(vulkan::Device& device, std::array<Image::View, 6> const& images, CreateInfo const& create_info);
 };
 } // namespace levk

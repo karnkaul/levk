@@ -8,6 +8,7 @@ struct AssetList {
 
 	Set shaders{};
 	Set textures{};
+	Set cubemaps{};
 	Set materials{};
 	Set meshes{};
 	Set skeletons{};

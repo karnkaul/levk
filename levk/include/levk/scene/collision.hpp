@@ -33,6 +33,8 @@ class Collision : public Pinned {
 
 	void tick(Scene const& scene, Duration dt);
 
+	void clear();
+
 	Map const& entries() const { return m_entries; }
 
 	Duration time_slice{5ms};

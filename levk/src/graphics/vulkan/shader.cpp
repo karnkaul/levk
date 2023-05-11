@@ -5,10 +5,8 @@
 #include <levk/util/enumerate.hpp>
 
 namespace levk::vulkan {
-void Shader::update(std::uint32_t set, std::uint32_t binding, levk::Texture const& texture) {
-	auto* vtex = texture.vulkan_texture();
-	if (!vtex) { return; }
-	return update(set, binding, vtex->image.get().get().image_view(), texture.sampler);
+void Shader::update(std::uint32_t set, std::uint32_t binding, Texture const& texture) {
+	return update(set, binding, texture.image.get().get().image_view(), texture.sampler);
 }
 
 void Shader::write(std::uint32_t set, std::uint32_t binding, void const* data, std::size_t size) {

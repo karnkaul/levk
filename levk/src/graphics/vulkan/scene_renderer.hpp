@@ -5,6 +5,8 @@
 #include <graphics/vulkan/render_object.hpp>
 #include <levk/graphics/lights.hpp>
 #include <levk/graphics/material.hpp>
+#include <levk/util/enum_array.hpp>
+#include <optional>
 
 namespace levk {
 class Scene;
@@ -40,6 +42,8 @@ class CollisionRenderer {
 };
 
 struct SceneRenderer : Device::Renderer {
+	enum class Xbo { eSkybox, e3d, eUi, eDirLights, eCOUNT_ };
+
 	struct GlobalLayout {
 		vk::UniqueDescriptorSetLayout global_set_layout{};
 		vk::UniquePipelineLayout global_pipeline_layout{};
@@ -70,6 +74,7 @@ struct SceneRenderer : Device::Renderer {
 		glm::quat primary_light_direction{glm::identity<glm::quat>()};
 		glm::mat4 primary_light_mat{1.0f};
 		Camera camera_3d{};
+		std::optional<RenderObject> skybox{};
 		std::vector<RenderObject> opaque{};
 		std::vector<RenderObject> transparent{};
 		std::vector<RenderObject> ui{};
@@ -79,9 +84,9 @@ struct SceneRenderer : Device::Renderer {
 	DeviceView device{};
 
 	Buffered<HostBuffer::Pool> buffer_pools{};
-	HostBuffer view_ubo_3d{};
-	HostBuffer view_ubo_ui{};
-	HostBuffer dir_lights_ssbo{};
+	EnumArray<Xbo, HostBuffer> xbos{};
+	UploadedPrimitive skybox_cube;
+	SkyboxMaterial skybox_material{};
 	GlobalLayout global_layout{};
 
 	CollisionRenderer collision_renderer;

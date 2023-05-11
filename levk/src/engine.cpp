@@ -34,7 +34,7 @@ struct Engine::Impl {
 	Service<RenderDevice>::Instance render_device;
 	Service<capo::Device>::Instance audio_device{};
 	std::unique_ptr<FontLibrary> font_library;
-	ThreadPool thread_pool{};
+	Service<ThreadPool>::Instance thread_pool{};
 
 	Fps fps{};
 
@@ -44,7 +44,7 @@ struct Engine::Impl {
 };
 
 void Engine::Deleter::operator()(Impl* ptr) const {
-	if (ptr) { ptr->thread_pool.wait_idle(); }
+	if (ptr) { ptr->thread_pool.get().wait_idle(); }
 	delete ptr;
 }
 
@@ -58,7 +58,7 @@ Window& Engine::window() const { return m_impl->window.get(); }
 RenderDevice& Engine::render_device() const { return m_impl->render_device.get(); }
 capo::Device& Engine::audio_device() const { return m_impl->audio_device.get(); }
 FontLibrary const& Engine::font_library() const { return *m_impl->font_library; }
-ThreadPool& Engine::thread_pool() const { return m_impl->thread_pool; }
+ThreadPool& Engine::thread_pool() const { return m_impl->thread_pool.get(); }
 
 void Engine::next_frame() {
 	FrameProfiler::instance().profile(FrameProfile::Type::eFrameTime);
