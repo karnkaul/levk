@@ -2,6 +2,15 @@ include(CMakeDependentOption)
 
 option(LEVK_PCH "Use pre-compiled headers for levk" ON)
 
+add_library(levk-options INTERFACE)
+add_library(levk::options ALIAS levk-options)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL Clang OR CMAKE_CXX_COMPILER_ID STREQUAL GNU)
+  target_compile_options(levk-options INTERFACE
+    -Wall -Wextra -Wpedantic -Wconversion -Werror=return-type
+  )
+endif()
+
 add_library(levk)
 add_library(levk::lib ALIAS levk)
 
@@ -24,6 +33,7 @@ target_link_libraries(levk
 
   PRIVATE
   levk::ext
+  levk::options
 )
 
 target_include_directories(levk
@@ -32,12 +42,6 @@ target_include_directories(levk
 )
 
 configure_file(src/build_version.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/include/levk/build_version.hpp" @ONLY)
-
-if(CMAKE_CXX_COMPILER_ID STREQUAL Clang OR CMAKE_CXX_COMPILER_ID STREQUAL GNU)
-  target_compile_options(levk PRIVATE
-    -Wall -Wextra -Wpedantic -Wconversion -Werror=return-type
-  )
-endif()
 
 if(CMAKE_GENERATOR MATCHES "^(Visual Studio)")
   target_compile_options(levk INTERFACE /MP)

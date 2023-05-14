@@ -114,7 +114,6 @@ WindowState const& Scene::window_state() const { return Service<Engine>::locate(
 Input const& Scene::input() const { return Service<Engine>::locate().window().state().input; }
 
 void Scene::tick(Duration dt) {
-	collision.tick(*this, dt);
 	music.tick(dt);
 
 	if (auto* engine = Service<Engine>::find()) {
@@ -129,18 +128,20 @@ void Scene::tick(Duration dt) {
 		if (entity.is_active) { entities.push_back(&entity); }
 	}
 	std::ranges::sort(entities, [](Ptr<Entity const> a, Ptr<Entity const> b) { return a->id() < b->id(); });
-
 	std::ranges::for_each(entities, [dt](Ptr<Entity> e) { e->tick(dt); });
 
-	m_entities.remove_if([this](Id<Entity>, Entity const& e) {
-		if (e.is_destroyed()) {
-			m_nodes.remove(e.node_id());
-			return true;
-		}
-		return false;
-	});
+	auto destroyed = std::vector<Id<Node>>{};
+	// remove nodes (and sub-trees) whose entities have been set destroyed
+	for (auto const& [_, entity] : m_entities) {
+		if (entity.is_destroyed()) { destroyed.push_back(entity.node_id()); }
+	}
+	for (auto const id : destroyed) { m_nodes.remove(id); }
+	// remove entities that no longer have nodes
+	m_entities.remove_if([this](Id<Entity>, Entity const& e) { return !m_nodes.find(e.node_id()); });
 
 	if (auto target = m_entities.find(camera.target)) { camera.transform = m_nodes.get(target->node_id()).transform; }
+
+	collision.tick(*this, dt);
 
 	ui_root.set_extent(window_state().framebuffer);
 	ui_root.tick(input(), dt);

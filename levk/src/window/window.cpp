@@ -134,6 +134,7 @@ Window::Window(glm::uvec2 extent, char const* title) : m_impl(new glfw::Window{}
 }
 
 glm::uvec2 Window::framebuffer_extent() const { return m_impl->framebuffer_extent(); }
+glm::uvec2 Window::window_extent() const { return m_impl->window_extent(); }
 
 void Window::show() { glfwShowWindow(m_impl->window); }
 void Window::hide() { glfwHideWindow(m_impl->window); }
@@ -179,4 +180,11 @@ void Window::set_extent(Extent2D extent) {
 	glm::ivec2 const size = extent;
 	glfwSetWindowSize(m_impl->window, size.x, size.y);
 }
+
+void Window::lock_aspect_ratio() {
+	glm::ivec2 const size = window_extent();
+	glfwSetWindowAspectRatio(m_impl->window, size.x, size.y);
+}
+
+void Window::unlock_aspect_ratio() { glfwSetWindowAspectRatio(m_impl->window, GLFW_DONT_CARE, GLFW_DONT_CARE); }
 } // namespace levk

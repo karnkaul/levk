@@ -209,6 +209,7 @@ void CollisionRenderer::update(Collision const& collision) {
 	m_pool.current_index = {};
 	if (collision.draw_aabbs) {
 		for (auto const& [id, in] : collision.entries()) {
+			if (!in.collider) { continue; }
 			auto& out = m_pool.next();
 			out.primitive.geometry = make_wire_cube(in.aabb.size, in.aabb.origin);
 			out.material = in.colliding ? &m_red : &m_green;
