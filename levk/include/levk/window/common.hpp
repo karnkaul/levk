@@ -6,8 +6,7 @@ namespace levk {
 /// \brief Set of all Keys
 ///
 enum class Key : std::uint32_t {
-	eBegin = 0,
-	eUnknown = eBegin,
+	eUnknown = 0,
 	eSpace = 32,
 	eApostrophe = 39,
 	eComma = 44,
@@ -128,9 +127,6 @@ enum class Key : std::uint32_t {
 	eRightAlt = 346,
 	eRightSuper = 347,
 	eMenu = 348,
-	eKeyboardEnd,
-	eKeyboardLast = eMenu,
-
 	eCOUNT_,
 };
 
@@ -138,8 +134,7 @@ enum class Key : std::uint32_t {
 /// \brief Set of all Mouse buttons
 ///
 enum class MouseButton : std::uint32_t {
-	eBegin = 0,
-	e1 = eBegin,
+	e1 = 0,
 	e2,
 	e3,
 	e4,
@@ -147,7 +142,6 @@ enum class MouseButton : std::uint32_t {
 	e6,
 	e7,
 	e8,
-	eEnd,
 	eCOUNT_,
 
 	eLast = e8,

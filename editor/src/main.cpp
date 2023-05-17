@@ -41,7 +41,7 @@ struct TestUiPrimitive : ui::Primitive {
 		View::tick(window_input, dt);
 		if (world_frame().contains(window_input.cursor)) {
 			tint() = yellow_v;
-			if (window_input.is_pressed(MouseButton::e1)) { clicked = true; }
+			if (window_input.mouse.is_pressed(MouseButton::e1)) { clicked = true; }
 		} else {
 			tint() = white_v;
 		}
@@ -150,14 +150,15 @@ struct TestScene : Scene {
 
 	void tick(Duration dt) override {
 		Scene::tick(dt);
-		if (input().chord(Key::eE, Key::eLeftControl)) {}
+		auto const& input = window_input();
+		if (input.keyboard.chord(Key::eE, Key::eLeftControl)) {}
 
 		if (test.primitive) {
 			auto dxy = glm::vec2{};
-			if (input().is_held(Key::eW)) { dxy.y += 1.0f; }
-			if (input().is_held(Key::eA)) { dxy.x -= 1.0f; }
-			if (input().is_held(Key::eS)) { dxy.y -= 1.0f; }
-			if (input().is_held(Key::eD)) { dxy.x += 1.0f; }
+			if (input.keyboard.is_held(Key::eW)) { dxy.y += 1.0f; }
+			if (input.keyboard.is_held(Key::eA)) { dxy.x -= 1.0f; }
+			if (input.keyboard.is_held(Key::eS)) { dxy.y -= 1.0f; }
+			if (input.keyboard.is_held(Key::eD)) { dxy.x += 1.0f; }
 			if (std::abs(dxy.x) > 0.0f || std::abs(dxy.y) > 0.0f) {
 				dxy = 1000.0f * glm::normalize(dxy) * dt.count();
 				test.primitive->set_position(test.primitive->frame().centre() += dxy);
@@ -365,7 +366,7 @@ struct Editor : Runtime {
 		};
 		update_and_draw(load_request, on_request_loaded);
 
-		if (state.input.chord(Key::eW, Key::eLeftControl)) { context().shutdown(); }
+		if (state.input.keyboard.chord(Key::eW, Key::eLeftControl)) { context().shutdown(); }
 
 		auto result = main_menu.display_menu();
 		switch (result.action) {

@@ -40,6 +40,7 @@ set(util_headers
 )
 
 set(window_headers
+  include/levk/window/action_state.hpp
   include/levk/window/common.hpp
   include/levk/window/window_input.hpp
   include/levk/window/window_state.hpp

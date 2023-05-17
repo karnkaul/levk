@@ -24,7 +24,7 @@ void FreecamController::tick(Duration dt) {
 	auto& window = Service<Engine>::locate().window();
 	auto const& input = window.state().input;
 
-	if (input.is_held(MouseButton::eRight)) {
+	if (input.mouse.is_held(MouseButton::eRight)) {
 		if (window.cursor_mode() != CursorMode::eDisabled) { window.set_cursor_mode(CursorMode::eDisabled); }
 	} else {
 		if (window.cursor_mode() == CursorMode::eDisabled) { window.set_cursor_mode(CursorMode::eNormal); }
@@ -45,12 +45,12 @@ void FreecamController::tick(Duration dt) {
 		auto right = data.orientation * right_v;
 		auto up = data.orientation * up_v;
 
-		if (input.is_held(Key::eW) || input.is_held(Key::eUp)) { dxyz.z -= 1.0f; }
-		if (input.is_held(Key::eS) || input.is_held(Key::eDown)) { dxyz.z += 1.0f; }
-		if (input.is_held(Key::eA) || input.is_held(Key::eLeft)) { dxyz.x -= 1.0f; }
-		if (input.is_held(Key::eD) || input.is_held(Key::eRight)) { dxyz.x += 1.0f; }
-		if (input.is_held(Key::eQ)) { dxyz.y -= 1.0f; }
-		if (input.is_held(Key::eE)) { dxyz.y += 1.0f; }
+		if (input.keyboard.is_held(Key::eW) || input.keyboard.is_held(Key::eUp)) { dxyz.z -= 1.0f; }
+		if (input.keyboard.is_held(Key::eS) || input.keyboard.is_held(Key::eDown)) { dxyz.z += 1.0f; }
+		if (input.keyboard.is_held(Key::eA) || input.keyboard.is_held(Key::eLeft)) { dxyz.x -= 1.0f; }
+		if (input.keyboard.is_held(Key::eD) || input.keyboard.is_held(Key::eRight)) { dxyz.x += 1.0f; }
+		if (input.keyboard.is_held(Key::eQ)) { dxyz.y -= 1.0f; }
+		if (input.keyboard.is_held(Key::eE)) { dxyz.y += 1.0f; }
 		if (std::abs(dxyz.x) > 0.0f || std::abs(dxyz.y) > 0.0f || std::abs(dxyz.z) > 0.0f) {
 			dxyz = glm::normalize(dxyz);
 			auto const factor = dt.count() * move_speed;
