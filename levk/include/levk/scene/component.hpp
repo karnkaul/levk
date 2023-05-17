@@ -13,7 +13,7 @@ class Entity;
 class Scene;
 class DrawList;
 struct WindowState;
-struct Input;
+struct WindowInput;
 class Window;
 class RenderDevice;
 class Collision;
@@ -32,7 +32,7 @@ class Component {
 	Ptr<Collision> scene_collision() const;
 
 	WindowState const& window_state() const;
-	Input const& input() const;
+	WindowInput const& window_input() const;
 	Window const& window() const;
 	RenderDevice const& render_device() const;
 

@@ -43,7 +43,7 @@ class Scene : public Pinned {
 	bool import_level(Level const& level);
 
 	WindowState const& window_state() const;
-	Input const& input() const;
+	WindowInput const& window_input() const;
 
 	virtual void setup() {}
 	virtual void tick(Duration dt);

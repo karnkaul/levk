@@ -280,14 +280,20 @@ struct Exporter {
 	}
 
 	std::string copy_image(gltf2cpp::Image const& in, std::size_t index, std::string_view subdir = "textures") {
-		assert(!in.source_filename.empty());
 		if (auto it = out_imported.images.find(index); it != out_imported.images.end()) { return it->second; }
-		auto uri = (dir_uri / subdir / in.source_filename).generic_string();
+		auto filename = in.source_filename.empty() ? fmt::format("image_{}.bin", index) : in.source_filename;
+		auto uri = (dir_uri / subdir / filename).generic_string();
 		auto dst = uri_prefix / uri;
 		if (!should_overwrite(dst.generic_string())) { return uri; }
-
 		fs::create_directories(dst.parent_path());
-		fs::copy_file(in_dir / in.source_filename, dst);
+		if (in.source_filename.empty()) {
+			assert(!in.bytes.empty());
+			auto file = std::ofstream{dst, std::ios::binary};
+			assert(file);
+			file.write(reinterpret_cast<char const*>(in.bytes.data()), static_cast<std::streamsize>(in.bytes.size()));
+		} else {
+			fs::copy_file(in_dir / in.source_filename, dst);
+		}
 		import_logger.info("[legsmi] Image [{}] copied", uri);
 		out_imported.add_to(out_imported.images, index, uri);
 		return uri;

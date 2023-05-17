@@ -37,11 +37,11 @@ struct TestUiPrimitive : ui::Primitive {
 
 	bool clicked{};
 
-	void tick(Input const& input, Duration dt) override {
-		View::tick(input, dt);
-		if (world_frame().contains(input.cursor)) {
+	void tick(WindowInput const& window_input, Duration dt) override {
+		View::tick(window_input, dt);
+		if (world_frame().contains(window_input.cursor)) {
 			tint() = yellow_v;
-			if (input.is_pressed(MouseButton::e1)) { clicked = true; }
+			if (window_input.is_pressed(MouseButton::e1)) { clicked = true; }
 		} else {
 			tint() = white_v;
 		}

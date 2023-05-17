@@ -26,14 +26,20 @@ void Collision::tick(Scene const& scene, Duration dt) {
 			it = m_entries.erase(it);
 			continue;
 		}
-		it->second.collider = entity->find<ColliderAabb>();
-		if (!it->second.collider) {
+		auto& entry = it->second;
+		entry.collider = entity->find<ColliderAabb>();
+		if (!entry.collider) {
 			it = m_entries.erase(it);
 			continue;
 		}
-		it->second.colliding = false;
-		it->second.aabb = it->second.collider->aabb();
-		colliders.push_back(&it->second);
+		entry.active = entity->is_active;
+		if (!entry.active) {
+			++it;
+			continue;
+		}
+		entry.colliding = false;
+		entry.aabb = entry.collider->aabb();
+		colliders.push_back(&entry);
 		++it;
 	}
 	if (colliders.empty()) { return; }
@@ -50,8 +56,10 @@ void Collision::tick(Scene const& scene, Duration dt) {
 	};
 	for (auto it_a = colliders.begin(); it_a + 1 != colliders.end(); ++it_a) {
 		auto& a = **it_a;
+		if (!a.active) { continue; }
 		for (auto it_b = it_a + 1; it_b != colliders.end(); ++it_b) {
 			auto& b = **it_b;
+			if (!b.active) { continue; }
 			if (integrate(a, b)) {
 				if (a.collider->on_collision) { a.collider->on_collision(*b.collider); }
 				if (b.collider->on_collision) { b.collider->on_collision(*a.collider); }

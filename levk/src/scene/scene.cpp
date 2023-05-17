@@ -111,7 +111,7 @@ bool Scene::import_level(Level const& level) {
 }
 
 WindowState const& Scene::window_state() const { return Service<Engine>::locate().window().state(); }
-Input const& Scene::input() const { return Service<Engine>::locate().window().state().input; }
+WindowInput const& Scene::window_input() const { return window_state().input; }
 
 void Scene::tick(Duration dt) {
 	music.tick(dt);
@@ -144,7 +144,7 @@ void Scene::tick(Duration dt) {
 	collision.tick(*this, dt);
 
 	ui_root.set_extent(window_state().framebuffer);
-	ui_root.tick(input(), dt);
+	ui_root.tick(window_input(), dt);
 }
 
 void Scene::render(RenderList& out) const {

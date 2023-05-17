@@ -32,9 +32,9 @@ bool View::contains(Ptr<View const> view) const {
 	return false;
 }
 
-void View::tick(Input const& input, Duration dt) {
+void View::tick(WindowInput const& window_input, Duration dt) {
 	if (is_destroyed()) { return; }
-	for (auto const& view : m_sub_views) { view->tick(input, dt); }
+	for (auto const& view : m_sub_views) { view->tick(window_input, dt); }
 	std::erase_if(m_sub_views, [](auto const& view) { return view->is_destroyed(); });
 }
 

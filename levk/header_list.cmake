@@ -41,9 +41,9 @@ set(util_headers
 
 set(window_headers
   include/levk/window/common.hpp
+  include/levk/window/window_input.hpp
   include/levk/window/window_state.hpp
   include/levk/window/window.hpp
-  include/levk/window/input.hpp
 )
 
 set(graphics_headers

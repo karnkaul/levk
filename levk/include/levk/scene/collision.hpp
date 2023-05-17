@@ -26,6 +26,7 @@ class Collision : public Pinned {
 		Aabb aabb{};
 		glm::vec3 previous_position{};
 		bool colliding{};
+		bool active{};
 	};
 	using Map = std::unordered_map<Id<Entity>::id_type, Entry>;
 

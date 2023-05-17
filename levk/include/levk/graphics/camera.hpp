@@ -25,7 +25,7 @@ struct Camera {
 
 	struct Perspective {
 		ViewPlane view_plane{0.1f, 1000.0f};
-		Radians field_of_view{Degrees{45.0f}};
+		Radians field_of_view{Degrees{75.0f}};
 	};
 
 	struct Orthographic {

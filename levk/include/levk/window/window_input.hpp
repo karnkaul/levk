@@ -5,7 +5,7 @@
 #include <array>
 
 namespace levk {
-struct Input {
+struct WindowInput {
 	std::array<Action, 512> keyboard{};
 	std::array<Action, 16> mouse{};
 	FlexArray<std::uint32_t, 8> codepoints{};
