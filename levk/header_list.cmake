@@ -41,10 +41,18 @@ set(util_headers
 
 set(window_headers
   include/levk/window/action_state.hpp
+  include/levk/window/axis_state.hpp
   include/levk/window/common.hpp
+  include/levk/window/gamepad.hpp
   include/levk/window/window_input.hpp
   include/levk/window/window_state.hpp
   include/levk/window/window.hpp
+)
+
+set(input_headers
+  include/levk/input/key_axis.hpp
+  include/levk/input/range.hpp
+  include/levk/input/trigger.hpp
 )
 
 set(graphics_headers
@@ -167,6 +175,7 @@ set(levk_headers
   ${util_headers}
   ${impl_headers}
   ${window_headers}
+  ${input_headers}
   ${graphics_headers}
   ${imcpp_headers}
   ${assets_headers}

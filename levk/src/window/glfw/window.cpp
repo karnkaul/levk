@@ -24,10 +24,4 @@ glm::uvec2 Window::framebuffer_extent() const {
 	glfwGetFramebufferSize(window, &ret.x, &ret.y);
 	return ret;
 }
-
-glm::uvec2 Window::window_extent() const {
-	auto ret = glm::ivec2{};
-	glfwGetWindowSize(window, &ret.x, &ret.y);
-	return ret;
-}
 } // namespace levk::glfw

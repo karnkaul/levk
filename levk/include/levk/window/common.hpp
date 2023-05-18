@@ -133,7 +133,7 @@ enum class Key : std::uint32_t {
 ///
 /// \brief Set of all Mouse buttons
 ///
-enum class MouseButton : std::uint32_t {
+enum class MouseButton : std::uint16_t {
 	e1 = 0,
 	e2,
 	e3,

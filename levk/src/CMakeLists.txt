@@ -1,6 +1,7 @@
 add_subdirectory(util)
 add_subdirectory(vfs)
 add_subdirectory(window)
+add_subdirectory(input)
 add_subdirectory(graphics)
 add_subdirectory(asset)
 add_subdirectory(io)

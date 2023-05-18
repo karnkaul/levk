@@ -10,7 +10,6 @@ struct Window {
 
 	vk::UniqueSurfaceKHR make_surface(vk::Instance instance) const;
 	glm::uvec2 framebuffer_extent() const;
-	glm::uvec2 window_extent() const;
 
 	struct Storage {
 		std::vector<std::string> drops{};

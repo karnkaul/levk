@@ -1,4 +1,6 @@
+#include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
+#include <levk/window/gamepad.hpp>
 #include <levk/window/window.hpp>
 #include <window/glfw/window.hpp>
 
@@ -167,10 +169,34 @@ void Window::poll() {
 	};
 	update(g_storage.state.input.keyboard.state);
 	update(g_storage.state.input.mouse.state);
+	for (auto& gamepad : g_storage.state.input.gamepads) {
+		update(gamepad.buttons.state);
+		gamepad.is_active = {};
+		gamepad.axes = {};
+	}
 	glfwPollEvents();
 	g_storage.state.drops = g_storage.drops;
 	g_storage.state.input.cursor = screen_to_world(g_storage.raw_cursor_position, g_storage.state.extent, g_storage.state.display_ratio());
 	g_storage.state.input.ui_space = g_storage.state.framebuffer;
+	for (auto [gamepad, id] : enumerate<int>(g_storage.state.input.gamepads)) {
+		auto in_state = GLFWgamepadstate{};
+		if (!glfwGetGamepadState(id, &in_state)) { continue; }
+
+		gamepad.is_active = true;
+		for (auto const [in_action, index] : enumerate(in_state.buttons)) {
+			auto& out_action = gamepad.buttons.state[index];
+			switch (in_action) {
+			case GLFW_PRESS: {
+				out_action = Action::ePress;
+				g_storage.state.input.last_engaged_gamepad_index = static_cast<std::size_t>(id);
+				break;
+			}
+			case GLFW_RELEASE: out_action = Action::eRelease; break;
+			default: break;
+			}
+		}
+		std::memcpy(gamepad.axes.state.data(), in_state.axes, std::size(in_state.axes));
+	}
 }
 
 char const* Window::clipboard() const { return glfwGetClipboardString(m_impl->window); }
