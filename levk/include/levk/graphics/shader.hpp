@@ -5,7 +5,7 @@
 
 namespace levk {
 namespace vulkan {
-class Texture;
+struct Texture;
 }
 class ShaderBuffer;
 

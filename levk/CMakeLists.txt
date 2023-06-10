@@ -55,6 +55,7 @@ if(LEVK_PCH)
     <algorithm>
     <atomic>
     <chrono>
+    <cstdint>
     <filesystem>
     <functional>
     <future>
