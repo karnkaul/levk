@@ -229,6 +229,7 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 			[](Camera::Orthographic& orthographic) {
 				ImGui::DragFloat("Near plane", &orthographic.view_plane.near, 0.1f, 0.1f, 10.0f);
 				ImGui::DragFloat("Far plane", &orthographic.view_plane.far, 1.0f, 20.0f, 1000.0f);
+				ImGui::DragFloat("View scale", &orthographic.view_scale, 0.025f, 0.01f, 5.0f);
 			},
 		};
 		std::visit(visitor, scene.camera.type);

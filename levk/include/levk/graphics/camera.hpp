@@ -30,9 +30,10 @@ struct Camera {
 
 	struct Orthographic {
 		ViewPlane view_plane{-100.0f, 100.0f};
+		float view_scale{1.0f};
 	};
 
-	static glm::mat4 orthographic(glm::vec2 extent, ViewPlane view_plane = {-100.0f, 100.0f});
+	static glm::mat4 orthographic(glm::vec2 extent, float view_scale = 1.0f, ViewPlane view_plane = {-100.0f, 100.0f});
 
 	glm::mat4 view() const;
 	glm::mat4 projection(glm::vec2 extent) const;
