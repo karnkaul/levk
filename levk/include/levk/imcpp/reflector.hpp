@@ -41,7 +41,7 @@ class Reflector {
 	bool operator()(HdrRgba& out_rgba, Bool show_alpha, Bool show_intensity = {true}) const;
 	bool operator()(Transform& out_transform, Bool& out_unified_scaling, Bool scaling_toggle) const;
 	bool operator()(ViewPlane& view_plane) const;
-	bool operator()(Camera::Orthographic& orthographic) const { return (*this)(orthographic.view_plane); }
+	bool operator()(Camera::Orthographic& orthographic) const;
 	bool operator()(Camera::Perspective& perspective) const;
 	bool operator()(Camera& out_camera) const;
 	bool operator()(UvRect& out_uv) const;

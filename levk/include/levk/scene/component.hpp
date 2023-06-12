@@ -51,4 +51,6 @@ class RenderComponent : public Component {
 
 	virtual void render(DrawList& out) const = 0;
 };
+
+using EntityId = Id<Entity>;
 } // namespace levk

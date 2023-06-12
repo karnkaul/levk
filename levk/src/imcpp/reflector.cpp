@@ -151,6 +151,13 @@ bool Reflector::operator()(ViewPlane& view_plane) const {
 	return ret.value;
 }
 
+bool Reflector::operator()(Camera::Orthographic& orthographic) const {
+	auto ret = Modified{};
+	ret(ImGui::DragFloat("View scale", &orthographic.view_scale, 0.01f, 0.001f, 2.0f));
+	ret((*this)(orthographic.view_plane));
+	return ret.value;
+}
+
 bool Reflector::operator()(Camera::Perspective& perspective) const {
 	auto ret = Modified{};
 	ret((*this)("FOV (Y)", perspective.field_of_view, 1.0f, 10.0f, 170.0f));
