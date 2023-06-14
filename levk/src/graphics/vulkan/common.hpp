@@ -375,7 +375,7 @@ struct DeviceView {
 	Ptr<Gpu const> gpu{};
 
 	Vma vma{};
-	RenderMode default_render_mode{};
+	RenderMode default_render_mode{.type = RenderMode::Type::eFill};
 	Ptr<Queue> queue{};
 	Ptr<DeferQueue> defer{};
 	Ptr<SetAllocator> set_allocator{};

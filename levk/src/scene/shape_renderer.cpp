@@ -3,6 +3,7 @@
 #include <levk/graphics/render_device.hpp>
 #include <levk/level/attachments.hpp>
 #include <levk/scene/entity.hpp>
+#include <levk/scene/scene.hpp>
 #include <levk/scene/shape_renderer.hpp>
 #include <levk/service.hpp>
 
@@ -36,7 +37,8 @@ void ShapeRenderer::render(DrawList& out) const {
 	if (!asset_providers) { return; }
 	static std::unique_ptr<Material> const s_default_mat{std::make_unique<LitMaterial>()};
 	auto* entity = owning_entity();
-	auto const matrix = entity ? entity->transform().matrix() : glm::mat4{1.0f};
+	auto* scene = owning_scene();
+	auto const matrix = entity && scene ? scene->global_transform(entity->id()) : glm::mat4{1.0f};
 	out.add(Drawable{
 		.primitive = m_primitive->vulkan_primitive(),
 		.material = asset_providers->material().get(m_shape->material_uri, s_default_mat).get(),
