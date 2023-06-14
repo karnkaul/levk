@@ -13,6 +13,7 @@
 #include <levk/util/pinned.hpp>
 #include <levk/util/time.hpp>
 #include <levk/util/type_id.hpp>
+#include <cassert>
 #include <unordered_map>
 
 namespace levk {
@@ -31,6 +32,22 @@ class Scene : public Pinned {
 
 	Entity const& get_entity(Id<Entity> id) const;
 	Entity& get_entity(Id<Entity> id);
+
+	template <std::derived_from<Component> Type>
+	Ptr<Type> find_component(Id<Entity> id) const {
+		auto* e = find_entity(id);
+		if (!e) { return {}; }
+		return e->template find<Type>();
+	}
+
+	template <std::derived_from<Component> Type>
+	Type& get_component(Id<Entity> id) const {
+		auto* e = find_entity(id);
+		assert(e);
+		auto* ret = e->template find<Type>();
+		assert(ret);
+		return *ret;
+	}
 
 	void destroy_entity(Id<Entity> id);
 

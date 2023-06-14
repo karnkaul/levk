@@ -336,7 +336,7 @@ void asset::from_json(dj::Json const& json, Camera& out) {
 	if (json["type"].as_string() == "orthographic") {
 		auto type = Camera::Orthographic{};
 		from_json(json["view_plane"], type.view_plane);
-		type.view_scale = json["view_scale"].as<float>();
+		levk::from_json(json["fixed_view"], type.fixed_view);
 		out.type = type;
 	} else {
 		auto type = Camera::Perspective{};
@@ -360,7 +360,7 @@ void asset::to_json(dj::Json& out, Camera const& camera) {
 		},
 		[&out](Camera::Orthographic const& orthographic) {
 			out["type"] = "orthographic";
-			out["view_scale"] = orthographic.view_scale;
+			levk::to_json(out["fixed_view"], orthographic.fixed_view);
 			to_json(out["view_plane"], orthographic.view_plane);
 		},
 	};

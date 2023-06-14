@@ -219,20 +219,7 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 			if (combo.item("Perspective", {type == "Perspective"})) { scene.camera.type = Camera::Perspective{}; }
 			if (combo.item("Orthographic", {type == "Orthographic"})) { scene.camera.type = Camera::Orthographic{}; }
 		}
-		auto const visitor = Visitor{
-			[](Camera::Perspective& perspective) {
-				auto degrees = perspective.field_of_view.to_degrees();
-				if (ImGui::DragFloat("Field of View", &degrees.value, 0.25f, 10.0f, 75.0f)) { perspective.field_of_view = degrees; }
-				ImGui::DragFloat("Near plane", &perspective.view_plane.near, 0.1f, 0.1f, 10.0f);
-				ImGui::DragFloat("Far plane", &perspective.view_plane.far, 1.0f, 20.0f, 1000.0f);
-			},
-			[](Camera::Orthographic& orthographic) {
-				ImGui::DragFloat("Near plane", &orthographic.view_plane.near, 0.1f, 0.1f, 10.0f);
-				ImGui::DragFloat("Far plane", &orthographic.view_plane.far, 1.0f, 20.0f, 1000.0f);
-				ImGui::DragFloat("View scale", &orthographic.view_scale, 0.025f, 0.01f, 5.0f);
-			},
-		};
-		std::visit(visitor, scene.camera.type);
+		std::visit([w](auto& camera) { Reflector{w}(camera); }, scene.camera.type);
 		break;
 	}
 	case Type::eLights: {

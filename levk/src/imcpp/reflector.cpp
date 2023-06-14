@@ -153,7 +153,7 @@ bool Reflector::operator()(ViewPlane& view_plane) const {
 
 bool Reflector::operator()(Camera::Orthographic& orthographic) const {
 	auto ret = Modified{};
-	ret(ImGui::DragFloat("View scale", &orthographic.view_scale, 0.01f, 0.001f, 2.0f));
+	ret((*this)("Fixed View", orthographic.fixed_view, 1.0f, 0.01f, 10000.0f));
 	ret((*this)(orthographic.view_plane));
 	return ret.value;
 }

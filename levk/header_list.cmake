@@ -28,6 +28,7 @@ set(util_headers
   include/levk/util/random.hpp
   include/levk/util/radians.hpp
   include/levk/util/reversed.hpp
+  include/levk/util/scale_extent.hpp
   include/levk/util/signal.hpp
   include/levk/util/thread_pool.hpp
   include/levk/util/time.hpp
