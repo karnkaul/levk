@@ -60,6 +60,8 @@ void Collision::tick(Scene const& scene, Duration dt) {
 		for (auto it_b = it_a + 1; it_b != colliders.end(); ++it_b) {
 			auto& b = **it_b;
 			if (!b.active) { continue; }
+			auto const ignore = a.collider->ignore_channels && b.collider->ignore_channels && (a.collider->ignore_channels & b.collider->ignore_channels);
+			if (ignore) { continue; }
 			if (integrate(a, b)) {
 				if (a.collider->on_collision) { a.collider->on_collision(*b.collider); }
 				if (b.collider->on_collision) { b.collider->on_collision(*a.collider); }

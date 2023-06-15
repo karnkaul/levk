@@ -12,6 +12,7 @@ class ColliderAabb : public Component {
   public:
 	glm::vec3 aabb_size{1.0f};
 	std::function<void(ColliderAabb const&)> on_collision{};
+	std::uint32_t ignore_channels{};
 
 	Aabb aabb() const;
 
