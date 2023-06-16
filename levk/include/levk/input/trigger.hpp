@@ -5,7 +5,7 @@
 namespace levk::input {
 struct Trigger {
 	std::vector<Key> keys{};
-	Action action{Action::ePress};
+	std::vector<Action> actions{Action::ePress};
 
 	bool operator()(WindowInput const& input) const;
 };

@@ -14,6 +14,9 @@ bool from_action(WindowInput const& input, Key const key, Action const action) {
 } // namespace
 
 bool Trigger::operator()(WindowInput const& input) const {
-	return std::ranges::any_of(keys, [&input, action = action](Key const key) { return from_action(input, key, action); });
+	for (auto const action : actions) {
+		if (std::ranges::any_of(keys, [&input, action = action](Key const key) { return from_action(input, key, action); })) { return true; }
+	}
+	return false;
 }
 } // namespace levk::input
