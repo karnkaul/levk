@@ -5,6 +5,7 @@
 #include <levk/scene/entity.hpp>
 #include <levk/util/pinned.hpp>
 #include <functional>
+#include <optional>
 #include <unordered_map>
 
 namespace levk {
@@ -25,7 +26,7 @@ class Collision : public Pinned {
 	struct Entry {
 		Ptr<ColliderAabb> collider{};
 		Aabb aabb{};
-		glm::vec3 previous_position{};
+		std::optional<glm::vec3> previous_position{};
 		bool colliding{};
 		bool active{};
 	};

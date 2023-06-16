@@ -15,7 +15,7 @@ void ColliderAabb::setup() {
 
 void Collision::track(Entity const& entity) {
 	if (!entity.contains<ColliderAabb>()) { return; }
-	m_entries.emplace(entity.id(), Entry{.previous_position = entity.global_position()});
+	m_entries.emplace(entity.id(), Entry{});
 }
 
 void Collision::tick(Scene const& scene, Duration dt) {
@@ -46,9 +46,10 @@ void Collision::tick(Scene const& scene, Duration dt) {
 
 	auto integrate = [&](Entry& out_a, Entry& out_b) {
 		if (Aabb::intersects(out_a.aabb, out_b.aabb)) { return true; }
-		if (out_a.aabb.origin != out_a.previous_position) {
+		if (!out_a.previous_position) { return false; }
+		if (out_a.aabb.origin != *out_a.previous_position) {
 			for (auto t = Duration{}; t < dt; t += time_slice) {
-				auto const position_a = glm::mix(out_a.previous_position, out_a.aabb.origin, t / dt);
+				auto const position_a = glm::mix(*out_a.previous_position, out_a.aabb.origin, t / dt);
 				if (Aabb::intersects(Aabb{position_a, out_a.aabb.size}, out_b.aabb)) { return true; }
 			}
 		}
