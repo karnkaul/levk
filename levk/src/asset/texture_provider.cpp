@@ -109,7 +109,7 @@ CubemapProvider::Payload CubemapProvider::load_payload(Uri<Cubemap> const& uri, 
 
 	auto bytes = std::array<ScopedFuture<ByteArray>, 6>{};
 	for (auto const [image_uri, index] : enumerate(image_uris)) {
-		bytes[index] = m_thread_pool->submit([this, image_uri] { return read_bytes(image_uri); });
+		bytes[index] = m_thread_pool->submit([this, i = image_uri] { return read_bytes(i); });
 	}
 
 	auto images = std::array<ScopedFuture<Image>, 6>{};
