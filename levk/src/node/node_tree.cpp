@@ -60,6 +60,18 @@ glm::mat4 NodeTree::global_transform(Id<Node> id) const {
 	return global_transform(*node);
 }
 
+glm::vec3 NodeTree::global_position(Node const& node) const {
+	auto ret = node.transform.position();
+	if (auto const* parent = find(node.parent())) { return global_position(*parent) + ret; }
+	return ret;
+}
+
+glm::vec3 NodeTree::global_position(Id<Node> id) const {
+	auto* node = find(id);
+	if (!node) { return {}; }
+	return global_position(*node);
+}
+
 void NodeTree::clear() {
 	m_nodes.clear();
 	m_roots.clear();

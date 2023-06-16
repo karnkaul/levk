@@ -3,7 +3,6 @@
 #include <levk/asset/mesh_provider.hpp>
 #include <levk/io/common.hpp>
 #include <levk/level/attachments.hpp>
-#include <levk/scene/collider_aabb.hpp>
 #include <levk/scene/entity.hpp>
 #include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/scene.hpp>
@@ -118,17 +117,17 @@ void FreecamAttachment::attach(Entity& out) {
 }
 
 bool ColliderAttachment::serialize(dj::Json& out) const {
-	to_json(out["aabb"], aabb);
+	to_json(out["aabb_size"], aabb_size);
 	return true;
 }
 
 bool ColliderAttachment::deserialize(dj::Json const& json) {
-	from_json(json["aabb"], aabb);
+	from_json(json["aabb_size"], aabb_size);
 	return true;
 }
 
 void ColliderAttachment::attach(Entity& out) {
 	auto& collider = out.attach(std::make_unique<ColliderAabb>());
-	collider.set_aabb(aabb);
+	collider.aabb_size = aabb_size;
 }
 } // namespace levk

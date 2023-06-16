@@ -9,6 +9,9 @@ layout (set = 2, binding = 1) uniform Tint {
 layout (location = 0) in vec3 in_rgb;
 layout (location = 1) in vec2 in_uv;
 
+// unused
+layout (location = 2) in vec4 in_fpos;
+
 layout (location = 0) out vec4 out_rgba;
 
 void main() {

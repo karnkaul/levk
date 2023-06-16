@@ -53,6 +53,11 @@ void Scene::clear() {
 	m_entities.clear();
 	m_nodes.clear();
 	ui_root.clear_sub_views();
+	collision.clear();
+	name.clear();
+	lights = {};
+	camera = {};
+	skybox = {};
 }
 
 Level Scene::export_level() const {
@@ -62,6 +67,7 @@ Level Scene::export_level() const {
 	ret.node_tree = m_nodes;
 	ret.camera = camera;
 	ret.lights = lights;
+	ret.skybox = skybox;
 	ret.name = name;
 	for (auto const& [_, entity] : m_entities) {
 		auto attachments = std::vector<dj::Json>{};
@@ -79,11 +85,13 @@ bool Scene::import_level(Level const& level) {
 	auto* asset_providers = Service<AssetProviders>::find();
 	auto* serializer = Service<Serializer>::find();
 	if (!asset_providers || !serializer) { return false; }
+	clear();
 	static_cast<Camera&>(camera) = level.camera;
 	lights = level.lights;
+	skybox = level.skybox;
 	name = level.name;
 	m_nodes = level.node_tree;
-	m_entities.clear();
+	if (skybox) { asset_providers->cubemap().load(skybox); }
 	auto func = [&](Node& out_node) {
 		auto [id, entity] = m_entities.add(make_entity(out_node.id()));
 		out_node.entity_id = entity.m_id = id;
@@ -103,31 +111,40 @@ bool Scene::import_level(Level const& level) {
 }
 
 WindowState const& Scene::window_state() const { return Service<Engine>::locate().window().state(); }
-Input const& Scene::input() const { return Service<Engine>::locate().window().state().input; }
+WindowInput const& Scene::window_input() const { return window_state().input; }
 
-void Scene::tick(Time dt) {
-	collision.update();
+void Scene::tick(Duration dt) {
+	music.tick(dt);
+
+	if (auto* engine = Service<Engine>::find()) {
+		auto const cp = camera.transform.position();
+		engine->audio_device().set_position({cp.x, cp.y, cp.z});
+		auto const at = camera.transform.orientation() * -front_v;
+		engine->audio_device().set_orientation(capo::Orientation{.look_at = {at.x, at.y, at.z}});
+	}
 
 	auto entities = std::vector<Ptr<Entity>>{};
 	for (auto& [_, entity] : m_entities) {
 		if (entity.is_active) { entities.push_back(&entity); }
 	}
 	std::ranges::sort(entities, [](Ptr<Entity const> a, Ptr<Entity const> b) { return a->id() < b->id(); });
-
 	std::ranges::for_each(entities, [dt](Ptr<Entity> e) { e->tick(dt); });
 
-	m_entities.remove_if([this](Id<Entity>, Entity const& e) {
-		if (e.is_destroyed()) {
-			m_nodes.remove(e.node_id());
-			return true;
-		}
-		return false;
-	});
+	auto destroyed = std::vector<Id<Node>>{};
+	// remove nodes (and sub-trees) whose entities have been set destroyed
+	for (auto const& [_, entity] : m_entities) {
+		if (entity.is_destroyed()) { destroyed.push_back(entity.node_id()); }
+	}
+	for (auto const id : destroyed) { m_nodes.remove(id); }
+	// remove entities that no longer have nodes
+	m_entities.remove_if([this](Id<Entity>, Entity const& e) { return !m_nodes.find(e.node_id()); });
 
 	if (auto target = m_entities.find(camera.target)) { camera.transform = m_nodes.get(target->node_id()).transform; }
 
+	collision.tick(*this, dt);
+
 	ui_root.set_extent(window_state().framebuffer);
-	ui_root.tick(input(), dt);
+	ui_root.tick(window_input(), dt);
 }
 
 void Scene::render(RenderList& out) const {

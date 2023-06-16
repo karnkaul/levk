@@ -27,8 +27,8 @@ glm::mat4 SkeletonController::global_transform(Id<Node> node_id) const {
 	return renderer->global_transform(node_id);
 }
 
-void SkeletonController::tick(Time dt) {
-	if (!enabled || dt == Time{}) { return; }
+void SkeletonController::tick(Duration dt) {
+	if (!enabled || dt == Duration{}) { return; }
 	auto* entity = owning_entity();
 	auto* asset_providers = Service<AssetProviders>::find();
 	if (!entity || !asset_providers) { return; }

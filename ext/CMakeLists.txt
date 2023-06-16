@@ -3,7 +3,6 @@ project(levk-ext)
 find_package(Threads)
 
 file(ARCHIVE_EXTRACT INPUT "${CMAKE_CURRENT_SOURCE_DIR}/src.zip" DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}")
-
 add_subdirectory(src/vk_dynamic)
 add_library(vk-dynamic::vk-dynamic ALIAS vk-dynamic)
 
@@ -61,6 +60,9 @@ endif()
 
 add_subdirectory(src/portable-file-dialogs)
 
+set(CAPO_BUILD_EXAMPLES OFF)
+add_subdirectory(src/capo-lite)
+
 add_library(levk-ext INTERFACE)
 add_library(levk::ext ALIAS levk-ext)
 
@@ -74,6 +76,7 @@ target_link_libraries(levk-ext INTERFACE
   stb::image
   djson::djson
   fmt::fmt
+  capo::lite
 
   $<$<BOOL:${LEVK_USE_FREETYPE}>:freetype::freetype>
   Threads::Threads

@@ -21,7 +21,7 @@ struct Shader : levk::Shader {
 		: device(device), set_layouts(pipeline.set_layouts), descriptor_set_layouts(pipeline.descriptor_set_layouts), sampler_storage(sampler_storage),
 		  set_allocator(set_allocator), scratch_buffer_allocator(scratch_buffer_allocator) {}
 
-	void update(std::uint32_t set, std::uint32_t binding, levk::Texture const& texture) final;
+	void update(std::uint32_t set, std::uint32_t binding, Texture const& texture) final;
 	void write(std::uint32_t set, std::uint32_t binding, void const* data, std::size_t size) final;
 	void update(std::uint32_t set, std::uint32_t binding, ShaderBuffer const& buffer) final;
 	void update(std::uint32_t set, std::uint32_t binding, ImageView const& image, TextureSampler const& sampler);

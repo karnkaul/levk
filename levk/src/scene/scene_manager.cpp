@@ -13,8 +13,8 @@ auto const g_log{Logger{"SceneManager"}};
 
 namespace fs = std::filesystem;
 
-SceneManager::SceneManager(NotNull<AssetProviders*> asset_providers)
-	: m_asset_providers(asset_providers), m_renderer(asset_providers), m_active_scene(std::make_unique<Scene>()) {
+SceneManager::SceneManager(NotNull<AssetProviders*> asset_providers, NotNull<capo::Device*> audio_device)
+	: m_asset_providers(asset_providers), m_audio_device(audio_device), m_renderer(asset_providers), m_active_scene(std::make_unique<Scene>()) {
 	m_on_mount_point_changed = m_asset_providers->data_source().on_mount_point_changed().connect([this](std::string_view) {
 		active_scene().clear();
 		g_log.info("Scene cleared");
@@ -79,10 +79,12 @@ void SceneManager::activate(std::unique_ptr<Scene> scene) {
 	m_next_scene = std::move(scene);
 }
 
-void SceneManager::tick(Time dt) {
+void SceneManager::tick(Duration dt) {
 	if (m_next_scene) {
 		m_active_scene = std::move(m_next_scene);
 		g_log.info("Loaded Scene {}", m_active_scene->name);
+		m_active_scene->sfx = Sfx{m_audio_device};
+		m_active_scene->music = Music{m_audio_device};
 		m_active_scene->setup();
 	}
 	assert(m_active_scene);

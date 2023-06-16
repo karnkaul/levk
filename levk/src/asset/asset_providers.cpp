@@ -13,10 +13,12 @@ AssetProviders::AssetProviders(CreateInfo const& create_info) {
 	m_providers.skeletal_animation = &add(SkeletalAnimationProvider{create_info.data_source});
 	m_providers.skeleton = &add(SkeletonProvider{m_providers.skeletal_animation, create_info.data_source});
 	m_providers.texture = &add(TextureProvider{create_info.render_device, create_info.data_source});
+	m_providers.cubemap = &add(CubemapProvider{create_info.render_device, create_info.data_source, create_info.thread_pool});
 	m_providers.material = &add(MaterialProvider{m_providers.texture, create_info.serializer});
 	m_providers.static_mesh = &add(StaticMeshProvider{m_providers.material});
 	m_providers.skinned_mesh = &add(SkinnedMeshProvider{m_providers.skeleton, m_providers.material});
 	m_providers.ascii_font = &add(AsciiFontProvider{m_providers.texture, create_info.font_library});
+	m_providers.pcm = &add(PcmProvider{create_info.data_source});
 
 	m_on_mount_point_changed = create_info.data_source->on_mount_point_changed().connect([this](std::string_view) { clear(); });
 }
@@ -52,6 +54,7 @@ AssetList AssetProviders::build_asset_list(Uri<Level> const& uri) const {
 	auto level = Level{};
 	asset::from_json(json, level);
 	auto ret = AssetList{};
+	if (level.skybox) { ret.cubemaps.insert(level.skybox); }
 	for (auto const& [_, attachments] : level.attachments_map) {
 		for (auto const& attachment : attachments) {
 			auto result = serializer().deserialize_as<Attachment>(attachment);

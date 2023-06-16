@@ -16,7 +16,8 @@ struct Material;
 }
 
 class Texture;
-class TextureProvider;
+class Cubemap;
+class AssetProviders;
 
 enum class AlphaMode : std::uint32_t { eOpaque = 0, eBlend, eMask };
 
@@ -41,7 +42,7 @@ class Material : public Serializable, public Inspectable {
 	Material();
 
 	Ptr<vulkan::Material> vulkan_material() const { return m_impl.get(); }
-	virtual void write_sets(Shader& shader, TextureProvider const& texture_provider) const = 0;
+	virtual void write_sets(Shader& shader, AssetProviders const& asset_providers) const = 0;
 	virtual bool is_opaque() const { return false; }
 
 	bool serialize(dj::Json& out) const override;
@@ -67,7 +68,7 @@ class UnlitMaterial : public Material {
   public:
 	UnlitMaterial();
 
-	void write_sets(Shader& shader, TextureProvider const& provider) const override;
+	void write_sets(Shader& shader, AssetProviders const& asset_providers) const override;
 	bool is_opaque() const override { return tint.channels[3] == 0xff; }
 
 	std::string_view type_name() const override { return "UnlitMaterial"; }
@@ -81,7 +82,7 @@ class LitMaterial : public Material {
   public:
 	LitMaterial();
 
-	void write_sets(Shader& shader, TextureProvider const& provider) const override;
+	void write_sets(Shader& shader, AssetProviders const& asset_providers) const override;
 	bool is_opaque() const override { return alpha_mode == AlphaMode::eOpaque; }
 
 	std::string_view type_name() const override { return "LitMaterial"; }
@@ -102,5 +103,16 @@ class SkinnedMaterial : public LitMaterial {
 	SkinnedMaterial();
 
 	std::string_view type_name() const override { return "SkinnedMaterial"; }
+};
+
+class SkyboxMaterial : public Material {
+  public:
+	SkyboxMaterial();
+
+	void write_sets(Shader& shader, AssetProviders const& asset_providers) const override;
+
+	std::string_view type_name() const override { return "SkyboxMaterial"; }
+
+	Uri<Cubemap> cubemap_uri{};
 };
 } // namespace levk

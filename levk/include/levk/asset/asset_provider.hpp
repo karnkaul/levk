@@ -88,7 +88,7 @@ class AssetProvider {
   protected:
 	struct Stopwatch {
 		Clock::time_point start{Clock::now()};
-		Time operator()() const { return Clock::now() - start; }
+		Duration operator()() const { return Clock::now() - start; }
 	};
 
 	struct Payload {

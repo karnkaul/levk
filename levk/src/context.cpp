@@ -15,12 +15,14 @@ AssetProviders::CreateInfo make_apci(Engine const& engine, NotNull<DataSource co
 		.font_library = &engine.font_library(),
 		.data_source = data_source,
 		.serializer = serializer,
+		.thread_pool = &engine.thread_pool(),
 	};
 }
 } // namespace
 
 Context::Context(NotNull<DataSource const*> data_source, Engine::CreateInfo const& create_info)
-	: engine(create_info), asset_providers(make_apci(engine.get(), data_source, &serializer.get())), scene_manager(&asset_providers.get()) {
+	: engine(create_info), asset_providers(make_apci(engine.get(), data_source, &serializer.get())),
+	  scene_manager(&asset_providers.get(), &engine.get().audio_device()) {
 	serializer.get().bind<ShapeAttachment>();
 	serializer.get().bind<MeshAttachment>();
 	serializer.get().bind<SkeletonAttachment>();

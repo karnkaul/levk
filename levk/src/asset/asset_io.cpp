@@ -68,7 +68,7 @@ std::vector<typename Interpolator<T>::Keyframe> make_keyframes(dj::Json const& j
 	auto ret = std::vector<typename Interpolator<T>::Keyframe>{};
 	for (auto const& in_kf : json.array_view()) {
 		auto out_kf = typename Interpolator<T>::Keyframe{};
-		out_kf.timestamp = Time{in_kf["timestamp"].as<float>()};
+		out_kf.timestamp = Duration{in_kf["timestamp"].as<float>()};
 		out_kf.value = glm_from_json<T>(in_kf["value"]);
 		ret.push_back(std::move(out_kf));
 	}
@@ -160,7 +160,7 @@ bool read_from(BinarySourceT&& source, asset::BinSkeletalAnimation& out) {
 	return true;
 }
 
-bool check_asset_type(asset::Type const type, dj::Json const& json) {
+[[maybe_unused]] bool check_asset_type(asset::Type const type, dj::Json const& json) {
 	if (type == asset::Type::eUnknown) { return false; }
 	auto in_type = asset::Type{};
 	from_json(json, in_type);
@@ -336,6 +336,7 @@ void asset::from_json(dj::Json const& json, Camera& out) {
 	if (json["type"].as_string() == "orthographic") {
 		auto type = Camera::Orthographic{};
 		from_json(json["view_plane"], type.view_plane);
+		levk::from_json(json["fixed_view"], type.fixed_view);
 		out.type = type;
 	} else {
 		auto type = Camera::Perspective{};
@@ -359,6 +360,7 @@ void asset::to_json(dj::Json& out, Camera const& camera) {
 		},
 		[&out](Camera::Orthographic const& orthographic) {
 			out["type"] = "orthographic";
+			levk::to_json(out["fixed_view"], orthographic.fixed_view);
 			to_json(out["view_plane"], orthographic.view_plane);
 		},
 	};
@@ -411,6 +413,7 @@ void asset::from_json(dj::Json const& json, Level& out) {
 	from_json(json["node_tree"], out.node_tree);
 	from_json(json["camera"], out.camera);
 	from_json(json["lights"], out.lights);
+	out.skybox = json["skybox"].as<std::string>();
 	for (auto const& [node_id_str, in_attachments_map] : json["attachments"].object_view()) {
 		auto const get_node_id = [](std::string_view const in) -> Id<Node>::id_type {
 			auto ret = Id<Node>::id_type{};
@@ -431,6 +434,7 @@ void asset::to_json(dj::Json& out, Level const& level) {
 	to_json(out["node_tree"], level.node_tree);
 	to_json(out["camera"], level.camera);
 	to_json(out["lights"], level.lights);
+	if (level.skybox) { out["skybox"] = level.skybox.value(); }
 	if (!level.attachments_map.empty()) {
 		auto& out_attachments_map = out["attachments"];
 		for (auto const& [node_id, attachments] : level.attachments_map) {

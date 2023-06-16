@@ -1,5 +1,6 @@
 #include <imgui.h>
 #include <graphics/vulkan/material.hpp>
+#include <levk/asset/asset_providers.hpp>
 #include <levk/asset/texture_provider.hpp>
 #include <levk/graphics/material.hpp>
 #include <levk/graphics/shader.hpp>
@@ -86,8 +87,8 @@ UnlitMaterial::UnlitMaterial() {
 	fragment_shader = "shaders/unlit.frag";
 }
 
-void UnlitMaterial::write_sets(Shader& shader, TextureProvider const& provider) const {
-	shader.update(2, 0, provider.get(textures.uris[0]));
+void UnlitMaterial::write_sets(Shader& shader, AssetProviders const& asset_providers) const {
+	shader.update(2, 0, *asset_providers.texture().get(textures.uris[0]).vulkan_texture());
 	shader.write(2, 1, Rgba::to_srgb(tint.to_vec4()));
 }
 
@@ -108,10 +109,10 @@ LitMaterial::LitMaterial() {
 	fragment_shader = "shaders/lit.frag";
 }
 
-void LitMaterial::write_sets(Shader& shader, TextureProvider const& provider) const {
-	shader.update(2, 0, provider.get(textures.uris[0]));
-	shader.update(2, 1, provider.get(textures.uris[1]));
-	shader.update(2, 2, provider.get(textures.uris[2], "black"));
+void LitMaterial::write_sets(Shader& shader, AssetProviders const& asset_providers) const {
+	shader.update(2, 0, *asset_providers.texture().get(textures.uris[0]).vulkan_texture());
+	shader.update(2, 1, *asset_providers.texture().get(textures.uris[1]).vulkan_texture());
+	shader.update(2, 2, *asset_providers.texture().get(textures.uris[2], "black").vulkan_texture());
 	struct MatUBO {
 		glm::vec4 albedo;
 		glm::vec4 m_r_aco_am;
@@ -151,4 +152,14 @@ bool LitMaterial::deserialize(dj::Json const& json) {
 }
 
 SkinnedMaterial::SkinnedMaterial() { vertex_shader = "shaders/skinned.vert"; }
+
+SkyboxMaterial::SkyboxMaterial() {
+	vertex_shader = "shaders/unlit.vert";
+	fragment_shader = "shaders/skybox.frag";
+	render_mode.depth_test = false;
+}
+
+void SkyboxMaterial::write_sets(Shader& shader, AssetProviders const& asset_providers) const {
+	shader.update(2, 0, *asset_providers.cubemap().get(cubemap_uri).vulkan_texture());
+}
 } // namespace levk

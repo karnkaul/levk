@@ -4,6 +4,7 @@ set(util_headers
   include/levk/util/binary_file.hpp
   include/levk/util/bit_flags.hpp
   include/levk/util/bool.hpp
+  include/levk/util/compare.hpp
   include/levk/util/cli_args.hpp
   include/levk/util/contiguous_storage.hpp
   include/levk/util/defer_queue.hpp
@@ -25,8 +26,10 @@ set(util_headers
   include/levk/util/path_tree.hpp
   include/levk/util/pinned.hpp
   include/levk/util/ptr.hpp
+  include/levk/util/random.hpp
   include/levk/util/radians.hpp
   include/levk/util/reversed.hpp
+  include/levk/util/scale_extent.hpp
   include/levk/util/signal.hpp
   include/levk/util/thread_pool.hpp
   include/levk/util/time.hpp
@@ -39,10 +42,19 @@ set(util_headers
 )
 
 set(window_headers
+  include/levk/window/action_state.hpp
+  include/levk/window/axis_state.hpp
   include/levk/window/common.hpp
+  include/levk/window/gamepad.hpp
+  include/levk/window/window_input.hpp
   include/levk/window/window_state.hpp
   include/levk/window/window.hpp
-  include/levk/window/input.hpp
+)
+
+set(input_headers
+  include/levk/input/key_axis.hpp
+  include/levk/input/range.hpp
+  include/levk/input/trigger.hpp
 )
 
 set(graphics_headers
@@ -93,6 +105,7 @@ set(assets_headers
   include/levk/asset/font_provider.hpp
   include/levk/asset/material_provider.hpp
   include/levk/asset/mesh_provider.hpp
+  include/levk/asset/pcm_provider.hpp
   include/levk/asset/shader_provider.hpp
   include/levk/asset/skeleton_provider.hpp
   include/levk/asset/texture_provider.hpp
@@ -120,6 +133,11 @@ set(font_headers
   include/levk/font/static_font_atlas.hpp
 )
 
+set(audio_headers
+  include/levk/audio/music.hpp
+  include/levk/audio/sfx.hpp
+)
+
 set(node_headers
   include/levk/node/node_tree_serializer.hpp
   include/levk/node/node_tree.hpp
@@ -141,7 +159,7 @@ set(ui_headers
 )
 
 set(scene_headers
-  include/levk/scene/collider_aabb.hpp
+  include/levk/scene/collision.hpp
   include/levk/scene/component.hpp
   include/levk/scene/entity.hpp
   include/levk/scene/freecam_controller.hpp
@@ -159,18 +177,19 @@ set(levk_headers
   ${util_headers}
   ${impl_headers}
   ${window_headers}
+  ${input_headers}
   ${graphics_headers}
   ${imcpp_headers}
   ${assets_headers}
   ${vfs_headers}
   ${font_headers}
+  ${audio_headers}
   ${node_headers}
   ${level_headers}
   ${ui_headers}
   ${scene_headers}
 
   include/levk/context.hpp
-  include/levk/collision.hpp
   include/levk/defines.hpp
   include/levk/engine.hpp
   include/levk/frame_profile.hpp

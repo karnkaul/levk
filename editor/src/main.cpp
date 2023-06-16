@@ -11,7 +11,6 @@
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/level/level.hpp>
 #include <levk/runtime.hpp>
-#include <levk/scene/collider_aabb.hpp>
 #include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/shape_renderer.hpp>
 #include <levk/scene/skeleton_controller.hpp>
@@ -38,11 +37,11 @@ struct TestUiPrimitive : ui::Primitive {
 
 	bool clicked{};
 
-	void tick(Input const& input, Time dt) override {
-		View::tick(input, dt);
-		if (world_frame().contains(input.cursor)) {
+	void tick(WindowInput const& window_input, Duration dt) override {
+		View::tick(window_input, dt);
+		if (world_frame().contains(window_input.cursor)) {
 			tint() = yellow_v;
-			if (input.is_pressed(MouseButton::e1)) { clicked = true; }
+			if (window_input.mouse.is_pressed(MouseButton::e1)) { clicked = true; }
 		} else {
 			tint() = white_v;
 		}
@@ -149,16 +148,17 @@ struct TestScene : Scene {
 		freecam.transform().set_position({0.0f, 0.0f, 5.0f});
 	}
 
-	void tick(Time dt) override {
+	void tick(Duration dt) override {
 		Scene::tick(dt);
-		if (input().chord(Key::eE, Key::eLeftControl)) {}
+		auto const& input = window_input();
+		if (input.keyboard.chord(Key::eE, Key::eLeftControl)) {}
 
 		if (test.primitive) {
 			auto dxy = glm::vec2{};
-			if (input().is_held(Key::eW)) { dxy.y += 1.0f; }
-			if (input().is_held(Key::eA)) { dxy.x -= 1.0f; }
-			if (input().is_held(Key::eS)) { dxy.y -= 1.0f; }
-			if (input().is_held(Key::eD)) { dxy.x += 1.0f; }
+			if (input.keyboard.is_held(Key::eW)) { dxy.y += 1.0f; }
+			if (input.keyboard.is_held(Key::eA)) { dxy.x -= 1.0f; }
+			if (input.keyboard.is_held(Key::eS)) { dxy.y -= 1.0f; }
+			if (input.keyboard.is_held(Key::eD)) { dxy.x += 1.0f; }
 			if (std::abs(dxy.x) > 0.0f || std::abs(dxy.y) > 0.0f) {
 				dxy = 1000.0f * glm::normalize(dxy) * dt.count();
 				test.primitive->set_position(test.primitive->frame().centre() += dxy);
@@ -299,7 +299,7 @@ struct Editor : Runtime {
 		Logger::attach(log_display);
 	}
 
-	void tick(Time) final {
+	void tick(Duration) final {
 		auto const& state = m_context.engine.get().window().state();
 		if (!load_request && !gltf_import_wizard && !state.drops.empty()) {
 			for (auto const& drop : state.drops) {
@@ -366,7 +366,7 @@ struct Editor : Runtime {
 		};
 		update_and_draw(load_request, on_request_loaded);
 
-		if (state.input.chord(Key::eW, Key::eLeftControl)) { context().shutdown(); }
+		if (state.input.keyboard.chord(Key::eW, Key::eLeftControl)) { context().shutdown(); }
 
 		auto result = main_menu.display_menu();
 		switch (result.action) {
@@ -413,7 +413,7 @@ struct Editor : Runtime {
 } // namespace
 } // namespace levk
 
-int main(int argc, char** argv) {
+int main([[maybe_unused]] int argc, char** argv) {
 	assert(argc > 0);
 	try {
 		static constexpr std::array<std::string_view, 2> patterns{"data", "editor/data"};

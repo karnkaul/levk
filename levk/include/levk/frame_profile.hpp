@@ -21,6 +21,6 @@ struct FrameProfile {
 		"tick", "acquire-frame", "render-shadow-map", "render-3d", "render-ui", "render-submit", "render-present", "frame-time",
 	};
 
-	EnumArray<Type, Time> profile{};
+	EnumArray<Type, Duration> profile{};
 };
 } // namespace levk

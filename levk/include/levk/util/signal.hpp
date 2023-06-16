@@ -1,6 +1,7 @@
 #pragma once
 #include <levk/util/ptr.hpp>
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <vector>

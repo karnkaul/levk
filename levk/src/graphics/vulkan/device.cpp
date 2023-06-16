@@ -21,6 +21,7 @@
 #include <levk/graphics/texture.hpp>
 #include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
+#include <levk/util/flex_array.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/visitor.hpp>
 #include <levk/util/zip_ranges.hpp>
@@ -715,26 +716,33 @@ bool Device::render(Renderer& renderer, AssetProviders const& asset_providers) {
 	renderer.next_frame();
 
 	auto render_cb = impl->render_cbs[impl->buffered_index];
-
-	FrameProfiler::instance().profile(FrameProfile::Type::eRenderShadowMap);
-	auto fb_shadow = impl->rt_shadow.depthbuffer();
-	render_cb.cb_shadow.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-	fb_shadow.undef_to_optimal(render_cb.cb_shadow);
-	fb_shadow.begin_render(render_cb.cb_shadow);
-	renderer.render_shadow(render_cb.cb_shadow, fb_shadow);
-	fb_shadow.end_render(render_cb.cb_shadow);
-	fb_shadow.optimal_to_read_only(render_cb.cb_shadow);
-	render_cb.cb_shadow.end();
+	auto cbis = FlexArray<vk::CommandBufferSubmitInfo, 4>{};
+	auto shadow_image = asset_providers.texture().white()->vulkan_texture()->image.get().get().image_view();
+	bool const draw_shadow = device_info.shadow_map_resolution.x > 0u && device_info.shadow_map_resolution.y > 0u;
+	if (draw_shadow) {
+		FrameProfiler::instance().profile(FrameProfile::Type::eRenderShadowMap);
+		auto fb_shadow = impl->rt_shadow.refresh({device_info.shadow_map_resolution.x, device_info.shadow_map_resolution.y});
+		render_cb.cb_shadow.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+		fb_shadow.undef_to_optimal(render_cb.cb_shadow);
+		fb_shadow.begin_render(render_cb.cb_shadow);
+		renderer.render_shadow(render_cb.cb_shadow, fb_shadow);
+		fb_shadow.end_render(render_cb.cb_shadow);
+		fb_shadow.optimal_to_read_only(render_cb.cb_shadow);
+		render_cb.cb_shadow.end();
+		cbis.insert(render_cb.cb_shadow);
+		shadow_image = fb_shadow.image;
+	}
 
 	FrameProfiler::instance().profile(FrameProfile::Type::eRender3D);
 	auto fb_3d = impl->rt_3d.refresh(scaled(impl->swapchain.info.imageExtent, device_info.render_scale));
 	render_cb.cb_3d.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 	fb_3d.undef_to_optimal(render_cb.cb_3d);
 	fb_3d.begin_render(device_info.clear_colour.to_vec4(), render_cb.cb_3d);
-	renderer.render_3d(render_cb.cb_3d, fb_3d, fb_shadow.image);
+	renderer.render_3d(render_cb.cb_3d, fb_3d, shadow_image);
 	fb_3d.end_render(render_cb.cb_3d);
 	fb_3d.optimal_to_read_only(render_cb.cb_3d);
 	render_cb.cb_3d.end();
+	cbis.insert(render_cb.cb_3d);
 
 	FrameProfiler::instance().profile(FrameProfile::Type::eRenderUI);
 	auto fb_ui = Framebuffer{.colour = *acquired};
@@ -746,10 +754,10 @@ bool Device::render(Renderer& renderer, AssetProviders const& asset_providers) {
 	fb_ui.end_render(render_cb.cb_ui);
 	fb_ui.optimal_to_present(render_cb.cb_ui);
 	render_cb.cb_ui.end();
+	cbis.insert(render_cb.cb_ui);
 
 	FrameProfiler::instance().profile(FrameProfile::Type::eRenderSubmit);
 	auto const wsi = vk::SemaphoreSubmitInfo{sync.draw, {}, vk::PipelineStageFlagBits2::eColorAttachmentOutput};
-	auto const cbis = std::array<vk::CommandBufferSubmitInfo, 3>{render_cb.cb_shadow, render_cb.cb_3d, render_cb.cb_ui};
 	auto const ssi = vk::SemaphoreSubmitInfo{sync.present, {}, vk::PipelineStageFlagBits2::eColorAttachmentOutput};
 	auto submit_info = vk::SubmitInfo2{{}, wsi, cbis, ssi};
 	queue.with([&](vk::Queue queue) { queue.submit2(submit_info, sync.drawn); });

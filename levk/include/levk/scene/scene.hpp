@@ -1,20 +1,25 @@
 #pragma once
-#include <levk/collision.hpp>
+#include <levk/audio/music.hpp>
+#include <levk/audio/sfx.hpp>
 #include <levk/graphics/lights.hpp>
 #include <levk/node/node_tree.hpp>
+#include <levk/scene/collision.hpp>
 #include <levk/scene/entity.hpp>
 #include <levk/scene/scene_camera.hpp>
 #include <levk/ui/view.hpp>
+#include <levk/uri.hpp>
 #include <levk/util/logger.hpp>
 #include <levk/util/monotonic_map.hpp>
 #include <levk/util/pinned.hpp>
 #include <levk/util/time.hpp>
 #include <levk/util/type_id.hpp>
+#include <cassert>
 #include <unordered_map>
 
 namespace levk {
 struct RenderList;
 struct Level;
+class Cubemap;
 
 class Scene : public Pinned {
   public:
@@ -28,6 +33,22 @@ class Scene : public Pinned {
 	Entity const& get_entity(Id<Entity> id) const;
 	Entity& get_entity(Id<Entity> id);
 
+	template <std::derived_from<Component> Type>
+	Ptr<Type> find_component(Id<Entity> id) const {
+		auto* e = find_entity(id);
+		if (!e) { return {}; }
+		return e->template find<Type>();
+	}
+
+	template <std::derived_from<Component> Type>
+	Type& get_component(Id<Entity> id) const {
+		auto* e = find_entity(id);
+		assert(e);
+		auto* ret = e->template find<Type>();
+		assert(ret);
+		return *ret;
+	}
+
 	void destroy_entity(Id<Entity> id);
 
 	NodeTree const& node_tree() const { return m_nodes; }
@@ -39,10 +60,10 @@ class Scene : public Pinned {
 	bool import_level(Level const& level);
 
 	WindowState const& window_state() const;
-	Input const& input() const;
+	WindowInput const& window_input() const;
 
 	virtual void setup() {}
-	virtual void tick(Time dt);
+	virtual void tick(Duration dt);
 	virtual void render(RenderList& out) const;
 	virtual void clear();
 
@@ -50,6 +71,9 @@ class Scene : public Pinned {
 	SceneCamera camera{};
 	Lights lights{};
 	Collision collision{};
+	Sfx sfx;
+	Music music;
+	Uri<Cubemap> skybox{};
 
 	glm::vec3 shadow_frustum{100.0f};
 

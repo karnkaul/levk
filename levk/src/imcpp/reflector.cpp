@@ -142,7 +142,37 @@ bool Reflector::operator()(Transform& out_transform, Bool& out_unified_scaling, 
 	return ret.value;
 }
 
-bool Reflector::operator()(Camera& out_camera) const { return ImGui::DragFloat("Exposure", &out_camera.exposure, 0.1f, 0.0f, 10.0f); }
+bool Reflector::operator()(ViewPlane& view_plane) const {
+	auto ret = Modified{};
+	if (auto tn = TreeNode{"ViewPlane"}) {
+		ret(ImGui::DragFloat("Near", &view_plane.near));
+		ret(ImGui::DragFloat("Far", &view_plane.far));
+	}
+	return ret.value;
+}
+
+bool Reflector::operator()(Camera::Orthographic& orthographic) const {
+	auto ret = Modified{};
+	ret((*this)("Fixed View", orthographic.fixed_view, 1.0f, 0.01f, 10000.0f));
+	ret((*this)(orthographic.view_plane));
+	return ret.value;
+}
+
+bool Reflector::operator()(Camera::Perspective& perspective) const {
+	auto ret = Modified{};
+	ret((*this)("FOV (Y)", perspective.field_of_view, 1.0f, 10.0f, 170.0f));
+	ret((*this)(perspective.view_plane));
+	return ret.value;
+}
+
+bool Reflector::operator()(Camera& out_camera) const {
+	auto ret = Modified{};
+	ret(ImGui::DragFloat("Exposure", &out_camera.exposure, 0.1f, 0.0f, 10.0f));
+	auto uniform_scaling = Bool{true};
+	(*this)(out_camera.transform, uniform_scaling, {});
+	std::visit([this, &ret](auto& payload) { ret((*this)(payload)); }, out_camera.type);
+	return ret.value;
+}
 
 bool Reflector::operator()(UvRect& out_uv) const {
 	auto ret = Modified{};

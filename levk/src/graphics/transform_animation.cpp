@@ -2,11 +2,11 @@
 #include <levk/util/visitor.hpp>
 
 namespace levk {
-Time TransformAnimation::Sampler::duration() const {
+Duration TransformAnimation::Sampler::duration() const {
 	return std::visit([](auto const& s) { return s.duration(); }, storage);
 }
 
-void TransformAnimation::Sampler::update(Transform& out, Time time) const {
+void TransformAnimation::Sampler::update(Transform& out, Duration time) const {
 	auto const visitor = Visitor{
 		[time, &out](TransformAnimation::Translate const& translate) {
 			if (auto const p = translate(time)) { out.set_position(*p); }
@@ -21,8 +21,8 @@ void TransformAnimation::Sampler::update(Transform& out, Time time) const {
 	std::visit(visitor, storage);
 }
 
-Time TransformAnimation::duration() const {
-	auto ret = Time{};
+Duration TransformAnimation::duration() const {
+	auto ret = Duration{};
 	for (auto const& sampler : samplers) { ret = std::max(ret, sampler.duration()); }
 	return ret;
 }

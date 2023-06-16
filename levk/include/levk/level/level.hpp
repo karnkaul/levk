@@ -7,11 +7,12 @@
 #include <optional>
 
 namespace levk {
-struct Mesh;
+class Cubemap;
 
 struct Level {
 	Camera camera{};
 	Lights lights{};
+	Uri<Cubemap> skybox{};
 	NodeTree node_tree{};
 	std::unordered_map<Id<Node>::id_type, std::vector<dj::Json>> attachments_map{};
 	std::string name{};

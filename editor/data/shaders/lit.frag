@@ -123,7 +123,7 @@ float compute_visibility() {
 	vec3 projected = in_fpos_shadow.xyz / in_fpos_shadow.w;
 	// float bias = max(0.05 * (1.0 - dot(in_normal, -in_shadow_dir)), 0.005);
 	float slope = tan(acos(max(dot(in_normal, -in_shadow_dir), 0.0)));
-	float bias = clamp(0.005 * slope, 0.001, 0.01);
+	float bias = clamp(0.005 * slope, 0.001, 0.05);
 	float current_depth = projected.z - bias;
 	projected = projected * 0.5 + 0.5;
 	projected.y = 1.0 - projected.y;

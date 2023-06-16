@@ -4,7 +4,6 @@
 #include <levk/imcpp/inspector.hpp>
 #include <levk/imcpp/reflector.hpp>
 #include <levk/io/serializer.hpp>
-#include <levk/scene/collider_aabb.hpp>
 #include <levk/scene/freecam_controller.hpp>
 #include <levk/scene/scene.hpp>
 #include <levk/scene/shape_renderer.hpp>
@@ -135,10 +134,7 @@ void inspect(OpenWindow w, FreecamController& freecam_controller) {
 	if (ImGui::DragFloat("Yaw", &degrees.value, 0.25f, -180.0f, 180.0f)) { freecam_controller.yaw = degrees; }
 }
 
-void inspect(OpenWindow w, ColliderAabb& collider) {
-	auto aabb = collider.get_aabb();
-	if (Reflector{w}("Size", aabb.size, 0.25f)) { collider.set_aabb(aabb); }
-}
+void inspect(OpenWindow w, ColliderAabb& collider) { Reflector{w}("Size", collider.aabb_size, 0.25f); }
 
 template <typename Type>
 bool detach(Entity& entity) {
@@ -223,19 +219,7 @@ void Inspector::draw_to(NotClosed<Window> w, Scene& scene) {
 			if (combo.item("Perspective", {type == "Perspective"})) { scene.camera.type = Camera::Perspective{}; }
 			if (combo.item("Orthographic", {type == "Orthographic"})) { scene.camera.type = Camera::Orthographic{}; }
 		}
-		auto const visitor = Visitor{
-			[](Camera::Perspective& perspective) {
-				auto degrees = perspective.field_of_view.to_degrees();
-				if (ImGui::DragFloat("Field of View", &degrees.value, 0.25f, 10.0f, 75.0f)) { perspective.field_of_view = degrees; }
-				ImGui::DragFloat("Near plane", &perspective.view_plane.near, 0.1f, 0.1f, 10.0f);
-				ImGui::DragFloat("Far plane", &perspective.view_plane.far, 1.0f, 20.0f, 1000.0f);
-			},
-			[](Camera::Orthographic& orthographic) {
-				ImGui::DragFloat("Near plane", &orthographic.view_plane.near, 0.1f, 0.1f, 10.0f);
-				ImGui::DragFloat("Far plane", &orthographic.view_plane.far, 1.0f, 20.0f, 1000.0f);
-			},
-		};
-		std::visit(visitor, scene.camera.type);
+		std::visit([w](auto& camera) { Reflector{w}(camera); }, scene.camera.type);
 		break;
 	}
 	case Type::eLights: {

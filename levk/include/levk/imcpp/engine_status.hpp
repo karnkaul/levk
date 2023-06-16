@@ -6,7 +6,7 @@
 namespace levk::imcpp {
 class EngineStatus {
   public:
-	void draw_to(NotClosed<Window> w, Engine& engine, Time dt);
+	void draw_to(NotClosed<Window> w, Engine& engine, Duration dt);
 
   private:
 	std::vector<float> m_dts{};

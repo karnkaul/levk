@@ -1,6 +1,6 @@
 #pragma once
 #include <levk/util/bit_flags.hpp>
-#include <levk/window/input.hpp>
+#include <levk/window/window_input.hpp>
 #include <string>
 
 namespace levk {
@@ -17,7 +17,7 @@ enum class WindowFlag : std::uint32_t {
 struct WindowState {
 	using Flag = WindowFlag;
 
-	Input input{};
+	WindowInput input{};
 	std::span<std::string const> drops{};
 	Extent2D extent{};
 	Extent2D framebuffer{};

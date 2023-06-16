@@ -13,7 +13,7 @@ class Entity;
 class Scene;
 class DrawList;
 struct WindowState;
-struct Input;
+struct WindowInput;
 class Window;
 class RenderDevice;
 class Collision;
@@ -23,7 +23,7 @@ class Component {
 	virtual ~Component() = default;
 
 	virtual void setup() {}
-	virtual void tick(Time dt) = 0;
+	virtual void tick(Duration dt) = 0;
 	virtual std::unique_ptr<Attachment> to_attachment() const { return {}; }
 
 	Id<Component> id() const { return m_id; }
@@ -32,7 +32,7 @@ class Component {
 	Ptr<Collision> scene_collision() const;
 
 	WindowState const& window_state() const;
-	Input const& input() const;
+	WindowInput const& window_input() const;
 	Window const& window() const;
 	RenderDevice const& render_device() const;
 
@@ -47,8 +47,10 @@ class Component {
 
 class RenderComponent : public Component {
   public:
-	void tick(Time) override {}
+	void tick(Duration) override {}
 
 	virtual void render(DrawList& out) const = 0;
 };
+
+using EntityId = Id<Entity>;
 } // namespace levk

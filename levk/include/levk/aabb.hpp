@@ -18,19 +18,18 @@ struct Aabb {
 
 	constexpr bool contains(Aabb const& rhs) const {
 		if (size == glm::vec3{} || rhs.size == glm::vec3{}) { return false; }
-		auto const hs = 0.5f * rhs.size;
-		if (contains(rhs.origin + glm::vec3{-hs.x, -hs.y, -hs.z})) { return true; }
-		if (contains(rhs.origin + glm::vec3{-hs.x, -hs.y, hs.z})) { return true; }
-		if (contains(rhs.origin + glm::vec3{-hs.x, hs.y, -hs.z})) { return true; }
-		if (contains(rhs.origin + glm::vec3{-hs.x, hs.y, hs.z})) { return true; }
-		if (contains(rhs.origin + glm::vec3{hs.x, -hs.y, -hs.z})) { return true; }
-		if (contains(rhs.origin + glm::vec3{hs.x, -hs.y, hs.z})) { return true; }
-		if (contains(rhs.origin + glm::vec3{hs.x, hs.y, -hs.z})) { return true; }
-		if (contains(rhs.origin + glm::vec3{hs.x, hs.y, hs.z})) { return true; }
-		return false;
+		auto const hs = 0.5f * size;
+		auto const hs_r = 0.5f * rhs.size;
+		if (origin.x - hs.x > rhs.origin.x + hs_r.x) { return false; }
+		if (origin.x + hs.x < rhs.origin.x - hs_r.x) { return false; }
+		if (origin.y - hs.y > rhs.origin.y + hs_r.y) { return false; }
+		if (origin.y + hs.y < rhs.origin.y - hs_r.y) { return false; }
+		if (origin.z - hs.z > rhs.origin.z + hs_r.z) { return false; }
+		if (origin.z + hs.z < rhs.origin.z - hs_r.z) { return false; }
+		return true;
 	}
 
-	static constexpr bool intersects(Aabb const& a, Aabb const& b) { return a.contains(b) || b.contains(a); }
+	static constexpr bool intersects(Aabb const& a, Aabb const& b) { return a.contains(b); }
 
 	bool operator==(Aabb const&) const = default;
 };

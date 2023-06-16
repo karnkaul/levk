@@ -1,4 +1,6 @@
+#include <levk/util/enumerate.hpp>
 #include <levk/util/error.hpp>
+#include <levk/window/gamepad.hpp>
 #include <levk/window/window.hpp>
 #include <window/glfw/window.hpp>
 
@@ -90,8 +92,8 @@ Window::Window(glm::uvec2 extent, char const* title) : m_impl(new glfw::Window{}
 	});
 	glfwSetKeyCallback(m_impl->window, [](GLFWwindow* w, int key, int, int action, int) {
 		if (!match(w)) { return; }
-		if (key >= 0 && static_cast<std::size_t>(key) < g_storage.state.input.keyboard.size()) {
-			auto& a = g_storage.state.input.keyboard[static_cast<std::size_t>(key)];
+		if (key >= 0 && static_cast<std::size_t>(key) < g_storage.state.input.keyboard.state.size()) {
+			auto& a = g_storage.state.input.keyboard.state[static_cast<std::size_t>(key)];
 			switch (action) {
 			case GLFW_PRESS: a = Action::ePress; break;
 			case GLFW_RELEASE: a = Action::eRelease; break;
@@ -106,8 +108,8 @@ Window::Window(glm::uvec2 extent, char const* title) : m_impl(new glfw::Window{}
 	});
 	glfwSetMouseButtonCallback(m_impl->window, [](GLFWwindow* w, int button, int action, int) {
 		if (!match(w)) { return; }
-		if (button >= 0 && static_cast<std::size_t>(button) < g_storage.state.input.mouse.size()) {
-			auto& a = g_storage.state.input.mouse[static_cast<std::size_t>(button)];
+		if (button >= 0 && static_cast<std::size_t>(button) < g_storage.state.input.mouse.state.size()) {
+			auto& a = g_storage.state.input.mouse.state[static_cast<std::size_t>(button)];
 			switch (action) {
 			case GLFW_PRESS: a = Action::ePress; break;
 			case GLFW_RELEASE: a = Action::eRelease; break;
@@ -135,6 +137,12 @@ Window::Window(glm::uvec2 extent, char const* title) : m_impl(new glfw::Window{}
 
 glm::uvec2 Window::framebuffer_extent() const { return m_impl->framebuffer_extent(); }
 
+glm::uvec2 Window::window_extent() const {
+	auto ret = glm::ivec2{};
+	glfwGetWindowSize(m_impl->window, &ret.x, &ret.y);
+	return ret;
+}
+
 void Window::show() { glfwShowWindow(m_impl->window); }
 void Window::hide() { glfwHideWindow(m_impl->window); }
 void Window::close() { glfwSetWindowShouldClose(m_impl->window, GLFW_TRUE); }
@@ -159,12 +167,36 @@ void Window::poll() {
 			}
 		}
 	};
-	update(g_storage.state.input.keyboard);
-	update(g_storage.state.input.mouse);
+	update(g_storage.state.input.keyboard.state);
+	update(g_storage.state.input.mouse.state);
+	for (auto& gamepad : g_storage.state.input.gamepads) {
+		update(gamepad.buttons.state);
+		gamepad.is_active = {};
+		gamepad.axes = {};
+	}
 	glfwPollEvents();
 	g_storage.state.drops = g_storage.drops;
 	g_storage.state.input.cursor = screen_to_world(g_storage.raw_cursor_position, g_storage.state.extent, g_storage.state.display_ratio());
 	g_storage.state.input.ui_space = g_storage.state.framebuffer;
+	for (auto [gamepad, id] : enumerate<int>(g_storage.state.input.gamepads)) {
+		auto in_state = GLFWgamepadstate{};
+		if (!glfwGetGamepadState(id, &in_state)) { continue; }
+
+		gamepad.is_active = true;
+		for (auto const [in_action, index] : enumerate(in_state.buttons)) {
+			auto& out_action = gamepad.buttons.state[index];
+			switch (in_action) {
+			case GLFW_PRESS: {
+				out_action = Action::ePress;
+				g_storage.state.input.last_engaged_gamepad_index = static_cast<std::size_t>(id);
+				break;
+			}
+			case GLFW_RELEASE: out_action = Action::eRelease; break;
+			default: break;
+			}
+		}
+		std::memcpy(gamepad.axes.state.data(), in_state.axes, std::size(in_state.axes));
+	}
 }
 
 char const* Window::clipboard() const { return glfwGetClipboardString(m_impl->window); }
@@ -179,4 +211,11 @@ void Window::set_extent(Extent2D extent) {
 	glm::ivec2 const size = extent;
 	glfwSetWindowSize(m_impl->window, size.x, size.y);
 }
+
+void Window::lock_aspect_ratio() {
+	glm::ivec2 const size = window_extent();
+	glfwSetWindowAspectRatio(m_impl->window, size.x, size.y);
+}
+
+void Window::unlock_aspect_ratio() { glfwSetWindowAspectRatio(m_impl->window, GLFW_DONT_CARE, GLFW_DONT_CARE); }
 } // namespace levk

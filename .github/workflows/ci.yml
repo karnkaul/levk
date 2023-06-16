@@ -8,9 +8,9 @@ jobs:
       - name: init
         run: sudo apt update -yqq && sudo apt install -yqq ninja-build xorg-dev g++-11
       - name: configure gcc
-        run: cmake -S . --preset=default -B build -DLEVK_USE_FREETYPE=OFF -DCMAKE_CXX_COMPILER=g++-11
+        run: cmake -S . --preset=default -B build -DLEVK_USE_FREETYPE=OFF -DCAPO_USE_OPENAL=OFF -DCMAKE_CXX_COMPILER=g++-11
       - name: configure clang
-        run: cmake -S . --preset=ninja-clang -B clang -DLEVK_USE_FREETYPE=OFF
+        run: cmake -S . --preset=ninja-clang -B clang -DLEVK_USE_FREETYPE=OFF -DCAPO_USE_OPENAL=OFF
       - name: build gcc
         run: cmake --build build --config=Release
       - name: build clang
@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: configure
-        run: cmake -S . --preset=vs22 -B build -DLEVK_USE_FREETYPE=OFF
+        run: cmake -S . --preset=vs22 -B build -DLEVK_USE_FREETYPE=OFF -DCAPO_USE_OPENAL=OFF
       - name: build
         run: cmake --build build --config=Release
       - name: test

@@ -202,7 +202,7 @@ Pipeline PipelineBuilder::try_build(VertexInput::View vertex_input, PipelineStat
 	auto const it = out.maps.find(shader_hash);
 	if (it == out.maps.end()) { return {}; }
 	auto& map = it->second;
-	auto const fixed_state = PipelineFixedState{create_info.state, create_info.vinput.hash, create_info.format};
+	auto const fixed_state = PipelineFixedState{state, vertex_input.hash, create_info.format};
 	auto jt = map.pipelines.find(fixed_state);
 	if (jt == map.pipelines.end()) {
 		create_info.vinput = vertex_input;
