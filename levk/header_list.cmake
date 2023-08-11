@@ -163,6 +163,7 @@ set(scene_headers
   include/levk/scene/component.hpp
   include/levk/scene/entity.hpp
   include/levk/scene/freecam_controller.hpp
+  include/levk/scene/particle_system.hpp
   include/levk/scene/scene_camera.hpp
   include/levk/scene/scene_manager.hpp
   include/levk/scene/scene_renderer.hpp
