@@ -96,8 +96,8 @@ bool read_from(BinarySourceT&& source, asset::BinGeometry& out) {
 	in.geometry.positions.resize(static_cast<std::size_t>(header.positions));
 	bin.read(std::span{in.geometry.positions});
 
-	in.geometry.rgbs.resize(static_cast<std::size_t>(header.positions));
-	bin.read(std::span{in.geometry.rgbs});
+	in.geometry.rgbas.resize(static_cast<std::size_t>(header.positions));
+	bin.read(std::span{in.geometry.rgbas});
 
 	in.geometry.normals.resize(static_cast<std::size_t>(header.positions));
 	bin.read(std::span{in.geometry.normals});
@@ -172,7 +172,7 @@ namespace asset {
 std::uint64_t BinGeometry::compute_hash() const {
 	auto ret = std::size_t{};
 	for (auto const& position : geometry.positions) { hash_combine(ret, position.x, position.y, position.z); }
-	hash_combine(ret, geometry.rgbs.size(), geometry.normals.size(), geometry.uvs.size(), geometry.indices.size(), joints.size());
+	hash_combine(ret, geometry.rgbas.size(), geometry.normals.size(), geometry.uvs.size(), geometry.indices.size(), joints.size());
 	return static_cast<std::uint64_t>(ret);
 }
 
@@ -188,7 +188,7 @@ bool BinGeometry::write(char const* path) const {
 	};
 	file.write(std::span{&header, 1});
 	file.write(std::span{geometry.positions});
-	file.write(std::span{geometry.rgbs});
+	file.write(std::span{geometry.rgbas});
 	file.write(std::span{geometry.normals});
 	file.write(std::span{geometry.uvs});
 	file.write(std::span{geometry.indices});

@@ -402,7 +402,7 @@ struct DeviceView {
 
 struct GeometryOffsets {
 	std::size_t positions{};
-	std::size_t rgbs{};
+	std::size_t rgbas{};
 	std::size_t normals{};
 	std::size_t uvs{};
 	std::size_t joints{};
