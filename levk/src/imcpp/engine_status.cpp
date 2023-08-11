@@ -38,8 +38,8 @@ void EngineStatus::draw_to(NotClosed<Window> w, Engine& engine, Duration dt) {
 	auto& device = engine.render_device();
 	auto const& device_info = device.info();
 	m_dts.resize(static_cast<std::size_t>(m_capacity));
-	m_dts[m_offset] = ms;
-	m_offset = (m_offset + 1) % static_cast<std::size_t>(m_capacity);
+	if (m_offset >= m_dts.size()) { m_offset = 0; }
+	m_dts.at(m_offset++) = ms;
 	ImGui::Text("%s", FixedString{"Device: {}{}", device_info.name, device_info.validation ? " [v]" : ""}.c_str());
 	ImGui::Text("%s", FixedString{"MSAA: {}x", static_cast<int>(device_info.current_aa)}.c_str());
 	ImGui::SameLine();
