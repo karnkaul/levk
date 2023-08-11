@@ -7,7 +7,7 @@ struct DirLight {
 };
 
 layout (location = 0) in vec3 vpos;
-layout (location = 1) in vec3 vrgb;
+layout (location = 1) in vec4 vrgba;
 layout (location = 2) in vec3 vnormal;
 layout (location = 3) in vec2 vuv;
 
@@ -38,7 +38,7 @@ out gl_PerVertex {
 	vec4 gl_Position;
 };
 
-layout (location = 0) out vec3 out_rgb;
+layout (location = 0) out vec4 out_rgba;
 layout (location = 1) out vec2 out_uv;
 layout (location = 2) out vec3 out_normal;
 layout (location = 3) out vec4 out_fpos;
@@ -62,7 +62,7 @@ void main() {
 
 	vec4 pos = mat_m * skin_mat * vec4(vpos, 1.0);
 
-	out_rgb = vrgb;
+	out_rgba = vrgba;
 	out_uv = vuv;
 	out_normal = normalize(vec3(skin_mat * vec4(vnormal, 0.0)));
 	out_vpos_exposure = vpos_exposure;

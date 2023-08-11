@@ -111,8 +111,11 @@ levk::Interpolator<T> make_interpolator(std::span<float const> times, std::span<
 levk::Geometry::Packed to_geometry(gltf2cpp::Mesh::Primitive const& primitive) {
 	auto ret = levk::Geometry::Packed{};
 	ret.positions = from<3>(primitive.geometry.positions);
-	if (!primitive.geometry.colors.empty()) { ret.rgbs = from<3>(primitive.geometry.colors[0]); }
-	if (ret.rgbs.empty()) { ret.rgbs = std::vector<glm::vec3>(ret.positions.size(), glm::vec3{1.0f}); }
+	if (!primitive.geometry.colors.empty()) {
+		auto const rgbs = from<3>(primitive.geometry.colors[0]);
+		for (auto const rgb : rgbs) { ret.rgbas.push_back(glm::vec4{rgb, 1.0f}); }
+	}
+	if (ret.rgbas.empty()) { ret.rgbas = std::vector<glm::vec4>(ret.positions.size(), glm::vec4{1.0f}); }
 	ret.normals = from<3>(primitive.geometry.normals);
 	if (ret.normals.empty()) { ret.normals = std::vector<glm::vec3>(ret.positions.size(), glm::vec3{0.0f, 0.0f, 1.0f}); }
 	if (!primitive.geometry.tex_coords.empty()) { ret.uvs = from<2>(primitive.geometry.tex_coords[0]); }
