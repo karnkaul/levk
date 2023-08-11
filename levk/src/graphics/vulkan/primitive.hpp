@@ -19,7 +19,7 @@ struct Primitive {
 	void draw(Vma::Buffer const& vibo, vk::CommandBuffer cb, std::uint32_t instances = 1u) const {
 		if (!vibo.buffer) { return; }
 		vk::Buffer const vbos[] = {vibo.buffer, vibo.buffer, vibo.buffer, vibo.buffer};
-		vk::DeviceSize const vbo_offsets[] = {m_layout.offsets.positions, m_layout.offsets.rgbs, m_layout.offsets.normals, m_layout.offsets.uvs};
+		vk::DeviceSize const vbo_offsets[] = {m_layout.offsets.positions, m_layout.offsets.rgbas, m_layout.offsets.normals, m_layout.offsets.uvs};
 		cb.bindVertexBuffers(0u, vbos, vbo_offsets);
 		if (m_layout.indices > 0) {
 			cb.bindIndexBuffer(vibo.buffer, m_layout.offsets.indices, vk::IndexType::eUint32);

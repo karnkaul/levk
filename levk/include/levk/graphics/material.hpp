@@ -69,13 +69,14 @@ class UnlitMaterial : public Material {
 	UnlitMaterial();
 
 	void write_sets(Shader& shader, AssetProviders const& asset_providers) const override;
-	bool is_opaque() const override { return tint.channels[3] == 0xff; }
+	bool is_opaque() const override { return draw_opaque; }
 
 	std::string_view type_name() const override { return "UnlitMaterial"; }
 	bool serialize(dj::Json& out) const override;
 	bool deserialize(dj::Json const& json) override;
 
 	Rgba tint{white_v};
+	bool draw_opaque{false};
 };
 
 class LitMaterial : public Material {

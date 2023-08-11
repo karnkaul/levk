@@ -22,7 +22,7 @@ struct GeometryUploader {
 		if (!out_buffer.get().buffer || !out_buffer.get().mapped) { throw Error{"Failed to write create Vulkan staging buffer"}; }
 		auto writer = BufferWriter{out_buffer};
 		out_layout.offsets.positions = writer(std::span{geometry.positions});
-		out_layout.offsets.rgbs = writer(std::span{geometry.rgbs});
+		out_layout.offsets.rgbas = writer(std::span{geometry.rgbas});
 		out_layout.offsets.normals = writer(std::span{geometry.normals});
 		out_layout.offsets.uvs = writer(std::span{geometry.uvs});
 		if (!indices.empty()) { out_layout.offsets.indices = writer(indices); }

@@ -30,7 +30,7 @@ layout (set = 2, binding = 3) uniform M {
 	Material material;
 };
 
-layout (location = 0) in vec3 in_rgb;
+layout (location = 0) in vec4 in_rgba;
 layout (location = 1) in vec2 in_uv;
 layout (location = 2) in vec3 in_normal;
 layout (location = 3) in vec4 in_fpos;
@@ -151,5 +151,5 @@ void main() {
 	}
 
 	float visibility = compute_visibility();
-	out_rgba = (visibility * vec4(cook_torrance(), 1.0)) * vec4(in_rgb, 1.0) * diffuse + material.emissive * texture(emissive, in_uv);
+	out_rgba = (visibility * vec4(cook_torrance(), 1.0)) * vec4(vec3(in_rgba), 1.0) * diffuse + material.emissive * texture(emissive, in_uv);
 }

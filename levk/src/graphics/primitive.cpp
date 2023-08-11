@@ -35,5 +35,10 @@ void DynamicPrimitive::set_geometry(Geometry::Packed geometry) {
 	m_primitive->geometry = std::move(geometry);
 }
 
+Geometry::Packed& DynamicPrimitive::geometry() const {
+	assert(m_primitive);
+	return m_primitive->geometry;
+}
+
 Ptr<vulkan::Primitive> DynamicPrimitive::vulkan_primitive() const { return m_primitive.get(); }
 } // namespace levk

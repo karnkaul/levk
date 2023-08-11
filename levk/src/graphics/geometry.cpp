@@ -17,12 +17,12 @@ Geometry& Geometry::append(std::span<Vertex const> vs, std::span<std::uint32_t c
 Geometry& Geometry::append(Quad const& quad) {
 	auto const h = 0.5f * quad.size;
 	auto const& o = quad.origin;
-	glm::vec3 const rgb = quad.rgb.to_vec4();
+	auto const rgba = quad.rgb.to_vec4();
 	Vertex const vs[] = {
-		{{o.x - h.x, o.y + h.y, 0.0f}, rgb, front_v, quad.uv.top_left()},
-		{{o.x + h.x, o.y + h.y, 0.0f}, rgb, front_v, quad.uv.top_right()},
-		{{o.x + h.x, o.y - h.y, 0.0f}, rgb, front_v, quad.uv.bottom_right()},
-		{{o.x - h.x, o.y - h.y, 0.0f}, rgb, front_v, quad.uv.bottom_left()},
+		{{o.x - h.x, o.y + h.y, 0.0f}, rgba, front_v, quad.uv.top_left()},
+		{{o.x + h.x, o.y + h.y, 0.0f}, rgba, front_v, quad.uv.top_right()},
+		{{o.x + h.x, o.y - h.y, 0.0f}, rgba, front_v, quad.uv.bottom_right()},
+		{{o.x - h.x, o.y - h.y, 0.0f}, rgba, front_v, quad.uv.bottom_left()},
 	};
 	std::uint32_t const is[] = {
 		0, 1, 2, 2, 3, 0,
@@ -33,43 +33,43 @@ Geometry& Geometry::append(Quad const& quad) {
 Geometry& Geometry::append(Cube const& cube) {
 	auto const h = 0.5f * cube.size;
 	auto const& o = cube.origin;
-	glm::vec3 const rgb = cube.rgb.to_vec4();
+	auto const rgba = cube.rgb.to_vec4();
 	Vertex const vs[] = {
 		// front
-		{{o.x - h.x, o.y + h.y, o.z + h.z}, rgb, front_v, {0.0f, 0.0f}},
-		{{o.x + h.x, o.y + h.y, o.z + h.z}, rgb, front_v, {1.0f, 0.0f}},
-		{{o.x + h.x, o.y - h.y, o.z + h.z}, rgb, front_v, {1.0f, 1.0f}},
-		{{o.x - h.x, o.y - h.y, o.z + h.z}, rgb, front_v, {0.0f, 1.0f}},
+		{{o.x - h.x, o.y + h.y, o.z + h.z}, rgba, front_v, {0.0f, 0.0f}},
+		{{o.x + h.x, o.y + h.y, o.z + h.z}, rgba, front_v, {1.0f, 0.0f}},
+		{{o.x + h.x, o.y - h.y, o.z + h.z}, rgba, front_v, {1.0f, 1.0f}},
+		{{o.x - h.x, o.y - h.y, o.z + h.z}, rgba, front_v, {0.0f, 1.0f}},
 
 		// back
-		{{o.x + h.x, o.y + h.y, o.z - h.z}, rgb, -front_v, {0.0f, 0.0f}},
-		{{o.x - h.x, o.y + h.y, o.z - h.z}, rgb, -front_v, {1.0f, 0.0f}},
-		{{o.x - h.x, o.y - h.y, o.z - h.z}, rgb, -front_v, {1.0f, 1.0f}},
-		{{o.x + h.x, o.y - h.y, o.z - h.z}, rgb, -front_v, {0.0f, 1.0f}},
+		{{o.x + h.x, o.y + h.y, o.z - h.z}, rgba, -front_v, {0.0f, 0.0f}},
+		{{o.x - h.x, o.y + h.y, o.z - h.z}, rgba, -front_v, {1.0f, 0.0f}},
+		{{o.x - h.x, o.y - h.y, o.z - h.z}, rgba, -front_v, {1.0f, 1.0f}},
+		{{o.x + h.x, o.y - h.y, o.z - h.z}, rgba, -front_v, {0.0f, 1.0f}},
 
 		// right
-		{{o.x + h.x, o.y + h.y, o.z + h.z}, rgb, right_v, {0.0f, 0.0f}},
-		{{o.x + h.x, o.y + h.y, o.z - h.z}, rgb, right_v, {1.0f, 0.0f}},
-		{{o.x + h.x, o.y - h.y, o.z - h.z}, rgb, right_v, {1.0f, 1.0f}},
-		{{o.x + h.x, o.y - h.y, o.z + h.z}, rgb, right_v, {0.0f, 1.0f}},
+		{{o.x + h.x, o.y + h.y, o.z + h.z}, rgba, right_v, {0.0f, 0.0f}},
+		{{o.x + h.x, o.y + h.y, o.z - h.z}, rgba, right_v, {1.0f, 0.0f}},
+		{{o.x + h.x, o.y - h.y, o.z - h.z}, rgba, right_v, {1.0f, 1.0f}},
+		{{o.x + h.x, o.y - h.y, o.z + h.z}, rgba, right_v, {0.0f, 1.0f}},
 
 		// left
-		{{o.x - h.x, o.y + h.y, o.z - h.z}, rgb, -right_v, {0.0f, 0.0f}},
-		{{o.x - h.x, o.y + h.y, o.z + h.z}, rgb, -right_v, {1.0f, 0.0f}},
-		{{o.x - h.x, o.y - h.y, o.z + h.z}, rgb, -right_v, {1.0f, 1.0f}},
-		{{o.x - h.x, o.y - h.y, o.z - h.z}, rgb, -right_v, {0.0f, 1.0f}},
+		{{o.x - h.x, o.y + h.y, o.z - h.z}, rgba, -right_v, {0.0f, 0.0f}},
+		{{o.x - h.x, o.y + h.y, o.z + h.z}, rgba, -right_v, {1.0f, 0.0f}},
+		{{o.x - h.x, o.y - h.y, o.z + h.z}, rgba, -right_v, {1.0f, 1.0f}},
+		{{o.x - h.x, o.y - h.y, o.z - h.z}, rgba, -right_v, {0.0f, 1.0f}},
 
 		// top
-		{{o.x - h.x, o.y + h.y, o.z - h.z}, rgb, up_v, {0.0f, 0.0f}},
-		{{o.x + h.x, o.y + h.y, o.z - h.z}, rgb, up_v, {1.0f, 0.0f}},
-		{{o.x + h.x, o.y + h.y, o.z + h.z}, rgb, up_v, {1.0f, 1.0f}},
-		{{o.x - h.x, o.y + h.y, o.z + h.z}, rgb, up_v, {0.0f, 1.0f}},
+		{{o.x - h.x, o.y + h.y, o.z - h.z}, rgba, up_v, {0.0f, 0.0f}},
+		{{o.x + h.x, o.y + h.y, o.z - h.z}, rgba, up_v, {1.0f, 0.0f}},
+		{{o.x + h.x, o.y + h.y, o.z + h.z}, rgba, up_v, {1.0f, 1.0f}},
+		{{o.x - h.x, o.y + h.y, o.z + h.z}, rgba, up_v, {0.0f, 1.0f}},
 
 		// bottom
-		{{o.x - h.x, o.y - h.y, o.z + h.z}, rgb, -up_v, {0.0f, 0.0f}},
-		{{o.x + h.x, o.y - h.y, o.z + h.z}, rgb, -up_v, {1.0f, 0.0f}},
-		{{o.x + h.x, o.y - h.y, o.z - h.z}, rgb, -up_v, {1.0f, 1.0f}},
-		{{o.x - h.x, o.y - h.y, o.z - h.z}, rgb, -up_v, {0.0f, 1.0f}},
+		{{o.x - h.x, o.y - h.y, o.z + h.z}, rgba, -up_v, {0.0f, 0.0f}},
+		{{o.x + h.x, o.y - h.y, o.z + h.z}, rgba, -up_v, {1.0f, 0.0f}},
+		{{o.x + h.x, o.y - h.y, o.z - h.z}, rgba, -up_v, {1.0f, 1.0f}},
+		{{o.x - h.x, o.y - h.y, o.z - h.z}, rgba, -up_v, {0.0f, 1.0f}},
 	};
 	// clang-format off
 	std::uint32_t const is[] = {
@@ -113,8 +113,8 @@ Geometry& Geometry::append(Sphere const& sphere) {
 		}
 	}
 
-	glm::vec3 const rgb = sphere.rgb.to_vec4();
-	auto add_side = [&sphere, &scratch, rgb](std::vector<std::pair<glm::vec3, glm::vec2>>& out_points, nvec3 (*transform)(glm::vec3 const&)) {
+	auto const rgba = sphere.rgb.to_vec4();
+	auto add_side = [&sphere, &scratch, rgba](std::vector<std::pair<glm::vec3, glm::vec2>>& out_points, nvec3 (*transform)(glm::vec3 const&)) {
 		auto indices = FlexArray<std::uint32_t, 4>{};
 		auto update_indices = [&] {
 			if (indices.size() == 4) {
@@ -128,7 +128,7 @@ Geometry& Geometry::append(Sphere const& sphere) {
 			update_indices();
 			auto const pt = transform(p.first).value() * sphere.diameter * 0.5f;
 			indices.insert(static_cast<std::uint32_t>(scratch.vertices.size()));
-			scratch.vertices.push_back({pt, rgb, pt, p.second});
+			scratch.vertices.push_back({pt, rgba, pt, p.second});
 		}
 		update_indices();
 	};
@@ -154,7 +154,7 @@ Geometry::Packed Geometry::Packed::from(Geometry const& geometry) {
 	auto ret = Packed{};
 	for (auto const& vertex : geometry.vertices) {
 		ret.positions.push_back(vertex.position);
-		ret.rgbs.push_back(vertex.rgb);
+		ret.rgbas.push_back(vertex.rgba);
 		ret.normals.push_back(vertex.normal);
 		ret.uvs.push_back(vertex.uv);
 	}
@@ -163,7 +163,7 @@ Geometry::Packed Geometry::Packed::from(Geometry const& geometry) {
 }
 } // namespace levk
 
-auto levk::make_cone(float xz_diam, float y_height, std::uint32_t xz_points, glm::vec3 rgb) -> Geometry {
+auto levk::make_cone(float xz_diam, float y_height, std::uint32_t xz_points, glm::vec4 rgba) -> Geometry {
 	auto ret = Geometry{};
 	auto const r = 0.5f * xz_diam;
 	auto const step = 360.0f / static_cast<float>(xz_points);
@@ -171,9 +171,9 @@ auto levk::make_cone(float xz_diam, float y_height, std::uint32_t xz_points, glm
 		auto normal = glm::vec3{0.0f, 1.0f, 0.0f};
 		auto const dy = 0.5f * y_height;
 		Vertex top_vs[] = {
-			{{0.0f, dy, 0.0f}, rgb, {}, {}},
-			{{r * xz_a.x, -dy, r * xz_a.y}, rgb, {}, xz_a},
-			{{r * xz_b.x, -dy, r * xz_b.y}, rgb, {}, xz_b},
+			{{0.0f, dy, 0.0f}, rgba, {}, {}},
+			{{r * xz_a.x, -dy, r * xz_a.y}, rgba, {}, xz_a},
+			{{r * xz_b.x, -dy, r * xz_b.y}, rgba, {}, xz_b},
 		};
 		normal = glm::cross(top_vs[0].position - top_vs[2].position, top_vs[1].position - top_vs[2].position);
 		for (auto& vert : top_vs) { vert.normal = normal; }
@@ -181,9 +181,9 @@ auto levk::make_cone(float xz_diam, float y_height, std::uint32_t xz_points, glm
 		ret.append(top_vs, is);
 		normal = {0.0f, -1.0f, 0.0f};
 		Vertex const bottom_vs[] = {
-			{{0.0f, -dy, 0.0f}, rgb, normal, {}},
-			{{r * xz_a.x, -dy, r * xz_a.y}, rgb, normal, xz_a},
-			{{r * xz_b.x, -dy, r * xz_b.y}, rgb, normal, xz_b},
+			{{0.0f, -dy, 0.0f}, rgba, normal, {}},
+			{{r * xz_a.x, -dy, r * xz_a.y}, rgba, normal, xz_a},
+			{{r * xz_b.x, -dy, r * xz_b.y}, rgba, normal, xz_b},
 		};
 		ret.append(bottom_vs, is);
 	};
@@ -199,7 +199,7 @@ auto levk::make_cone(float xz_diam, float y_height, std::uint32_t xz_points, glm
 	return ret;
 }
 
-auto levk::make_cylinder(float xz_diam, float y_height, std::uint32_t xz_points, glm::vec3 rgb) -> Geometry {
+auto levk::make_cylinder(float xz_diam, float y_height, std::uint32_t xz_points, glm::vec4 rgba) -> Geometry {
 	auto ret = Geometry{};
 	auto const r = 0.5f * xz_diam;
 	auto const step = 360.0f / static_cast<float>(xz_points);
@@ -208,15 +208,15 @@ auto levk::make_cylinder(float xz_diam, float y_height, std::uint32_t xz_points,
 		auto const dy = 0.5f * y_height;
 		// top
 		Vertex const top_vs[] = {
-			{{0.0f, dy, 0.0f}, rgb, normal, {}},
-			{{r * xz_a.x, dy, r * xz_a.y}, rgb, normal, xz_a},
-			{{r * xz_b.x, dy, r * xz_b.y}, rgb, normal, xz_b},
+			{{0.0f, dy, 0.0f}, rgba, normal, {}},
+			{{r * xz_a.x, dy, r * xz_a.y}, rgba, normal, xz_a},
+			{{r * xz_b.x, dy, r * xz_b.y}, rgba, normal, xz_b},
 		};
 		// bottom
 		Vertex const bottom_vs[] = {
-			{{0.0f, -dy, 0.0f}, rgb, -normal, {}},
-			{{r * xz_a.x, -dy, r * xz_a.y}, rgb, -normal, xz_a},
-			{{r * xz_b.x, -dy, r * xz_b.y}, rgb, -normal, xz_b},
+			{{0.0f, -dy, 0.0f}, rgba, -normal, {}},
+			{{r * xz_a.x, -dy, r * xz_a.y}, rgba, -normal, xz_a},
+			{{r * xz_b.x, -dy, r * xz_b.y}, rgba, -normal, xz_b},
 		};
 		std::uint32_t const is[] = {0, 1, 2};
 		ret.append(top_vs, is);
@@ -245,19 +245,19 @@ auto levk::make_cylinder(float xz_diam, float y_height, std::uint32_t xz_points,
 	return ret;
 }
 
-auto levk::make_arrow(float stalk_diam, float stalk_height, std::uint32_t xz_points, glm::vec3 rgb) -> Geometry {
+auto levk::make_arrow(float stalk_diam, float stalk_height, std::uint32_t xz_points, glm::vec4 rgba) -> Geometry {
 	auto const head_size = 2.0f * stalk_diam;
-	auto ret = make_cone(head_size, head_size, xz_points, rgb);
+	auto ret = make_cone(head_size, head_size, xz_points, rgba);
 	for (auto& v : ret.vertices) { v.position.y += stalk_height + 0.5f * head_size; }
-	auto stalk = make_cylinder(stalk_diam, stalk_height, xz_points, rgb);
+	auto stalk = make_cylinder(stalk_diam, stalk_height, xz_points, rgba);
 	for (auto& v : stalk.vertices) { v.position.y += 0.5f * stalk_height; }
 	ret.append(stalk.vertices, stalk.indices);
 	return ret;
 }
 
-auto levk::make_manipulator(float stalk_diam, float stalk_height, std::uint32_t xy_points, glm::vec3 rgb) -> Geometry {
+auto levk::make_manipulator(float stalk_diam, float stalk_height, std::uint32_t xy_points, glm::vec4 rgba) -> Geometry {
 	auto arrow = [&](std::optional<glm::vec3> const rotation) {
-		auto ret = make_arrow(stalk_diam, stalk_height, xy_points, rgb);
+		auto ret = make_arrow(stalk_diam, stalk_height, xy_points, rgba);
 		if (rotation) {
 			for (auto& v : ret.vertices) {
 				v.position = glm::rotate(v.position, glm::radians(90.0f), *rotation);

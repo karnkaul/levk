@@ -3,6 +3,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   component.cpp
   entity.cpp
   freecam_controller.cpp
+  particle_system.cpp
   scene_manager.cpp
   scene_renderer.cpp
   scene.cpp

@@ -363,8 +363,8 @@ VertexInput VertexInput::for_static() {
 	auto ret = for_shadow();
 
 	// rgb
-	ret.bindings.insert(vk::VertexInputBindingDescription{1, sizeof(glm::vec3)});
-	ret.attributes.insert(vk::VertexInputAttributeDescription{1, 1, vk::Format::eR32G32B32Sfloat});
+	ret.bindings.insert(vk::VertexInputBindingDescription{1, sizeof(glm::vec4)});
+	ret.attributes.insert(vk::VertexInputAttributeDescription{1, 1, vk::Format::eR32G32B32A32Sfloat});
 
 	// normal
 	ret.bindings.insert(vk::VertexInputBindingDescription{2, sizeof(glm::vec3)});
