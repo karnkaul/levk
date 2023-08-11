@@ -11,7 +11,7 @@ void SkeletonController::change_animation(std::optional<Id<Animation>> index) {
 	if (index != enabled) {
 		auto* entity = owning_entity();
 		if (!entity) { return; }
-		auto* mesh_renderer = entity->find<SkinnedMeshRenderer>();
+		auto* mesh_renderer = entity->find_component<SkinnedMeshRenderer>();
 		if (!mesh_renderer) { return; }
 		if (index && *index >= mesh_renderer->skeleton().animations.size()) { index.reset(); }
 		enabled = index;
@@ -22,7 +22,7 @@ void SkeletonController::change_animation(std::optional<Id<Animation>> index) {
 glm::mat4 SkeletonController::global_transform(Id<Node> node_id) const {
 	auto* entity = owning_entity();
 	if (!entity) { return glm::identity<glm::mat4>(); }
-	auto* renderer = entity->find<SkinnedMeshRenderer>();
+	auto* renderer = entity->find_component<SkinnedMeshRenderer>();
 	if (!renderer) { return glm::identity<glm::mat4>(); }
 	return renderer->global_transform(node_id);
 }
@@ -32,7 +32,7 @@ void SkeletonController::tick(Duration dt) {
 	auto* entity = owning_entity();
 	auto* asset_providers = Service<AssetProviders>::find();
 	if (!entity || !asset_providers) { return; }
-	auto* renderer = entity->find<SkinnedMeshRenderer>();
+	auto* renderer = entity->find_component<SkinnedMeshRenderer>();
 	if (!renderer || *enabled >= renderer->skeleton().animations.size()) {
 		enabled.reset();
 		return;

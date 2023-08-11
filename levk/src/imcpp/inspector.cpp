@@ -100,7 +100,7 @@ void inspect(OpenWindow w, SkinnedMeshRenderer& mesh_renderer) {
 }
 
 void inspect(OpenWindow, Entity const& entity, SkeletonController& skeleton_controller) {
-	auto const* skinned_mesh_renderer = entity.find<SkinnedMeshRenderer>();
+	auto const* skinned_mesh_renderer = entity.find_component<SkinnedMeshRenderer>();
 	if (!skinned_mesh_renderer) { return; }
 	auto const preview = skeleton_controller.enabled ? FixedString{"{}", skeleton_controller.enabled->value()} : FixedString{"[None]"};
 	if (auto combo = imcpp::Combo{"Active", preview.c_str()}) {
