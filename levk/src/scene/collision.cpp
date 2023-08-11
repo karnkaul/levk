@@ -27,7 +27,7 @@ void Collision::tick(Scene const& scene, Duration dt) {
 			continue;
 		}
 		auto& entry = it->second;
-		entry.collider = entity->find<ColliderAabb>();
+		entry.collider = entity->find_component<ColliderAabb>();
 		if (!entry.collider) {
 			it = m_entries.erase(it);
 			continue;

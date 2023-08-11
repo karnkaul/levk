@@ -29,19 +29,19 @@ class Entity final {
 	}
 
 	template <ComponentT T>
-	Ptr<T> find() const {
+	Ptr<T> find_component() const {
 		if (auto it = m_components.find(TypeId::make<T>().value()); it != m_components.end()) { return &static_cast<T&>(*it->second); }
 		return {};
 	}
 
 	template <ComponentT T>
 	bool contains() const {
-		return find<T>() != nullptr;
+		return find_component<T>() != nullptr;
 	}
 
 	template <ComponentT T>
-	T& get() const {
-		auto ret = find<T>();
+	T& get_component() const {
+		auto ret = find_component<T>();
 		assert(ret);
 		return *ret;
 	}

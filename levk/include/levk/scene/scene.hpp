@@ -37,14 +37,14 @@ class Scene : public Pinned {
 	Ptr<Type> find_component(Id<Entity> id) const {
 		auto* e = find_entity(id);
 		if (!e) { return {}; }
-		return e->template find<Type>();
+		return e->template find_component<Type>();
 	}
 
 	template <std::derived_from<Component> Type>
 	Type& get_component(Id<Entity> id) const {
 		auto* e = find_entity(id);
 		assert(e);
-		auto* ret = e->template find<Type>();
+		auto* ret = e->template find_component<Type>();
 		assert(ret);
 		return *ret;
 	}
