@@ -39,6 +39,7 @@ void Player::create(levk::Entity& out) {
 
 	auto& cannon = out.attach(std::make_unique<Cannon>());
 	cannon.tint = cannon_tint;
+	cannon.z = cannon_z;
 
 	player.target_spawner = target_spawner;
 

@@ -28,7 +28,7 @@ void Cannon::tick(levk::Duration dt) {
 
 	auto const& self = owning_entity()->transform().position();
 	quad->quad.size = {target.x - self.x, height};
-	quad->quad.origin.x = 0.5f * quad->quad.size.x;
+	quad->quad.origin = {0.5f * quad->quad.size.x, 0.0f, z};
 	quad->quad.rgb = tint;
 	quad->material_uri = "materials/unlit";
 	renderer.set_shape(std::move(quad));

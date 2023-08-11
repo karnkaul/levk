@@ -13,6 +13,7 @@ class Cannon : public Actor {
 	levk::Rgba tint{levk::cyan_v};
 	float dps{100.0f};
 	float height{0.05f};
+	float z{};
 
 	bool fire_beam();
 	bool is_firing() const { return m_remain > 0s; }

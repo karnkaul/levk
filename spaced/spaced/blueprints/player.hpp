@@ -7,6 +7,7 @@ namespace spaced::blueprint {
 struct Player : Blueprint {
 	levk::Id<levk::Node> turret_rounds_parent{};
 	levk::Ptr<Projectile> turret_projectile_bp{};
+	float cannon_z{-1.0f};
 	levk::EntityId target_spawner{};
 	levk::Rgba cannon_tint{levk::cyan_v};
 
