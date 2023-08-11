@@ -63,6 +63,7 @@ class DynamicPrimitive : public Primitive {
 	DynamicPrimitive(vulkan::Device& device);
 
 	void set_geometry(Geometry::Packed geometry);
+	Geometry::Packed& geometry() const;
 
 	std::uint32_t vertex_count() const final;
 	std::uint32_t index_count() const final;
