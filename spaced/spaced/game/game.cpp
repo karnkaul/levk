@@ -1,6 +1,7 @@
 #include <imgui.h>
 #include <levk/imcpp/common.hpp>
 #include <levk/imcpp/reflector.hpp>
+#include <levk/service.hpp>
 #include <levk/window/window_state.hpp>
 #include <spaced/actors/asteroid.hpp>
 #include <spaced/actors/player.hpp>
@@ -52,7 +53,7 @@ void Game::setup() {
 void Game::tick(levk::Duration dt) {
 	Scene::tick(dt);
 
-	draw_editor();
+	draw_editor(dt);
 }
 
 void Game::setup_player() {
@@ -111,7 +112,7 @@ void Game::spawn_asteroid() {
 	assert(entity.find_component<levk::ColliderAabb>());
 }
 
-void Game::draw_editor() {
+void Game::draw_editor(levk::Duration dt) {
 	if (auto w = levk::imcpp::Window{"Editor"}) {
 		if (auto tn = levk::imcpp::TreeNode{"Camera"}) { levk::imcpp::Reflector{w}(camera); }
 		if (auto tn = levk::imcpp::TreeNode{"Player Controller"}) { get_component<PlayerController>(m_player).inspect(w); }
@@ -122,5 +123,6 @@ void Game::draw_editor() {
 	}
 
 	if (auto w = levk::imcpp::Window{"Scene"}) { m_scene_graph.draw_to(w, *this); }
+	if (auto w = levk::imcpp::Window{"Engine Stats"}) { m_engine_status.draw_to(w, levk::Service<levk::Engine>::locate(), dt); }
 }
 } // namespace spaced

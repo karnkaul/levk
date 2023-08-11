@@ -1,4 +1,5 @@
 #pragma once
+#include <levk/imcpp/engine_status.hpp>
 #include <levk/imcpp/scene_graph.hpp>
 #include <levk/scene/scene.hpp>
 #include <spaced/blueprints/asteroid.hpp>
@@ -16,9 +17,10 @@ class Game : public levk::Scene {
 
 	void spawn_asteroid();
 
-	void draw_editor();
+	void draw_editor(levk::Duration dt);
 
 	levk::imcpp::SceneGraph m_scene_graph{};
+	levk::imcpp::EngineStatus m_engine_status{};
 	blueprint::Asteroid m_asteroid_bp{};
 	blueprint::Player m_player_bp{};
 	blueprint::Projectile m_projectile_bp{};
